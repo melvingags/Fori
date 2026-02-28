@@ -1,13 +1,13 @@
 import os
 import json
 import logging
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_file
 import google.generativeai as genai
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__, static_folder='static')
+app = Flask(__name__)
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
@@ -41,7 +41,10 @@ IMPORTANT RULES:
 
 @app.route('/')
 def index():
-    return send_from_directory('static', 'index.html')
+    static_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'index.html')
+    if os.path.exists(static_path):
+        return send_file(static_path)
+    return "<h1>LEX is online</h1><p>Static files not found. Check your repo structure.</p>", 200
 
 @app.route('/ask', methods=['POST'])
 def ask():
@@ -61,7 +64,7 @@ def ask():
 Legal Category: {category}
 User Question: {question}
 
-Please provide a clear, accurate legal answer based on the laws of {country}. 
+Please provide a clear, accurate legal answer based on the laws of {country}.
 Structure your answer with clear sections and cite specific laws where possible."""
 
         chat = model.start_chat(history=[
