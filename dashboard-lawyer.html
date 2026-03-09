@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>LEX — Lawyer Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-primary: #0a0a0a; --bg-secondary: #111111; --bg-card: #161616;
+    --bg-elevated: #1c1c1c; --text-primary: #ffffff; --text-secondary: #a0a0a0;
+    --text-muted: #666666; --accent-gold: #c9a86c; --accent-gold-light: #e0c090;
+    --border: #2a2a2a; --border-light: #333333; --sidebar-width: 260px;
+  }
+  [data-theme="light"] {
+    --bg-primary: #fafafa; --bg-secondary: #ffffff; --bg-card: #f5f5f5;
+    --bg-elevated: #ffffff; --text-primary: #1a1a1a; --text-secondary: #666666;
+    --text-muted: #999999; --accent-gold: #8b7355; --accent-gold-light: #a08060;
+    --border: #e5e5e5; --border-light: #eeeeee;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg-primary); color:var(--text-primary); font-family:'Inter',sans-serif; min-height:100vh; display:flex; transition:background 0.4s ease,color 0.4s ease; }
+
+  .sidebar { width:var(--sidebar-width); background:var(--bg-secondary); border-right:1px solid var(--border); height:100vh; position:fixed; left:0; top:0; display:flex; flex-direction:column; z-index:100; transform:translateX(-100%); transition:transform 0.3s ease,background 0.4s,border 0.4s; }
+  .sidebar.open { transform:translateX(0); }
+  @media (min-width:1024px) { .sidebar { transform:translateX(0); } .main-content { margin-left:var(--sidebar-width); } }
+
+  .sidebar-header { padding:22px 20px; border-bottom:1px solid var(--border); }
+  .logo { font-family:'Cormorant Garamond',serif; font-size:22px; font-weight:700; color:var(--text-primary); letter-spacing:2px; display:flex; align-items:center; gap:10px; }
+  .logo-icon { width:30px; height:30px; border:1.5px solid var(--accent-gold); border-radius:50%; display:flex; align-items:center; justify-content:center; color:var(--accent-gold); }
+
+  .firm-profile { padding:18px 20px; border-bottom:1px solid var(--border); }
+  .firm-avatar { width:44px; height:44px; background:rgba(201,168,108,0.12); border:1px solid var(--accent-gold); border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:'Cormorant Garamond',serif; font-size:20px; color:var(--accent-gold); margin-bottom:10px; }
+  .firm-name { font-size:14px; font-weight:600; color:var(--text-primary); margin-bottom:2px; }
+  .firm-type { font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:var(--accent-gold); margin-bottom:8px; }
+  .verified-badge { display:inline-flex; align-items:center; gap:4px; background:rgba(39,174,96,0.08); border:1px solid rgba(39,174,96,0.25); color:#27ae60; font-size:10px; padding:3px 8px; }
+
+  .sidebar-nav { flex:1; padding:12px 0; overflow-y:auto; }
+  .nav-section-label { font-size:9px; letter-spacing:2px; text-transform:uppercase; color:var(--text-muted); padding:16px 20px 8px; }
+  .nav-item { display:flex; align-items:center; gap:12px; padding:12px 20px; cursor:pointer; color:var(--text-secondary); font-size:14px; transition:all 0.2s; border-left:2px solid transparent; text-decoration:none; }
+  .nav-item:hover { color:var(--text-primary); background:var(--bg-card); }
+  .nav-item.active { color:var(--accent-gold); border-left-color:var(--accent-gold); background:rgba(201,168,108,0.05); }
+  .nav-icon { width:18px; height:18px; flex-shrink:0; }
+  .nav-badge { margin-left:auto; background:#e74c3c; color:#fff; font-size:9px; font-weight:700; padding:2px 7px; border-radius:10px; }
+  .nav-badge.gold { background:var(--accent-gold); color:var(--bg-primary); }
+
+  .sidebar-footer { padding:14px 20px; border-top:1px solid var(--border); display:flex; gap:10px; align-items:center; }
+  .sidebar-footer-btn { flex:1; padding:8px; background:transparent; border:1px solid var(--border); color:var(--text-muted); font-size:11px; cursor:pointer; transition:all 0.3s; }
+  .sidebar-footer-btn:hover { border-color:var(--accent-gold); color:var(--accent-gold); }
+  .theme-toggle { background:var(--bg-card); border:1px solid var(--border); border-radius:50px; padding:4px; display:flex; gap:2px; cursor:pointer; }
+  .theme-btn { width:26px; height:26px; border:none; background:transparent; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; color:var(--text-secondary); transition:all 0.3s ease; font-size:11px; }
+  .theme-btn.active { background:var(--accent-gold); color:var(--bg-primary); }
+
+  .main-content { flex:1; min-height:100vh; display:flex; flex-direction:column; background:var(--bg-primary); transition:background 0.4s; }
+
+  .topbar { position:sticky; top:0; z-index:50; background:var(--bg-primary); border-bottom:1px solid var(--border); padding:15px 24px; display:flex; align-items:center; gap:16px; transition:background 0.4s,border 0.4s; }
+  .menu-btn { width:36px; height:36px; background:transparent; border:1px solid var(--border); color:var(--text-secondary); cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.3s; }
+  .menu-btn:hover { border-color:var(--accent-gold); color:var(--accent-gold); }
+  @media (min-width:1024px) { .menu-btn { display:none; } }
+  .topbar-title { font-family:'Cormorant Garamond',serif; font-size:22px; font-weight:400; color:var(--text-primary); }
+  .topbar-right { margin-left:auto; display:flex; align-items:center; gap:12px; }
+  .notif-btn { width:36px; height:36px; background:transparent; border:1px solid var(--border); color:var(--text-secondary); cursor:pointer; display:flex; align-items:center; justify-content:center; position:relative; transition:all 0.3s; }
+  .notif-btn:hover { border-color:var(--accent-gold); color:var(--accent-gold); }
+  .notif-dot { position:absolute; top:6px; right:6px; width:7px; height:7px; background:#e74c3c; border-radius:50%; }
+
+  .page { display:none; flex:1; }
+  .page.active { display:flex; flex-direction:column; }
+  .content-area { padding:32px 24px; max-width:1000px; width:100%; margin:0 auto; }
+
+  .page-label { font-size:10px; letter-spacing:3px; text-transform:uppercase; color:var(--accent-gold); margin-bottom:12px; display:flex; align-items:center; gap:12px; }
+  .page-label::before { content:''; width:30px; height:1px; background:var(--accent-gold); }
+  .page-title { font-family:'Cormorant Garamond',serif; font-size:clamp(28px,5vw,40px); font-weight:400; color:var(--text-primary); line-height:1.1; margin-bottom:32px; }
+  .page-title em { font-style:italic; color:var(--accent-gold); }
+
+  .stats-row { display:grid; grid-template-columns:repeat(2,1fr); gap:16px; margin-bottom:32px; }
+  @media (min-width:768px) { .stats-row { grid-template-columns:repeat(4,1fr); } }
+  .stat-card { background:var(--bg-card); border:1px solid var(--border); padding:20px; position:relative; overflow:hidden; transition:background 0.4s,border 0.4s; }
+  .stat-card::before { content:''; position:absolute; top:0; left:0; width:100%; height:2px; background:linear-gradient(to right,var(--accent-gold),transparent); }
+  .stat-num { font-family:'Cormorant Garamond',serif; font-size:36px; font-weight:600; color:var(--text-primary); line-height:1; margin-bottom:6px; }
+  .stat-label { font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:var(--text-muted); }
+  .stat-change { font-size:11px; color:#27ae60; margin-top:4px; }
+
+  .leads-list { display:flex; flex-direction:column; gap:16px; margin-bottom:32px; }
+  .lead-card { background:var(--bg-card); border:1px solid var(--border); padding:20px; transition:all 0.3s; position:relative; }
+  .lead-card::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--accent-gold); }
+  .lead-header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:8px; gap:12px; }
+  .lead-subject { font-size:14px; font-weight:600; color:var(--text-primary); }
+  .lead-tag { background:rgba(201,168,108,0.1); color:var(--accent-gold); font-size:10px; padding:3px 8px; flex-shrink:0; }
+  .lead-desc { font-size:13px; color:var(--text-secondary); line-height:1.5; margin-bottom:12px; }
+  .lead-footer { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .lead-meta { font-size:11px; color:var(--text-muted); display:flex; gap:12px; }
+  .lead-actions { display:flex; gap:8px; }
+  .lead-btn { padding:8px 16px; font-family:'Inter',sans-serif; font-size:11px; font-weight:600; letter-spacing:1px; text-transform:uppercase; cursor:pointer; transition:all 0.3s; border:none; }
+  .lead-btn.accept { background:var(--accent-gold); color:var(--bg-primary); }
+  .lead-btn.accept:hover { background:var(--accent-gold-light); }
+  .lead-btn.decline { background:transparent; border:1px solid var(--border); color:var(--text-muted); }
+  .lead-btn.decline:hover { border-color:#e74c3c; color:#e74c3c; }
+
+  .cases-table { width:100%; border-collapse:collapse; }
+  .cases-table th { font-size:9px; letter-spacing:2px; text-transform:uppercase; color:var(--text-muted); padding:12px 16px; text-align:left; border-bottom:1px solid var(--border); font-weight:400; }
+  .cases-table td { padding:16px; font-size:14px; color:var(--text-secondary); border-bottom:1px solid var(--border); }
+  .case-status { font-size:10px; letter-spacing:0.5px; padding:4px 10px; font-weight:600; }
+  .case-status.won { background:rgba(39,174,96,0.1); color:#27ae60; }
+  .case-status.active { background:rgba(201,168,108,0.1); color:var(--accent-gold); }
+  .case-status.pending { background:rgba(100,100,100,0.1); color:var(--text-muted); }
+
+  .form-box { background:var(--bg-card); border:1px solid var(--border); padding:28px; position:relative; margin-bottom:24px; transition:background 0.4s,border 0.4s; }
+  .form-box::before { content:''; position:absolute; top:0; left:0; width:100%; height:2px; background:linear-gradient(to right,var(--accent-gold),transparent); }
+  .form-group { margin-bottom:18px; }
+  .form-label { font-size:9px; letter-spacing:2px; text-transform:uppercase; color:var(--text-muted); margin-bottom:7px; display:block; }
+  .form-input { width:100%; background:var(--bg-elevated); border:1px solid var(--border); color:var(--text-primary); padding:12px 15px; font-family:'Inter',sans-serif; font-size:14px; transition:all 0.3s; }
+  .form-input:focus { outline:none; border-color:var(--accent-gold); }
+  .form-input::placeholder { color:var(--text-muted); }
+  .form-textarea { width:100%; background:var(--bg-elevated); border:1px solid var(--border); color:var(--text-primary); padding:12px 15px; font-family:'Inter',sans-serif; font-size:14px; resize:none; height:100px; transition:all 0.3s; }
+  .form-textarea:focus { outline:none; border-color:var(--accent-gold); }
+  .form-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .lex-select { width:100%; background:var(--bg-elevated); border:1px solid var(--border); color:var(--text-primary); padding:12px 15px; font-family:'Inter',sans-serif; font-size:14px; cursor:pointer; appearance:none; background-image:url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23666' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 15px center; transition:all 0.3s; }
+  .lex-select:focus { outline:none; border-color:var(--accent-gold); }
+
+  .submit-btn { padding:14px 28px; background:var(--accent-gold); color:var(--bg-primary); border:none; font-family:'Inter',sans-serif; font-size:11px; font-weight:600; letter-spacing:2px; text-transform:uppercase; cursor:pointer; transition:all 0.3s; display:flex; align-items:center; gap:10px; }
+  .submit-btn:hover { background:var(--accent-gold-light); }
+
+  /* AI Tool */
+  .question-input { width:100%; background:var(--bg-elevated); border:1px solid var(--border); color:var(--text-primary); padding:16px; font-family:'Inter',sans-serif; font-size:15px; resize:none; height:130px; transition:all 0.3s; margin-bottom:20px; }
+  .question-input:focus { outline:none; border-color:var(--accent-gold); }
+  .question-input::placeholder { color:var(--text-muted); }
+  .select-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px; }
+  .select-label { font-size:9px; letter-spacing:2px; text-transform:uppercase; color:var(--text-muted); margin-bottom:8px; display:block; }
+  .ask-btn { padding:14px 28px; background:var(--accent-gold); color:var(--bg-primary); border:none; font-family:'Inter',sans-serif; font-size:12px; font-weight:600; letter-spacing:2px; text-transform:uppercase; cursor:pointer; transition:all 0.3s; display:flex; align-items:center; gap:10px; }
+  .ask-btn:hover { background:var(--accent-gold-light); }
+  .ask-btn:disabled { opacity:0.4; cursor:not-allowed; }
+  .loading { display:none; align-items:center; gap:12px; padding:20px; color:var(--text-secondary); font-size:13px; border-top:1px solid var(--border); }
+  .loading.visible { display:flex; }
+  .loading-dots { display:flex; gap:4px; }
+  .loading-dots span { width:6px; height:6px; background:var(--accent-gold); border-radius:50%; animation:bounce 1.4s infinite; }
+  .loading-dots span:nth-child(2) { animation-delay:0.2s; }
+  .loading-dots span:nth-child(3) { animation-delay:0.4s; }
+  @keyframes bounce { 0%,80%,100%{transform:scale(0.6);opacity:0.4;}40%{transform:scale(1);opacity:1;} }
+  .answer-box { background:var(--bg-elevated); border-top:1px solid var(--border); padding:28px; display:none; animation:fadeUp 0.6s ease both; }
+  .answer-box.visible { display:block; }
+  .answer-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; flex-wrap:wrap; gap:8px; }
+  .answer-badge { background:rgba(201,168,108,0.12); color:var(--accent-gold); font-size:10px; letter-spacing:2px; text-transform:uppercase; padding:6px 12px; border:1px solid rgba(201,168,108,0.3); }
+  .answer-actions { display:flex; gap:8px; }
+  .answer-action-btn { padding:6px 12px; background:transparent; border:1px solid var(--border); color:var(--text-muted); font-size:11px; cursor:pointer; transition:all 0.3s; }
+  .answer-action-btn:hover { border-color:var(--accent-gold); color:var(--accent-gold); }
+  .answer-text { font-size:15px; line-height:1.8; color:var(--text-secondary); white-space:pre-wrap; font-weight:300; }
+  .answer-disclaimer { margin-top:20px; padding:14px; background:rgba(201,168,108,0.04); border:1px solid var(--border); font-size:11px; color:var(--text-muted); line-height:1.6; }
+  .error-box { background:rgba(231,76,60,0.05); border-top:1px solid rgba(231,76,60,0.2); padding:16px 28px; display:none; }
+  .error-box.visible { display:block; }
+  .error-text { font-size:13px; color:#e74c3c; }
+
+  /* AI Chat */
+  .chat-wrap { display:flex; flex-direction:column; height:calc(100vh - 60px); }
+  .chat-messages { flex:1; overflow-y:auto; padding:24px; display:flex; flex-direction:column; gap:20px; }
+  .chat-bubble { max-width:80%; animation:fadeUp 0.3s ease both; }
+  .chat-bubble.user { align-self:flex-end; }
+  .chat-bubble.assistant { align-self:flex-start; }
+  .bubble-label { font-size:9px; letter-spacing:2px; text-transform:uppercase; color:var(--text-muted); margin-bottom:6px; }
+  .bubble-label.user-label { text-align:right; color:var(--accent-gold); }
+  .bubble-content { padding:16px 20px; font-size:14px; line-height:1.8; font-weight:300; }
+  .bubble-content.user { background:rgba(201,168,108,0.1); border:1px solid rgba(201,168,108,0.25); color:var(--text-primary); border-radius:2px 2px 0 2px; }
+  .bubble-content.assistant { background:var(--bg-card); border:1px solid var(--border); color:var(--text-secondary); border-radius:2px 2px 2px 0; }
+  .bubble-actions { display:flex; gap:6px; margin-top:8px; }
+  .bubble-action { padding:4px 10px; background:transparent; border:1px solid var(--border); color:var(--text-muted); font-size:10px; cursor:pointer; transition:all 0.3s; }
+  .bubble-action:hover { border-color:var(--accent-gold); color:var(--accent-gold); }
+  .chat-disclaimer { font-size:10px; color:var(--text-muted); padding:0 24px 12px; text-align:center; line-height:1.6; }
+  .chat-input-area { border-top:1px solid var(--border); padding:16px 24px; background:var(--bg-primary); transition:background 0.4s; }
+  .chat-meta-row { display:flex; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
+  .chat-select-mini { background:var(--bg-card); border:1px solid var(--border); color:var(--text-secondary); padding:6px 28px 6px 10px; font-family:'Inter',sans-serif; font-size:12px; cursor:pointer; appearance:none; background-image:url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23666' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 10px center; transition:all 0.3s; }
+  .chat-select-mini:focus { outline:none; border-color:var(--accent-gold); }
+  .chat-input-row { display:flex; gap:10px; align-items:flex-end; }
+  .chat-input { flex:1; background:var(--bg-card); border:1px solid var(--border); color:var(--text-primary); padding:12px 16px; font-family:'Inter',sans-serif; font-size:14px; resize:none; min-height:48px; max-height:140px; transition:border 0.3s; line-height:1.5; }
+  .chat-input:focus { outline:none; border-color:var(--accent-gold); }
+  .chat-input::placeholder { color:var(--text-muted); }
+  .chat-send-btn { width:48px; height:48px; background:var(--accent-gold); border:none; color:var(--bg-primary); cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:all 0.3s; }
+  .chat-send-btn:hover { background:var(--accent-gold-light); }
+  .chat-send-btn:disabled { opacity:0.4; cursor:not-allowed; }
+  .chat-typing { display:none; align-items:center; gap:8px; padding:12px 24px; }
+  .chat-typing.visible { display:flex; }
+  .typing-dots { display:flex; gap:4px; }
+  .typing-dots span { width:5px; height:5px; background:var(--accent-gold); border-radius:50%; animation:bounce 1.4s infinite; }
+  .typing-dots span:nth-child(2) { animation-delay:0.2s; }
+  .typing-dots span:nth-child(3) { animation-delay:0.4s; }
+
+  .sidebar-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:99; }
+  .sidebar-overlay.visible { display:block; }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);} }
+  @media (max-width:600px) { .select-row{grid-template-columns:1fr;} .form-row{grid-template-columns:1fr;} }
+
+  /* AI Chat */
+  .chat-wrap { display:flex; flex-direction:column; height:calc(100vh - 60px); }
+  .chat-messages { flex:1; overflow-y:auto; padding:24px; display:flex; flex-direction:column; gap:20px; }
+  .chat-bubble { max-width:80%; animation:fadeUp 0.3s ease both; }
+  .chat-bubble.user { align-self:flex-end; }
+  .chat-bubble.assistant { align-self:flex-start; }
+  .bubble-label { font-size:9px; letter-spacing:2px; text-transform:uppercase; color:var(--text-muted); margin-bottom:6px; }
+  .bubble-label.user-label { text-align:right; color:var(--accent-gold); }
+  .bubble-content { padding:16px 20px; font-size:14px; line-height:1.8; font-weight:300; }
+  .bubble-content.user { background:rgba(201,168,108,0.1); border:1px solid rgba(201,168,108,0.25); color:var(--text-primary); border-radius:2px 2px 0 2px; }
+  .bubble-content.assistant { background:var(--bg-card); border:1px solid var(--border); color:var(--text-secondary); border-radius:2px 2px 2px 0; }
+  .bubble-actions { display:flex; gap:6px; margin-top:8px; }
+  .bubble-action { padding:4px 10px; background:transparent; border:1px solid var(--border); color:var(--text-muted); font-size:10px; cursor:pointer; transition:all 0.3s; }
+  .bubble-action:hover { border-color:var(--accent-gold); color:var(--accent-gold); }
+  .chat-disclaimer { font-size:10px; color:var(--text-muted); padding:0 24px 12px; text-align:center; line-height:1.6; }
+  .chat-input-area { border-top:1px solid var(--border); padding:16px 24px; background:var(--bg-primary); transition:background 0.4s; }
+  .chat-input-row { display:flex; gap:10px; align-items:flex-end; }
+  .chat-input { flex:1; background:var(--bg-card); border:1px solid var(--border); color:var(--text-primary); padding:12px 16px; font-family:'Inter',sans-serif; font-size:14px; resize:none; min-height:48px; max-height:140px; transition:border 0.3s; line-height:1.5; }
+  .chat-input:focus { outline:none; border-color:var(--accent-gold); }
+  .chat-input::placeholder { color:var(--text-muted); }
+  .chat-send-btn { width:48px; height:48px; background:var(--accent-gold); border:none; color:var(--bg-primary); cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:all 0.3s; }
+  .chat-send-btn:hover { background:var(--accent-gold-light); }
+  .chat-send-btn:disabled { opacity:0.4; cursor:not-allowed; }
+  .chat-meta-row { display:flex; align-items:center; gap:12px; margin-bottom:10px; flex-wrap:wrap; }
+  .chat-select-mini { background:var(--bg-card); border:1px solid var(--border); color:var(--text-secondary); padding:6px 28px 6px 10px; font-family:'Inter',sans-serif; font-size:12px; cursor:pointer; appearance:none; background-image:url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23666' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 10px center; transition:all 0.3s; }
+  .chat-select-mini:focus { outline:none; border-color:var(--accent-gold); }
+  .chat-typing { display:none; align-items:center; gap:8px; padding:12px 20px; }
+  .chat-typing.visible { display:flex; }
+  .typing-dots { display:flex; gap:4px; }
+  .typing-dots span { width:5px; height:5px; background:var(--accent-gold); border-radius:50%; animation:bounce 1.4s infinite; }
+  .typing-dots span:nth-child(2) { animation-delay:0.2s; }
+  .typing-dots span:nth-child(3) { animation-delay:0.4s; }
+</style>
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
+  import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+  import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAW2Cc8KT4ss9Y0G3kpCRzDT4QE6PCiNr0",
+    authDomain: "lex-ai-bc013.firebaseapp.com",
+    projectId: "lex-ai-bc013",
+    storageBucket: "lex-ai-bc013.firebasestorage.app",
+    messagingSenderId: "668577225294",
+    appId: "1:668577225294:web:17d8f5c6ab4656d665411f"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      const snap = await getDoc(doc(db, "users", user.uid));
+      if (snap.exists()) {
+        const data = snap.data();
+        localStorage.setItem('lexUser', JSON.stringify({ uid: user.uid, name: data.name, role: data.role, plan: data.plan || 'free' }));
+        localStorage.setItem('lexRole', data.role);
+        // Redirect individual to correct dashboard
+        if (data.role !== 'lawyer') window.location.href = 'dashboard.html';
+      }
+    }
+  });
+
+  window.lexSignOut = async function() {
+    await signOut(auth);
+    localStorage.removeItem('lexUser');
+    localStorage.removeItem('lexRole');
+    window.location.href = 'index.html';
+  };
+</script>
+</head>
+
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <div class="logo">
+      <div class="logo-icon">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      </div>
+      LEX
+    </div>
+  </div>
+
+  <div class="firm-profile">
+    <div class="firm-avatar" id="firmAvatarInitial">F</div>
+    <div class="firm-name" id="firmName">Your Firm</div>
+    <div class="firm-type">Lawyer / Firm</div>
+    <div class="verified-badge">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Verification Pending
+    </div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <div class="nav-section-label">Practice</div>
+    <a class="nav-item active" onclick="showPage('overview', this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Overview
+    </a>
+    <a class="nav-item" onclick="showPage('leads', this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 8.63a19.79 19.79 0 01-3.07-8.67A2 2 0 012.18 0h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.91 8.09a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>
+      Client Leads
+      <span class="nav-badge" id="leadsBadge">3</span>
+    </a>
+    <a class="nav-item" onclick="showPage('cases', this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+      Case Manager
+    </a>
+    <a class="nav-item" onclick="showPage('aitool', this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+      LEX AI Tool
+      <span class="nav-badge gold">PRO</span>
+    </a>
+
+    <div class="nav-section-label">Profile</div>
+    <a class="nav-item" onclick="showPage('profile', this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      My Profile
+    </a>
+    <a class="nav-item" onclick="showPage('marketplace', this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+      Marketplace Listing
+    </a>
+
+    <div class="nav-section-label">Account</div>
+    <a class="nav-item" onclick="logout()">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+      Sign Out
+    </a>
+  </nav>
+
+  <div class="sidebar-footer">
+    <button class="sidebar-footer-btn" onclick="window.location.href='index.html'">← Home</button>
+    <div class="theme-toggle" onclick="toggleTheme()">
+      <button class="theme-btn" data-theme="dark">🌙</button>
+      <button class="theme-btn" data-theme="light">☀️</button>
+    </div>
+  </div>
+</aside>
+
+<main class="main-content">
+  <div class="topbar">
+    <button class="menu-btn" onclick="toggleSidebar()">
+      <svg width="18" height="14" viewBox="0 0 18 14" fill="none"><path d="M1 1H17M1 7H17M1 13H17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    </button>
+    <div class="topbar-title" id="topbarTitle">Overview</div>
+    <div class="topbar-right">
+      <button class="notif-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>
+        <div class="notif-dot"></div>
+      </button>
+    </div>
+  </div>
+
+  <!-- OVERVIEW -->
+  <div class="page active" id="page-overview">
+    <div class="content-area">
+      <div class="page-label">Dashboard</div>
+      <h1 class="page-title">Welcome back, <em>Counsellor</em></h1>
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-num">3</div><div class="stat-label">New Leads</div><div class="stat-change">↑ This week</div></div>
+        <div class="stat-card"><div class="stat-num">12</div><div class="stat-label">Active Cases</div><div class="stat-change">↑ 2 new</div></div>
+        <div class="stat-card"><div class="stat-num">91%</div><div class="stat-label">Win Rate</div><div class="stat-change">↑ Last 30 cases</div></div>
+        <div class="stat-card"><div class="stat-num">4.9</div><div class="stat-label">Client Rating</div><div class="stat-change">↑ 47 reviews</div></div>
+      </div>
+      <div style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;">
+        <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);">Recent Leads</div>
+        <a onclick="showPage('leads',document.querySelectorAll('.nav-item')[1])" style="font-size:11px;color:var(--accent-gold);cursor:pointer;letter-spacing:1px;text-transform:uppercase;">View All →</a>
+      </div>
+      <div class="leads-list">
+        <div class="lead-card">
+          <div class="lead-header"><div class="lead-subject">Wrongful Dismissal — Employment</div><div class="lead-tag">Nigeria</div></div>
+          <div class="lead-desc">Client terminated without cause after 7 years of service. Seeking representation for unfair dismissal.</div>
+          <div class="lead-footer">
+            <div class="lead-meta"><span>2 hours ago</span><span>Verified User</span></div>
+            <div class="lead-actions"><button class="lead-btn decline" onclick="declineLead(this)">Decline</button><button class="lead-btn accept" onclick="acceptLead(this)">Accept Lead</button></div>
+          </div>
+        </div>
+        <div class="lead-card">
+          <div class="lead-header"><div class="lead-subject">Landlord Dispute — Property Law</div><div class="lead-tag">Nigeria</div></div>
+          <div class="lead-desc">Tenant facing illegal eviction. Needs urgent legal advice and possible court filing.</div>
+          <div class="lead-footer">
+            <div class="lead-meta"><span>5 hours ago</span><span>Verified User</span></div>
+            <div class="lead-actions"><button class="lead-btn decline" onclick="declineLead(this)">Decline</button><button class="lead-btn accept" onclick="acceptLead(this)">Accept Lead</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LEADS -->
+  <div class="page" id="page-leads">
+    <div class="content-area">
+      <div class="page-label">Inbox</div>
+      <h1 class="page-title">Client <em>Leads</em></h1>
+      <div class="leads-list" id="leadsList">
+        <div class="lead-card">
+          <div class="lead-header"><div class="lead-subject">Wrongful Dismissal — Employment</div><div class="lead-tag">Nigeria</div></div>
+          <div class="lead-desc">Client terminated without cause after 7 years of service. Has supporting documents.</div>
+          <div class="lead-footer">
+            <div class="lead-meta"><span>2 hours ago</span><span>Verified User</span><span>Premium</span></div>
+            <div class="lead-actions"><button class="lead-btn decline" onclick="declineLead(this)">Decline</button><button class="lead-btn accept" onclick="acceptLead(this)">Accept Lead</button></div>
+          </div>
+        </div>
+        <div class="lead-card">
+          <div class="lead-header"><div class="lead-subject">Landlord Dispute — Property Law</div><div class="lead-tag">Nigeria</div></div>
+          <div class="lead-desc">Tenant facing illegal eviction. Urgent — court filing needed within 48 hours.</div>
+          <div class="lead-footer">
+            <div class="lead-meta"><span>5 hours ago</span><span>Verified User</span></div>
+            <div class="lead-actions"><button class="lead-btn decline" onclick="declineLead(this)">Decline</button><button class="lead-btn accept" onclick="acceptLead(this)">Accept Lead</button></div>
+          </div>
+        </div>
+        <div class="lead-card">
+          <div class="lead-header"><div class="lead-subject">Business Contract Review — Corporate</div><div class="lead-tag">Nigeria</div></div>
+          <div class="lead-desc">Startup founder needs full contract review before signing a major distribution deal.</div>
+          <div class="lead-footer">
+            <div class="lead-meta"><span>1 day ago</span><span>Verified User</span><span>Business</span></div>
+            <div class="lead-actions"><button class="lead-btn decline" onclick="declineLead(this)">Decline</button><button class="lead-btn accept" onclick="acceptLead(this)">Accept Lead</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CASES -->
+  <div class="page" id="page-cases">
+    <div class="content-area">
+      <div class="page-label">Records</div>
+      <h1 class="page-title">Case <em>Manager</em></h1>
+      <div style="overflow-x:auto;">
+        <table class="cases-table">
+          <thead><tr><th>Case</th><th>Client</th><th>Area</th><th>Status</th><th>Date</th></tr></thead>
+          <tbody>
+            <tr><td style="color:var(--text-primary);font-weight:500;">Okafor v. Lagos State</td><td>Mr. Okafor</td><td>Criminal</td><td><span class="case-status won">Won</span></td><td>Jan 2026</td></tr>
+            <tr><td style="color:var(--text-primary);font-weight:500;">Adeyemi Property Dispute</td><td>Mrs. Adeyemi</td><td>Property</td><td><span class="case-status active">Active</span></td><td>Feb 2026</td></tr>
+            <tr><td style="color:var(--text-primary);font-weight:500;">TechCorp NDA Review</td><td>TechCorp Ltd</td><td>Corporate</td><td><span class="case-status won">Won</span></td><td>Dec 2025</td></tr>
+            <tr><td style="color:var(--text-primary);font-weight:500;">Ibrahim Family Matter</td><td>Mr. Ibrahim</td><td>Family</td><td><span class="case-status active">Active</span></td><td>Mar 2026</td></tr>
+            <tr><td style="color:var(--text-primary);font-weight:500;">Chukwu Employment Case</td><td>Ms. Chukwu</td><td>Employment</td><td><span class="case-status pending">Pending</span></td><td>Mar 2026</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI TOOL — CHAT -->
+  <div class="page" id="page-aitool">
+    <div class="chat-wrap">
+      <div class="chat-messages" id="aiChatMessages">
+        <div class="chat-bubble assistant">
+          <div class="bubble-label">LEX Business AI</div>
+          <div class="bubble-content assistant">Good to have you, Counsellor. I'm your LEX Business AI — running on elite analysis mode with unlimited access. Ask me to research case law, draft documents, analyse contracts, check compliance, or find precedents. How can I assist you today?</div>
+        </div>
+      </div>
+      <div class="chat-typing" id="aiChatTyping">
+        <div class="bubble-label">LEX is analysing</div>
+        <div class="typing-dots"><span></span><span></span><span></span></div>
+      </div>
+      <div class="chat-disclaimer">LEX Business AI · Elite Analysis Mode · Unlimited · Verify all citations before use in proceedings.</div>
+      <div class="chat-input-area">
+        <div class="chat-meta-row">
+          <select class="chat-select-mini" id="aiCountry"></select>
+          <select class="chat-select-mini" id="aiTask">
+            <option value="General Law">Case Research</option>
+            <option value="Contract Law">Contract Analysis</option>
+            <option value="Business & Corporate Law">Document Drafting</option>
+            <option value="Criminal Law">Precedent Search</option>
+            <option value="Employment Law">Compliance Check</option>
+          </select>
+        </div>
+        <div class="chat-input-row">
+          <textarea class="chat-input" id="aiInput" placeholder="Research, draft, analyse..." rows="1" onkeydown="handleAIKey(event)" oninput="autoResizeAI(this)"></textarea>
+          <button class="chat-send-btn" id="aiBtn" onclick="askAI()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROFILE -->
+  <div class="page" id="page-profile">
+    <div class="content-area">
+      <div class="page-label">Account</div>
+      <h1 class="page-title">My <em>Profile</em></h1>
+      <div class="form-box">
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">First Name</label><input type="text" class="form-input" placeholder="First name"></div>
+          <div class="form-group"><label class="form-label">Last Name</label><input type="text" class="form-input" placeholder="Last name"></div>
+        </div>
+        <div class="form-group"><label class="form-label">Firm Name</label><input type="text" class="form-input" placeholder="Your firm name"></div>
+        <div class="form-group"><label class="form-label">Email</label><input type="email" class="form-input" placeholder="your@firm.com"></div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Specialisation</label><input type="text" class="form-input" placeholder="e.g. Criminal Defense"></div>
+          <div class="form-group"><label class="form-label">Country</label><input type="text" class="form-input" placeholder="Nigeria"></div>
+        </div>
+        <div class="form-group"><label class="form-label">Bar Number / License</label><input type="text" class="form-input" placeholder="For verification badge"></div>
+        <div class="form-group"><label class="form-label">Bio</label><textarea class="form-textarea" placeholder="Brief professional bio..."></textarea></div>
+        <button class="submit-btn" onclick="alert('Profile saved. Verification badge pending review.')">
+          Save Profile
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8H13M13 8L9 4M13 8L9 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MARKETPLACE -->
+  <div class="page" id="page-marketplace">
+    <div class="content-area">
+      <div class="page-label">Visibility</div>
+      <h1 class="page-title">Marketplace <em>Listing</em></h1>
+      <div style="background:rgba(201,168,108,0.06);border:1px solid rgba(201,168,108,0.2);padding:18px 20px;margin-bottom:24px;font-size:14px;color:var(--text-secondary);line-height:1.7;">
+        Your public profile allows clients worldwide to find you, view your track record, and book consultations directly.
+      </div>
+      <div class="form-box">
+        <div class="form-group"><label class="form-label">Listing Title</label><input type="text" class="form-input" placeholder="e.g. Senior Criminal Defense Lawyer — Lagos"></div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Consultation Fee</label><input type="text" class="form-input" placeholder="e.g. $50 / 30 min"></div>
+          <div class="form-group"><label class="form-label">Response Time</label><input type="text" class="form-input" placeholder="e.g. Within 24 hours"></div>
+        </div>
+        <div class="form-group"><label class="form-label">Cases Won (display)</label><input type="number" class="form-input" placeholder="e.g. 94"></div>
+        <div class="form-group"><label class="form-label">Listing Status</label>
+          <select class="lex-select"><option>Active — Accepting clients</option><option>Paused — Not accepting</option></select>
+        </div>
+        <button class="submit-btn" onclick="alert('Marketplace listing updated.')">
+          Save Listing
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8H13M13 8L9 4M13 8L9 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+  const user = JSON.parse(localStorage.getItem('lexUser') || '{"role":"lawyer","name":"Firm","loginTime":' + Date.now() + '}');
+  document.getElementById('firmName').textContent = user.name || 'Your Firm';
+  document.getElementById('firmAvatarInitial').textContent = (user.name || 'F')[0].toUpperCase();
+
+  function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    document.querySelectorAll('.theme-btn').forEach(btn => btn.classList.toggle('active', btn.getAttribute('data-theme') === theme));
+    localStorage.setItem('lexTheme', theme);
+  }
+  function toggleTheme() { applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'); }
+  applyTheme(localStorage.getItem('lexTheme') || 'dark');
+
+  // ── GEO DETECTION ──
+  const COUNTRIES = [
+    'Nigeria','United States','United Kingdom','South Africa','Ghana','Kenya','India','Canada','Australia',
+    'Germany','France','Brazil','Singapore','UAE','Egypt','South Korea','Japan','Mexico','Argentina',
+    'Pakistan','Indonesia','Malaysia','Philippines','Thailand','Turkey','Saudi Arabia','Morocco',
+    'Ethiopia','Tanzania','Uganda','Rwanda','Cameroon','Ivory Coast','Senegal','New Zealand',
+    'Ireland','Netherlands','Sweden','Norway','Switzerland','Spain','Italy','Poland'
+  ];
+  const TZ_MAP = {
+    'Africa/Lagos':'Nigeria','Africa/Accra':'Ghana','Africa/Nairobi':'Kenya','Africa/Johannesburg':'South Africa',
+    'America/New_York':'United States','America/Chicago':'United States','America/Denver':'United States','America/Los_Angeles':'United States',
+    'Europe/London':'United Kingdom','Europe/Berlin':'Germany','Europe/Paris':'France','Europe/Rome':'Italy',
+    'Europe/Madrid':'Spain','Europe/Warsaw':'Poland','Europe/Zurich':'Switzerland','Europe/Amsterdam':'Netherlands',
+    'Europe/Stockholm':'Sweden','Europe/Oslo':'Norway','Europe/Dublin':'Ireland',
+    'Asia/Kolkata':'India','Asia/Tokyo':'Japan','Asia/Seoul':'South Korea','Asia/Singapore':'Singapore',
+    'Asia/Dubai':'UAE','Asia/Karachi':'Pakistan','Asia/Jakarta':'Indonesia','Asia/Kuala_Lumpur':'Malaysia',
+    'Asia/Manila':'Philippines','Asia/Bangkok':'Thailand','Asia/Riyadh':'Saudi Arabia',
+    'Australia/Sydney':'Australia','Australia/Melbourne':'Australia','Pacific/Auckland':'New Zealand',
+    'America/Toronto':'Canada','America/Vancouver':'Canada','America/Sao_Paulo':'Brazil',
+    'America/Mexico_City':'Mexico','America/Argentina/Buenos_Aires':'Argentina',
+    'Africa/Cairo':'Egypt','Africa/Casablanca':'Morocco','Africa/Addis_Ababa':'Ethiopia',
+    'Africa/Dar_es_Salaam':'Tanzania','Africa/Kampala':'Uganda','Africa/Kigali':'Rwanda',
+    'Africa/Douala':'Cameroon','Africa/Abidjan':'Ivory Coast','Africa/Dakar':'Senegal','Asia/Istanbul':'Turkey'
+  };
+  function detectCountry() {
+    try { return TZ_MAP[Intl.DateTimeFormat().resolvedOptions().timeZone] || 'Nigeria'; } catch { return 'Nigeria'; }
+  }
+  const detectedCountry = detectCountry();
+  function populateSelect(id) {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    sel.innerHTML = COUNTRIES.map(c => `<option value="${c}" ${c === detectedCountry ? 'selected' : ''}>${c}</option>`).join('');
+  }
+  populateSelect('aiCountry');
+
+  // ── NAV ──
+  function showPage(page, navEl) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById('page-' + page).classList.add('active');
+    if (navEl) navEl.classList.add('active');
+    const titles = { overview:'Overview', leads:'Client Leads', cases:'Case Manager', aitool:'LEX AI Tool', profile:'My Profile', marketplace:'Marketplace' };
+    document.getElementById('topbarTitle').textContent = titles[page] || 'LEX';
+    closeSidebar();
+  }
+  function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); document.getElementById('sidebarOverlay').classList.toggle('visible'); }
+  function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('sidebarOverlay').classList.remove('visible'); }
+
+  // ── LEADS ──
+  function acceptLead(btn) {
+    btn.closest('.lead-card').style.borderColor = '#27ae60';
+    btn.closest('.lead-card').querySelector('.lead-actions').innerHTML = '<span style="font-size:12px;color:#27ae60;letter-spacing:1px;font-weight:600;">ACCEPTED</span>';
+    updateLeadBadge();
+  }
+  function declineLead(btn) {
+    btn.closest('.lead-card').style.opacity = '0.35';
+    btn.closest('.lead-card').style.pointerEvents = 'none';
+    updateLeadBadge();
+  }
+  function updateLeadBadge() {
+    const active = document.querySelectorAll('#page-leads .lead-card:not([style*="opacity"])').length;
+    document.getElementById('leadsBadge').textContent = active;
+  }
+
+  // ── AI CHAT ──
+  const aiHistory = [];
+
+  function appendAIMessage(role, content, actions) {
+    const wrap = document.getElementById('aiChatMessages');
+    const bubble = document.createElement('div');
+    bubble.className = 'chat-bubble ' + role;
+    const label = role === 'user' ? 'You' : 'LEX';
+    const labelClass = role === 'user' ? 'bubble-label user-label' : 'bubble-label';
+    let html = `<div class="${labelClass}">${label}</div><div class="bubble-content ${role}">${content.replace(/\n/g,'<br>')}</div>`;
+    if (actions) html += `<div class="bubble-actions">${actions}</div>`;
+    bubble.innerHTML = html;
+    wrap.appendChild(bubble);
+    wrap.scrollTop = wrap.scrollHeight;
+  }
+
+  function autoResizeAI(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+  }
+
+  function handleAIKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); askAI(); }
+  }
+
+  async function askAI() {
+    const input = document.getElementById('aiInput');
+    const question = input.value.trim();
+    if (!question) return;
+    const country = document.getElementById('aiCountry').value;
+    const category = document.getElementById('aiTask').value;
+
+    appendAIMessage('user', question);
+    aiHistory.push({ role: 'user', content: question });
+    input.value = ''; input.style.height = 'auto';
+
+    document.getElementById('aiBtn').disabled = true;
+    document.getElementById('aiChatTyping').classList.add('visible');
+    document.getElementById('aiChatMessages').scrollTop = document.getElementById('aiChatMessages').scrollHeight;
+
+    try {
+      const res = await fetch('/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question, country, category, tier: 'business', history: aiHistory.slice(-6) })
+      });
+      const data = await res.json();
+      document.getElementById('aiChatTyping').classList.remove('visible');
+      document.getElementById('aiBtn').disabled = false;
+
+      if (data.error) {
+        appendAIMessage('assistant', '⚠️ ' + data.error);
+      } else {
+        const answer = data.answer;
+        aiHistory.push({ role: 'assistant', content: answer });
+        const actions = `
+          <button class="bubble-action" onclick="navigator.clipboard.writeText(decodeURIComponent('${encodeURIComponent(answer)}'))">Copy</button>
+          <button class="bubble-action" onclick="downloadAI(decodeURIComponent('${encodeURIComponent(answer)}'))">Download</button>`;
+        appendAIMessage('assistant', answer, actions);
+      }
+    } catch(e) {
+      document.getElementById('aiChatTyping').classList.remove('visible');
+      document.getElementById('aiBtn').disabled = false;
+      appendAIMessage('assistant', '⚠️ Connection error. Please try again.');
+    }
+  }
+
+  function downloadAI(text) {
+    const b = new Blob([text], {type:'text/plain'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(b);
+    a.download = 'lex-business-analysis.txt'; a.click();
+  }
+
+  function logout() { window.lexSignOut ? window.lexSignOut() : (localStorage.removeItem('lexUser'), localStorage.removeItem('lexRole'), window.location.href = 'auth.html'); }
+</script>
+</body>
+</html>
