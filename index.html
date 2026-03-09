@@ -49,7 +49,7 @@
 
 .theme-toggle {
 position: fixed;
-top: 24px;
+bottom: 24px;
 right: 24px;
 z-index: 1001;
 background: var(--bg-card);
@@ -203,18 +203,6 @@ color: var(--accent-gold); line-height: 1;
 .widget-3 .widget-num { font-size: 18px; }
 .widget-label { font-size: 8px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-muted); margin-top: 2px; }
 @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-10px); } }
-
-.stats-bar {
-display: flex; justify-content: space-between; padding: 30px 0;
-border-top: 1px solid var(--border); gap: 20px; position: relative; z-index: 2;
-background: linear-gradient(to bottom, transparent, var(--bg-primary));
-}
-.stat { text-align: left; }
-.stat-num {
-font-family: 'Cormorant Garamond', serif; font-size: 28px; font-weight: 600;
-color: var(--text-primary); line-height: 1; margin-bottom: 6px;
-}
-.stat-label { font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-muted); }
 
 .content-wrapper { position: relative; z-index: 1; background: var(--bg-primary); }
 
@@ -461,7 +449,6 @@ nav { padding: 24px 40px; }
 }
 
 @media (min-width: 1024px) {
-.theme-toggle { top: 24px; right: 24px; bottom: auto; }
 .hero { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center; padding: 140px 80px 100px; }
 .widgets-container { position: absolute; right: 0; top: 50%; transform: translateY(-50%); width: 400px; height: 400px; }
 .widget-1 { width: 140px; height: 140px; right: 20%; top: 0; }
@@ -477,6 +464,7 @@ nav { padding: 24px 40px; }
 }
 </style>
 
+<base target="_blank">
 </head>
 <body>
 
@@ -536,12 +524,6 @@ nav { padding: 24px 40px; }
     <div class="widget widget-1"><div class="widget-num">195+</div><div class="widget-label">Countries</div></div>
     <div class="widget widget-2"><div class="widget-num">1M+</div><div class="widget-label">Laws</div></div>
     <div class="widget widget-3"><div class="widget-num">24/7</div><div class="widget-label">Support</div></div>
-  </div>
-
-  <div class="stats-bar">
-    <div class="stat"><div class="stat-num">98%</div><div class="stat-label">Accuracy</div></div>
-    <div class="stat"><div class="stat-num">50+</div><div class="stat-label">Languages</div></div>
-    <div class="stat"><div class="stat-num">10s</div><div class="stat-label">Response</div></div>
   </div>
 </section>
 
