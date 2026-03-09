@@ -49,9 +49,9 @@
 
 .theme-toggle {
 position: fixed;
-bottom: 24px;
+top: 24px;
 right: 24px;
-z-index: 1000;
+z-index: 1001;
 background: var(--bg-card);
 border: 1px solid var(--border);
 border-radius: 50px;
@@ -363,6 +363,14 @@ color: var(--accent-gold); opacity: 0.4; line-height: 1; margin-bottom: 8px;
 }
 .practice-title { font-family: 'Cormorant Garamond', serif; font-size: 24px; font-weight: 400; color: var(--text-primary); }
 
+[data-theme="light"] .practice-overlay {
+  background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.6) 50%, rgba(0,0,0,0.2) 100%);
+}
+[data-theme="light"] .practice-title {
+  color: #ffffff;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+}
+
 .features-section { padding: 80px 24px; background: var(--bg-secondary); }
 .features-container { max-width: 1200px; margin: 0 auto; }
 .features-header { margin-bottom: 48px; }
@@ -427,6 +435,7 @@ footer { background: var(--bg-secondary); border-top: 1px solid var(--border); p
 @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
 
 @media (min-width: 768px) {
+.theme-toggle { top: auto; bottom: 24px; right: 24px; }
 nav { padding: 24px 40px; }
 .nav-links { display: flex; gap: 32px; list-style: none; }
 .nav-links a { color: var(--text-secondary); text-decoration: none; font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; transition: color 0.3s; }
@@ -468,7 +477,6 @@ nav { padding: 24px 40px; }
 }
 </style>
 
-<base target="_blank">
 </head>
 <body>
 
@@ -711,7 +719,8 @@ nav { padding: 24px 40px; }
         <div class="pricing-price"><sup>$</sup>0<span>/mo</span></div>
         <div class="pricing-desc">Perfect for occasional legal questions</div>
         <ul class="pricing-features">
-          <li>5 questions per day</li>
+          <li>LEX AI research tool</li>
+          <li>Free daily reset</li>
           <li>195 countries covered</li>
           <li>Basic legal information</li>
           <li>Email support</li>
