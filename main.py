@@ -166,6 +166,27 @@ def index():
         return send_file(static_path)
     return "<h1>LEX AI is online</h1>", 200
 
+@app.route('/auth.html')
+def auth():
+    static_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'auth.html')
+    if os.path.exists(static_path):
+        return send_file(static_path)
+    return "Not found", 404
+
+@app.route('/dashboard.html')
+def dashboard():
+    static_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dashboard.html')
+    if os.path.exists(static_path):
+        return send_file(static_path)
+    return "Not found", 404
+
+@app.route('/dashboard-lawyer.html')
+def dashboard_lawyer():
+    static_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dashboard-lawyer.html')
+    if os.path.exists(static_path):
+        return send_file(static_path)
+    return "Not found", 404
+
 @app.route('/ask', methods=['POST'])
 def ask():
     data = request.json
