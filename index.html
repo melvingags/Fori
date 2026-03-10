@@ -71,12 +71,12 @@ color: var(--text-secondary); transition: all 0.3s ease; font-size: 14px;
 }
 .theme-btn.active { background: var(--accent-gold); color: var(--bg-primary); }
 
-/* Custom Chat Button - Only shows if Smartsupp fails to load */
+/* Custom Chat Button - Always visible */
 .chat-trigger-btn {
   position: fixed;
   bottom: 90px;
   right: 24px;
-  z-index: 1000;
+  z-index: 999999;
   background: var(--accent-gold);
   color: var(--bg-primary);
   border: none;
@@ -90,12 +90,9 @@ color: var(--text-secondary); transition: all 0.3s ease; font-size: 14px;
   cursor: pointer;
   transition: all 0.3s ease;
   box-shadow: 0 4px 20px rgba(201, 168, 108, 0.4);
-  display: none; /* Hidden by default */
+  display: flex;
   align-items: center;
   gap: 10px;
-}
-.chat-trigger-btn.visible {
-  display: flex;
 }
 .chat-trigger-btn:hover {
   background: var(--accent-gold-light);
@@ -107,14 +104,13 @@ color: var(--text-secondary); transition: all 0.3s ease; font-size: 14px;
   height: 18px;
 }
 
-/* Smartsupp widget styling - ensure it's above everything */
+/* Smartsupp widget - ensure it's above everything when open */
 #smartsupp-widget-container,
 #smartsupp-widget-container iframe,
 .smartsupp-widget-container,
 .smartsupp-chat,
-.smartsupp-box,
-.smartsupp-button {
-  z-index: 999999 !important;
+.smartsupp-box {
+  z-index: 999998 !important;
 }
 
 /* Cookie Consent Banner */
@@ -126,7 +122,7 @@ color: var(--text-secondary); transition: all 0.3s ease; font-size: 14px;
   background: var(--bg-card);
   border-top: 1px solid var(--border);
   padding: 20px 24px;
-  z-index: 1000000; /* Above Smartsupp */
+  z-index: 1000000;
   transform: translateY(100%);
   transition: transform 0.4s ease, opacity 0.4s ease;
   opacity: 0;
@@ -218,7 +214,7 @@ body.cookie-visible .theme-toggle {
 .hero-background {
 position: fixed; top: 0; left: 0; width: 100%; height: 100vh;
 z-index: 0; pointer-events: none;
-background: var(--bg-primary); /* Fallback color */
+background: var(--bg-primary);
 }
 .hero-background img {
 width: 100%; height: 100%; object-fit: cover;
@@ -226,7 +222,7 @@ opacity: 0.4; filter: grayscale(100%) brightness(0.4); transition: opacity 0.1s 
 }
 [data-theme="light"] .hero-background img { 
   filter: grayscale(100%) brightness(0.6); 
-  opacity: 0.3; /* Increased from 0.2 for better visibility */
+  opacity: 0.3;
 }
 
 nav {
@@ -629,7 +625,7 @@ nav { padding: 24px 40px; }
   <button class="theme-btn" data-theme="light" title="Light Mode">☀️</button>
 </div>
 
-<!-- Custom Chat Trigger Button - Hidden when Smartsupp works -->
+<!-- Custom Chat Trigger Button - Always visible -->
 <button class="chat-trigger-btn" id="chatTrigger" onclick="openChat()" title="Chat with us">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
     <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
@@ -960,7 +956,7 @@ nav { padding: 24px 40px; }
 function toggleMenu() { document.getElementById('mobileMenu').classList.toggle('open'); }
 function closeMenu() { document.getElementById('mobileMenu').classList.remove('open'); }
 
-// ── THEME — key: lexTheme ──
+// ── THEME ──
 function toggleTheme() {
   const html = document.documentElement;
   const newTheme = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
@@ -971,17 +967,10 @@ function toggleTheme() {
   localStorage.setItem('lexTheme', newTheme);
 }
 
-// Force dark mode on first load (no saved theme)
-const savedTheme = localStorage.getItem('lexTheme');
-if (!savedTheme) {
-  // Default to dark mode
-  document.documentElement.setAttribute('data-theme', 'dark');
-  localStorage.setItem('lexTheme', 'dark');
-} else {
-  document.documentElement.setAttribute('data-theme', savedTheme);
-}
+const savedTheme = localStorage.getItem('lexTheme') || 'dark';
+document.documentElement.setAttribute('data-theme', savedTheme);
 document.querySelectorAll('.theme-btn').forEach(btn => {
-  btn.classList.toggle('active', btn.getAttribute('data-theme') === (savedTheme || 'dark'));
+  btn.classList.toggle('active', btn.getAttribute('data-theme') === savedTheme);
 });
 
 // ── COOKIE CONSENT ──
@@ -1008,8 +997,6 @@ function acceptCookies() {
     timestamp: new Date().toISOString()
   }));
   hideCookieBanner();
-  // Initialize Smartsupp after cookie consent
-  initSmartsupp();
   console.log('All cookies accepted');
 }
 
@@ -1028,54 +1015,39 @@ function showCookieDetails() {
   alert('Cookie Policy: Essential cookies are required for site functionality. Analytics cookies help us improve our service. Marketing cookies are used to personalize your experience.');
 }
 
-// Show banner on page load
 document.addEventListener('DOMContentLoaded', function() {
   setTimeout(showCookieBanner, 1000);
 });
 
 // ── CHAT FUNCTIONALITY ──
-let smartsuppInitialized = false;
+// Load Smartsupp immediately (not waiting for cookies for functionality)
+var _smartsupp = _smartsupp || {};
+_smartsupp.key = '99d6caca759541ed4edb4f3443bf5969a35e7845';
+_smartsupp.offsetY = 80;
+_smartsupp.position = 'right';
+_smartsupp.hideWidget = true; // Hide default widget, we use custom button
 
-function initSmartsupp() {
-  if (smartsuppInitialized) return;
-  
-  // Load Smartsupp only after cookie consent
-  var _smartsupp = _smartsupp || {};
-  _smartsupp.key = '99d6caca759541ed4edb4f3443bf5969a35e7845';
-  _smartsupp.offsetY = 80;
-  _smartsupp.position = 'right';
-  
-  window.smartsupp||(function(d) {
-    var s,c,o=smartsupp=function(){ o._.push(arguments)};o._=[];
-    s=d.getElementsByTagName('script')[0];c=d.createElement('script');
-    c.type='text/javascript';c.charset='utf-8';c.async=true;
-    c.src='https://www.smartsuppchat.com/loader.js?';
-    s.parentNode.insertBefore(c,s);
-  })(document);
-  
-  smartsuppInitialized = true;
-  
-  // Hide custom button when Smartsupp loads
-  setTimeout(function() {
-    const chatBtn = document.getElementById('chatTrigger');
-    if (chatBtn) chatBtn.style.display = 'none';
-  }, 2000);
-}
+window.smartsupp||(function(d) {
+  var s,c,o=smartsupp=function(){ o._.push(arguments)};o._=[];
+  s=d.getElementsByTagName('script')[0];c=d.createElement('script');
+  c.type='text/javascript';c.charset='utf-8';c.async=true;
+  c.src='https://www.smartsuppchat.com/loader.js?';
+  s.parentNode.insertBefore(c,s);
+})(document);
 
 function openChat() {
   if (typeof smartsupp !== 'undefined' && smartsupp) {
     smartsupp('chat:open');
+    console.log('Smartsupp chat opened');
   } else {
-    alert('Chat is loading... Please try again in a moment.');
-  }
-}
-
-// Check if cookies already accepted, init Smartsupp immediately
-const existingConsent = localStorage.getItem(COOKIE_CONSENT_KEY);
-if (existingConsent) {
-  const consent = JSON.parse(existingConsent);
-  if (consent.marketing || consent.analytics) {
-    initSmartsupp();
+    console.log('Smartsupp not loaded yet, retrying...');
+    setTimeout(function() {
+      if (typeof smartsupp !== 'undefined' && smartsupp) {
+        smartsupp('chat:open');
+      } else {
+        alert('Chat is loading... Please try again in a moment, or email us at support@lexlegal.ai');
+      }
+    }, 1000);
   }
 }
 
@@ -1231,7 +1203,6 @@ function detectCountry() {
   catch { return 'Nigeria'; }
 }
 
-// Populate 195-country dropdown, auto-select detected country
 const detectedCountry = detectCountry();
 const countrySelect = document.getElementById('countrySelect');
 ALL_COUNTRIES.forEach(c => {
@@ -1241,7 +1212,6 @@ ALL_COUNTRIES.forEach(c => {
   countrySelect.appendChild(opt);
 });
 
-// Jurisdiction autocomplete
 const jurisdictionInput = document.getElementById('jurisdictionInput');
 const suggestionsBox = document.getElementById('jurisdictionSuggestions');
 let activeIdx = -1;
@@ -1282,7 +1252,6 @@ document.addEventListener('click', e => {
   }
 });
 
-// ── PRICING TOGGLE — USD only ──
 function togglePricing(period) {
   document.querySelectorAll('.toggle-btn').forEach(btn => btn.classList.remove('active'));
   event.target.classList.add('active');
@@ -1292,7 +1261,6 @@ function togglePricing(period) {
   });
 }
 
-// ── ASK LEX ──
 function setQ(text) {
   document.getElementById('questionInput').value = text;
   document.getElementById('questionInput').focus();
