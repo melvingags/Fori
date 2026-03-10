@@ -71,7 +71,7 @@ color: var(--text-secondary); transition: all 0.3s ease; font-size: 14px;
 }
 .theme-btn.active { background: var(--accent-gold); color: var(--bg-primary); }
 
-/* Custom Chat Button */
+/* Custom Chat Button - Only shows if Smartsupp fails to load */
 .chat-trigger-btn {
   position: fixed;
   bottom: 90px;
@@ -90,23 +90,31 @@ color: var(--text-secondary); transition: all 0.3s ease; font-size: 14px;
   cursor: pointer;
   transition: all 0.3s ease;
   box-shadow: 0 4px 20px rgba(201, 168, 108, 0.4);
-  display: flex;
+  display: none; /* Hidden by default */
   align-items: center;
   gap: 10px;
+}
+.chat-trigger-btn.visible {
+  display: flex;
 }
 .chat-trigger-btn:hover {
   background: var(--accent-gold-light);
   transform: translateY(-2px);
   box-shadow: 0 6px 24px rgba(201, 168, 108, 0.5);
 }
-.chat-trigger-btn.hidden {
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(20px);
-}
 .chat-trigger-btn svg {
   width: 18px;
   height: 18px;
+}
+
+/* Smartsupp widget styling - ensure it's above everything */
+#smartsupp-widget-container,
+#smartsupp-widget-container iframe,
+.smartsupp-widget-container,
+.smartsupp-chat,
+.smartsupp-box,
+.smartsupp-button {
+  z-index: 999999 !important;
 }
 
 /* Cookie Consent Banner */
@@ -118,7 +126,7 @@ color: var(--text-secondary); transition: all 0.3s ease; font-size: 14px;
   background: var(--bg-card);
   border-top: 1px solid var(--border);
   padding: 20px 24px;
-  z-index: 1002;
+  z-index: 1000000; /* Above Smartsupp */
   transform: translateY(100%);
   transition: transform 0.4s ease, opacity 0.4s ease;
   opacity: 0;
@@ -206,33 +214,19 @@ body.cookie-visible .theme-toggle {
   bottom: 140px;
 }
 
-/* Smartsupp widget positioning */
-#smartsupp-widget-container,
-.smartsupp-widget-container {
-  z-index: 999999 !important;
+/* Fix hero background for better visibility in both modes */
+.hero-background {
+position: fixed; top: 0; left: 0; width: 100%; height: 100vh;
+z-index: 0; pointer-events: none;
+background: var(--bg-primary); /* Fallback color */
 }
-
-@media (min-width: 768px) {
-  .cookie-banner {
-    padding: 24px 40px;
-  }
-  .cookie-container {
-    flex-direction: row;
-    align-items: center;
-    gap: 40px;
-  }
-  .cookie-actions {
-    width: auto;
-    flex-direction: row;
-    flex-shrink: 0;
-  }
-  body.cookie-visible .chat-trigger-btn {
-    bottom: 110px;
-  }
-  body.cookie-visible .theme-toggle {
-    bottom: 24px;
-    right: 140px;
-  }
+.hero-background img {
+width: 100%; height: 100%; object-fit: cover;
+opacity: 0.4; filter: grayscale(100%) brightness(0.4); transition: opacity 0.1s linear;
+}
+[data-theme="light"] .hero-background img { 
+  filter: grayscale(100%) brightness(0.6); 
+  opacity: 0.3; /* Increased from 0.2 for better visibility */
 }
 
 nav {
@@ -283,16 +277,6 @@ font-family: 'Cormorant Garamond', serif; font-size: 32px;
 color: var(--text-primary); text-decoration: none; transition: color 0.3s;
 }
 .mobile-menu a:hover { color: var(--accent-gold); }
-
-.hero-background {
-position: fixed; top: 0; left: 0; width: 100%; height: 100vh;
-z-index: 0; pointer-events: none;
-}
-.hero-background img {
-width: 100%; height: 100%; object-fit: cover;
-opacity: 0.4; filter: grayscale(100%) brightness(0.4); transition: opacity 0.1s linear;
-}
-[data-theme="light"] .hero-background img { filter: grayscale(100%) brightness(0.8); opacity: 0.2; }
 
 .hero {
 position: relative; min-height: 100vh; padding: 120px 24px 80px;
@@ -645,7 +629,7 @@ nav { padding: 24px 40px; }
   <button class="theme-btn" data-theme="light" title="Light Mode">☀️</button>
 </div>
 
-<!-- Custom Chat Trigger Button -->
+<!-- Custom Chat Trigger Button - Hidden when Smartsupp works -->
 <button class="chat-trigger-btn" id="chatTrigger" onclick="openChat()" title="Chat with us">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
     <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
@@ -986,10 +970,18 @@ function toggleTheme() {
   });
   localStorage.setItem('lexTheme', newTheme);
 }
-const savedTheme = localStorage.getItem('lexTheme') || 'dark';
-document.documentElement.setAttribute('data-theme', savedTheme);
+
+// Force dark mode on first load (no saved theme)
+const savedTheme = localStorage.getItem('lexTheme');
+if (!savedTheme) {
+  // Default to dark mode
+  document.documentElement.setAttribute('data-theme', 'dark');
+  localStorage.setItem('lexTheme', 'dark');
+} else {
+  document.documentElement.setAttribute('data-theme', savedTheme);
+}
 document.querySelectorAll('.theme-btn').forEach(btn => {
-  btn.classList.toggle('active', btn.getAttribute('data-theme') === savedTheme);
+  btn.classList.toggle('active', btn.getAttribute('data-theme') === (savedTheme || 'dark'));
 });
 
 // ── COOKIE CONSENT ──
@@ -1016,7 +1008,8 @@ function acceptCookies() {
     timestamp: new Date().toISOString()
   }));
   hideCookieBanner();
-  // Initialize analytics and other cookie-dependent scripts here
+  // Initialize Smartsupp after cookie consent
+  initSmartsupp();
   console.log('All cookies accepted');
 }
 
@@ -1032,52 +1025,59 @@ function rejectCookies() {
 }
 
 function showCookieDetails() {
-  // You can expand this to show a detailed modal with cookie categories
   alert('Cookie Policy: Essential cookies are required for site functionality. Analytics cookies help us improve our service. Marketing cookies are used to personalize your experience.');
 }
 
 // Show banner on page load
 document.addEventListener('DOMContentLoaded', function() {
-  setTimeout(showCookieBanner, 1000); // Delay slightly for better UX
+  setTimeout(showCookieBanner, 1000);
 });
 
 // ── CHAT FUNCTIONALITY ──
+let smartsuppInitialized = false;
+
+function initSmartsupp() {
+  if (smartsuppInitialized) return;
+  
+  // Load Smartsupp only after cookie consent
+  var _smartsupp = _smartsupp || {};
+  _smartsupp.key = '99d6caca759541ed4edb4f3443bf5969a35e7845';
+  _smartsupp.offsetY = 80;
+  _smartsupp.position = 'right';
+  
+  window.smartsupp||(function(d) {
+    var s,c,o=smartsupp=function(){ o._.push(arguments)};o._=[];
+    s=d.getElementsByTagName('script')[0];c=d.createElement('script');
+    c.type='text/javascript';c.charset='utf-8';c.async=true;
+    c.src='https://www.smartsuppchat.com/loader.js?';
+    s.parentNode.insertBefore(c,s);
+  })(document);
+  
+  smartsuppInitialized = true;
+  
+  // Hide custom button when Smartsupp loads
+  setTimeout(function() {
+    const chatBtn = document.getElementById('chatTrigger');
+    if (chatBtn) chatBtn.style.display = 'none';
+  }, 2000);
+}
+
 function openChat() {
-  // Try to open Smartsupp if available
   if (typeof smartsupp !== 'undefined' && smartsupp) {
     smartsupp('chat:open');
-    console.log('Smartsupp chat opened');
   } else {
-    // Fallback: Show alert or redirect to contact form
-    console.log('Smartsupp not loaded yet, retrying...');
-    // Retry after a short delay in case script is still loading
-    setTimeout(function() {
-      if (typeof smartsupp !== 'undefined' && smartsupp) {
-        smartsupp('chat:open');
-      } else {
-        alert('Chat is loading... Please try again in a moment, or email us at support@lexlegal.ai');
-      }
-    }, 1000);
+    alert('Chat is loading... Please try again in a moment.');
   }
 }
 
-// Hide chat button when Smartsupp native widget is visible (optional)
-function checkSmartsuppStatus() {
-  if (typeof smartsupp !== 'undefined') {
-    smartsupp('status', function(status) {
-      const chatBtn = document.getElementById('chatTrigger');
-      if (status.online && chatBtn) {
-        // Optional: Hide custom button when native widget is active
-        // chatBtn.classList.add('hidden');
-      }
-    });
+// Check if cookies already accepted, init Smartsupp immediately
+const existingConsent = localStorage.getItem(COOKIE_CONSENT_KEY);
+if (existingConsent) {
+  const consent = JSON.parse(existingConsent);
+  if (consent.marketing || consent.analytics) {
+    initSmartsupp();
   }
 }
-
-// Check status after page load
-window.addEventListener('load', function() {
-  setTimeout(checkSmartsuppStatus, 2000);
-});
 
 // ── SCROLL ──
 window.addEventListener('scroll', () => {
@@ -1351,20 +1351,6 @@ async function askLex() {
 document.getElementById('questionInput').addEventListener('keydown', function(e) {
   if (e.key === 'Enter' && e.ctrlKey) askLex();
 });
-</script>
-
-<!-- Smartsupp Live Chat script -->
-<script type="text/javascript">
-var _smartsupp = _smartsupp || {};
-_smartsupp.key = '99d6caca759541ed4edb4f3443bf5969a35e7845';
-_smartsupp.offsetY = 140; // Offset to avoid overlapping with custom button
-_smartsupp.position = 'right';
-window.smartsupp||(function(d) {
-	var s,c,o=smartsupp=function(){ o._.push(arguments)};o._=[];
-	s=d.getElementsByTagName('script')[0];c=d.createElement('script');
-	c.type='text/javascript';c.charset='utf-8';c.async=true;
-	c.src='https://www.smartsuppchat.com/loader.js?';s.parentNode.insertBefore(c,s);
-})(document);
 </script>
 
 </body>
