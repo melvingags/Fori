@@ -110,7 +110,12 @@ color: var(--text-secondary); transition: all 0.3s ease; font-size: 14px;
 .smartsupp-widget-container,
 .smartsupp-chat,
 .smartsupp-box {
-  z-index: 999998 !important;
+  z-index: 2147483647 !important;
+  position: fixed !important;
+  bottom: 0 !important;
+  right: 0 !important;
+  top: auto !important;
+  left: auto !important;
 }
 
 /* Cookie Consent Banner */
@@ -1023,9 +1028,11 @@ document.addEventListener('DOMContentLoaded', function() {
 // Load Smartsupp immediately (not waiting for cookies for functionality)
 var _smartsupp = _smartsupp || {};
 _smartsupp.key = '99d6caca759541ed4edb4f3443bf5969a35e7845';
-_smartsupp.offsetY = 80;
-_smartsupp.position = 'right';
+_smartsupp.offsetY = 20;
+_smartsupp.offsetX = 20;
+_smartsupp.position = 'bottom-right';
 _smartsupp.hideWidget = true; // Hide default widget, we use custom button
+_smartsupp.zIndex = 2147483647; // Max z-index to stay on top
 
 window.smartsupp||(function(d) {
   var s,c,o=smartsupp=function(){ o._.push(arguments)};o._=[];
