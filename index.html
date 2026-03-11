@@ -99,11 +99,6 @@ color: var(--text-secondary); transition: all 0.3s ease; font-size: 14px;
   transform: translateY(-2px);
   box-shadow: 0 6px 24px rgba(201, 168, 108, 0.5);
 }
-.chat-trigger-btn.hidden {
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(20px);
-}
 .chat-trigger-btn svg {
   width: 18px;
   height: 18px;
@@ -116,16 +111,6 @@ color: var(--text-secondary); transition: all 0.3s ease; font-size: 14px;
 .smartsupp-chat,
 .smartsupp-box {
   z-index: 999998 !important;
-}
-
-/* Hide Smartsupp widget when closed/minimized */
-.smartsupp-widget-container--closed,
-.smartsupp-widget-container--minimized,
-#smartsupp-widget-container[data-state="closed"],
-#smartsupp-widget-container[data-state="minimized"] {
-  opacity: 0 !important;
-  pointer-events: none !important;
-  transform: translateY(100%) !important;
 }
 
 /* Cookie Consent Banner */
@@ -624,6 +609,7 @@ nav { padding: 24px 40px; }
 }
 </style>
 
+<base target="_blank">
 </head>
 <body>
 
@@ -877,8 +863,8 @@ nav { padding: 24px 40px; }
       <h2 class="section-title">Transparent pricing</h2>
     </div>
     <div class="pricing-toggle">
-      <button class="toggle-btn active" onclick="togglePricing('monthly', this)">Monthly</button>
-      <button class="toggle-btn" onclick="togglePricing('yearly', this)">Yearly <span class="save-badge">Save 20%</span></button>
+      <button class="toggle-btn active" onclick="togglePricing('monthly')">Monthly</button>
+      <button class="toggle-btn" onclick="togglePricing('yearly')">Yearly <span class="save-badge">Save 20%</span></button>
     </div>
     <div class="pricing-grid">
       <div class="pricing-card">
@@ -1049,96 +1035,21 @@ window.smartsupp||(function(d) {
   s.parentNode.insertBefore(c,s);
 })(document);
 
-// Chat visibility state management
-let chatInitialized = false;
-
-function initChatEvents() {
-  if (chatInitialized) return;
-  chatInitialized = true;
-  
-  // Listen for Smartsupp events
-  smartsupp('on', 'opened', function() {
-    hideChatButton();
-    forceHideSmartsuppBubble();
-  });
-  
-  smartsupp('on', 'minimized', function() {
-    // When minimized, fully close instead of showing bubble
-    smartsupp('chat:close');
-    showChatButton();
-  });
-  
-  smartsupp('on', 'closed', function() {
-    showChatButton();
-    forceHideSmartsuppBubble();
-  });
-}
-
-function forceHideSmartsuppBubble() {
-  // Force hide any minimized bubble states
-  const widgetContainer = document.getElementById('smartsupp-widget-container');
-  if (widgetContainer) {
-    widgetContainer.style.opacity = '0';
-    widgetContainer.style.pointerEvents = 'none';
-    widgetContainer.style.transform = 'translateY(100%)';
-  }
-  
-  // Also try to hide via Smartsupp API
-  try {
-    smartsupp('chat:hide');
-  } catch(e) {}
-}
-
-function hideChatButton() {
-  const btn = document.getElementById('chatTrigger');
-  if (btn) btn.classList.add('hidden');
-}
-
-function showChatButton() {
-  const btn = document.getElementById('chatTrigger');
-  if (btn) btn.classList.remove('hidden');
-}
-
 function openChat() {
-  if (typeof smartsupp === 'undefined' || !smartsupp) {
+  if (typeof smartsupp !== 'undefined' && smartsupp) {
+    smartsupp('chat:open');
+    console.log('Smartsupp chat opened');
+  } else {
     console.log('Smartsupp not loaded yet, retrying...');
     setTimeout(function() {
       if (typeof smartsupp !== 'undefined' && smartsupp) {
-        initChatEvents();
         smartsupp('chat:open');
-        hideChatButton();
       } else {
         alert('Chat is loading... Please try again in a moment, or email us at support@lexlegal.ai');
       }
     }, 1000);
-    return;
   }
-  
-  initChatEvents();
-  smartsupp('chat:open');
-  hideChatButton();
-  
-  // Prevent page jump - keep current scroll position
-  setTimeout(function() {
-    // Force scroll back to top if Smartsupp scrolled us down
-    if (window.scrollY > 100) {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  }, 100);
 }
-
-// Initialize chat events when Smartsupp loads
-window.addEventListener('load', function() {
-  setTimeout(function() {
-    if (typeof smartsupp !== 'undefined' && smartsupp) {
-      initChatEvents();
-      // Ensure button is visible initially
-      showChatButton();
-      // Hide any initial widget state
-      forceHideSmartsuppBubble();
-    }
-  }, 2000);
-});
 
 // ── SCROLL ──
 window.addEventListener('scroll', () => {
@@ -1341,9 +1252,9 @@ document.addEventListener('click', e => {
   }
 });
 
-function togglePricing(period, btnElement) {
+function togglePricing(period) {
   document.querySelectorAll('.toggle-btn').forEach(btn => btn.classList.remove('active'));
-  btnElement.classList.add('active');
+  event.target.classList.add('active');
   document.querySelectorAll('.pricing-price[data-monthly]').forEach(price => {
     const val = price.getAttribute('data-' + period);
     price.innerHTML = `<sup>$</sup>${val}<span>/mo</span>`;
@@ -1380,22 +1291,49 @@ async function askLex() {
   document.getElementById('loadingCountry').textContent = jurisdiction;
 
   try {
-    const response = await fetch('/ask', {
+    const response = await fetch('/ask-stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ question, country: jurisdiction, category })
     });
-    const data = await response.json();
     loading.classList.remove('visible');
     btn.disabled = false;
-    if (data.error) {
-      document.getElementById('errorText').textContent = '⚠️ ' + data.error;
-      errorBox.classList.add('visible');
-    } else {
-      document.getElementById('answerMeta').textContent = jurisdiction + ' · ' + category;
-      document.getElementById('answerText').textContent = data.answer;
-      answerBox.classList.add('visible');
-      answerBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    if (!response.ok) throw new Error('Network error');
+
+    // Show answer box and start streaming
+    document.getElementById('answerMeta').textContent = jurisdiction + ' · ' + category;
+    const answerTextEl = document.getElementById('answerText');
+    answerTextEl.textContent = '';
+    answerBox.classList.add('visible');
+    answerBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const payload = JSON.parse(line.slice(6));
+          if (payload.error) {
+            answerBox.classList.remove('visible');
+            document.getElementById('errorText').textContent = '⚠️ ' + payload.error;
+            errorBox.classList.add('visible');
+            break;
+          }
+          if (payload.chunk) {
+            answerTextEl.textContent += payload.chunk;
+          }
+        } catch(e) {}
+      }
     }
   } catch (err) {
     loading.classList.remove('visible');
