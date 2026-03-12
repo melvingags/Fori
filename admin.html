@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LEX Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --bg-card: #111111;
+    --bg-elevated: #161616;
+    --border: rgba(255,255,255,0.07);
+    --border-gold: rgba(201,168,108,0.3);
+    --gold: #c9a86c;
+    --gold-light: #e0c090;
+    --gold-dim: rgba(201,168,108,0.12);
+    --text: #f0ece4;
+    --text-secondary: #a09880;
+    --text-muted: #5a5548;
+    --green: #2ecc71;
+    --red: #e74c3c;
+    --blue: #3498db;
+    --sidebar-w: 240px;
+  }
+  [data-theme="light"] {
+    --bg: #f5f3ef;
+    --bg-card: #ffffff;
+    --bg-elevated: #eeebe5;
+    --border: rgba(0,0,0,0.08);
+    --border-gold: rgba(166,124,55,0.3);
+    --gold: #a67c37;
+    --gold-light: #c9962a;
+    --gold-dim: rgba(166,124,55,0.08);
+    --text: #1a1814;
+    --text-secondary: #6b6050;
+    --text-muted: #a09880;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; display:flex; }
+
+  /* ── SIDEBAR ── */
+  .sidebar { width:var(--sidebar-w); min-height:100vh; background:var(--bg-card); border-right:1px solid var(--border); display:flex; flex-direction:column; position:fixed; top:0; left:0; z-index:100; }
+  .sidebar-logo { padding:24px 20px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+  .logo-icon { width:28px; height:28px; border:1.5px solid var(--gold); border-radius:50%; display:flex; align-items:center; justify-content:center; color:var(--gold); font-size:11px; }
+  .logo-text { font-family:'Cormorant Garamond',serif; font-size:20px; letter-spacing:2px; color:var(--text); }
+  .admin-badge { font-size:8px; letter-spacing:2px; text-transform:uppercase; color:var(--gold); background:var(--gold-dim); padding:2px 6px; margin-left:auto; border:1px solid var(--border-gold); }
+  .nav { flex:1; padding:16px 0; overflow-y:auto; }
+  .nav-section { font-size:9px; letter-spacing:2.5px; text-transform:uppercase; color:var(--text-muted); padding:12px 20px 6px; }
+  .nav-item { display:flex; align-items:center; gap:10px; padding:10px 20px; cursor:pointer; color:var(--text-secondary); font-size:13px; transition:all 0.2s; border-left:2px solid transparent; }
+  .nav-item:hover { color:var(--text); background:var(--gold-dim); }
+  .nav-item.active { color:var(--gold); border-left-color:var(--gold); background:var(--gold-dim); }
+  .nav-item svg { width:15px; height:15px; flex-shrink:0; }
+  .nav-dot { width:6px; height:6px; border-radius:50%; background:var(--red); margin-left:auto; }
+  .sidebar-footer { padding:16px 20px; border-top:1px solid var(--border); display:flex; gap:8px; align-items:center; }
+  .theme-toggle { display:flex; background:var(--bg-elevated); border:1px solid var(--border); border-radius:20px; padding:3px; gap:2px; }
+  .theme-btn { background:none; border:none; padding:4px 8px; cursor:pointer; color:var(--text-muted); font-size:11px; border-radius:16px; transition:all 0.2s; }
+  .theme-btn.active { background:var(--gold); color:#0a0a0a; }
+  .sign-out-btn { flex:1; padding:8px; background:transparent; border:1px solid var(--border); color:var(--text-muted); font-size:11px; cursor:pointer; transition:all 0.2s; font-family:'Inter',sans-serif; letter-spacing:0.5px; }
+  .sign-out-btn:hover { border-color:var(--red); color:var(--red); }
+
+  /* ── MAIN ── */
+  .main { margin-left:var(--sidebar-w); flex:1; min-height:100vh; }
+  .topbar { padding:18px 32px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; background:var(--bg-card); position:sticky; top:0; z-index:50; }
+  .topbar-title { font-family:'Cormorant Garamond',serif; font-size:22px; }
+  .topbar-right { display:flex; align-items:center; gap:12px; }
+  .admin-name { font-size:12px; color:var(--text-muted); }
+  .status-dot { width:8px; height:8px; border-radius:50%; background:var(--green); box-shadow:0 0 6px var(--green); }
+  .content { padding:32px; }
+
+  /* ── PAGES ── */
+  .page { display:none; }
+  .page.active { display:block; }
+
+  /* ── STATS GRID ── */
+  .stats-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:32px; }
+  .stat-card { background:var(--bg-card); border:1px solid var(--border); padding:20px; }
+  .stat-label { font-size:9px; letter-spacing:2px; text-transform:uppercase; color:var(--text-muted); margin-bottom:8px; }
+  .stat-value { font-family:'Cormorant Garamond',serif; font-size:36px; color:var(--text); line-height:1; }
+  .stat-sub { font-size:11px; color:var(--green); margin-top:4px; }
+  .stat-card.gold { border-color:var(--border-gold); background:linear-gradient(135deg,var(--gold-dim),transparent); }
+
+  /* ── SECTION HEADERS ── */
+  .section-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+  .section-title { font-size:10px; letter-spacing:2.5px; text-transform:uppercase; color:var(--text-muted); }
+  .section-action { font-size:11px; color:var(--gold); cursor:pointer; background:none; border:none; font-family:'Inter',sans-serif; letter-spacing:0.5px; }
+
+  /* ── WALLET CARDS ── */
+  .wallets-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:16px; margin-bottom:32px; }
+  .wallet-card { background:var(--bg-card); border:1px solid var(--border); padding:24px; position:relative; transition:border-color 0.2s; }
+  .wallet-card:hover { border-color:var(--border-gold); }
+  .wallet-card.active-wallet { border-color:var(--border-gold); }
+  .wallet-network { display:flex; align-items:center; gap:10px; margin-bottom:16px; }
+  .network-icon { width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:600; flex-shrink:0; }
+  .network-icon.eth { background:rgba(98,126,234,0.15); color:#627eea; }
+  .network-icon.bnb { background:rgba(243,186,47,0.15); color:#f3ba2f; }
+  .network-icon.sol { background:rgba(153,69,255,0.15); color:#9945ff; }
+  .network-icon.matic { background:rgba(130,71,229,0.15); color:#8247e5; }
+  .network-name { font-size:14px; font-weight:500; color:var(--text); }
+  .network-coins { font-size:11px; color:var(--text-muted); margin-top:1px; }
+  .wallet-status { margin-left:auto; font-size:9px; letter-spacing:1px; text-transform:uppercase; padding:3px 8px; border:1px solid; }
+  .wallet-status.set { color:var(--green); border-color:rgba(46,204,113,0.3); background:rgba(46,204,113,0.05); }
+  .wallet-status.empty { color:var(--text-muted); border-color:var(--border); }
+  .wallet-address-wrap { position:relative; margin-bottom:12px; }
+  .wallet-address-input { width:100%; background:var(--bg-elevated); border:1px solid var(--border); color:var(--text); padding:10px 40px 10px 12px; font-family:'JetBrains Mono',monospace; font-size:11px; transition:border 0.2s; outline:none; }
+  .wallet-address-input:focus { border-color:var(--gold); }
+  .wallet-address-input::placeholder { color:var(--text-muted); font-family:'Inter',sans-serif; font-size:11px; }
+  .copy-btn { position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; color:var(--text-muted); transition:color 0.2s; padding:4px; }
+  .copy-btn:hover { color:var(--gold); }
+  .wallet-save-btn { width:100%; padding:9px; background:transparent; border:1px solid var(--border-gold); color:var(--gold); font-family:'Inter',sans-serif; font-size:10px; font-weight:600; letter-spacing:1.5px; text-transform:uppercase; cursor:pointer; transition:all 0.2s; }
+  .wallet-save-btn:hover { background:var(--gold-dim); }
+  .wallet-save-btn.saving { opacity:0.6; }
+  .wallet-updated { font-size:10px; color:var(--green); margin-top:8px; display:none; }
+
+  /* ── STRIPE CONFIG ── */
+  .config-card { background:var(--bg-card); border:1px solid var(--border); padding:24px; margin-bottom:16px; }
+  .config-title { font-size:12px; font-weight:600; color:var(--text); margin-bottom:4px; }
+  .config-desc { font-size:11px; color:var(--text-muted); margin-bottom:16px; }
+  .config-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px; }
+  .config-field { display:flex; flex-direction:column; gap:6px; }
+  .config-label { font-size:9px; letter-spacing:1.5px; text-transform:uppercase; color:var(--text-muted); }
+  .config-input { background:var(--bg-elevated); border:1px solid var(--border); color:var(--text); padding:10px 12px; font-family:'JetBrains Mono',monospace; font-size:11px; outline:none; transition:border 0.2s; }
+  .config-input:focus { border-color:var(--gold); }
+  .config-input::placeholder { color:var(--text-muted); font-family:'Inter',sans-serif; }
+  .config-save-btn { padding:10px 24px; background:var(--gold); color:#0a0a0a; border:none; font-family:'Inter',sans-serif; font-size:10px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; cursor:pointer; transition:all 0.2s; }
+  .config-save-btn:hover { background:var(--gold-light); }
+
+  /* ── USERS TABLE ── */
+  .table-wrap { background:var(--bg-card); border:1px solid var(--border); overflow:hidden; }
+  .table-header { display:grid; grid-template-columns:2fr 1fr 1fr 1fr 1fr 120px; padding:12px 20px; background:var(--bg-elevated); border-bottom:1px solid var(--border); }
+  .th { font-size:9px; letter-spacing:2px; text-transform:uppercase; color:var(--text-muted); }
+  .table-row { display:grid; grid-template-columns:2fr 1fr 1fr 1fr 1fr 120px; padding:14px 20px; border-bottom:1px solid var(--border); transition:background 0.15s; align-items:center; }
+  .table-row:last-child { border-bottom:none; }
+  .table-row:hover { background:var(--bg-elevated); }
+  .td { font-size:12px; color:var(--text-secondary); }
+  .td.name { color:var(--text); font-weight:500; }
+  .plan-badge { display:inline-flex; padding:2px 8px; font-size:9px; letter-spacing:1px; text-transform:uppercase; }
+  .plan-badge.free { background:rgba(90,85,72,0.3); color:var(--text-muted); }
+  .plan-badge.premium { background:var(--gold-dim); color:var(--gold); border:1px solid var(--border-gold); }
+  .plan-badge.lawyer { background:rgba(52,152,219,0.1); color:var(--blue); border:1px solid rgba(52,152,219,0.2); }
+  .role-badge { display:inline-flex; padding:2px 8px; font-size:9px; letter-spacing:1px; text-transform:uppercase; background:var(--bg-elevated); color:var(--text-muted); }
+  .action-btns { display:flex; gap:6px; }
+  .action-btn { padding:4px 10px; font-size:9px; letter-spacing:0.5px; border:1px solid var(--border); background:none; color:var(--text-muted); cursor:pointer; font-family:'Inter',sans-serif; transition:all 0.2s; }
+  .action-btn:hover { border-color:var(--gold); color:var(--gold); }
+  .action-btn.danger:hover { border-color:var(--red); color:var(--red); }
+  .search-bar { width:100%; background:var(--bg-elevated); border:1px solid var(--border); color:var(--text); padding:10px 14px; font-family:'Inter',sans-serif; font-size:13px; outline:none; transition:border 0.2s; margin-bottom:16px; }
+  .search-bar:focus { border-color:var(--gold); }
+  .filter-row { display:flex; gap:10px; margin-bottom:16px; }
+  .filter-btn { padding:6px 14px; background:var(--bg-card); border:1px solid var(--border); color:var(--text-muted); font-size:11px; cursor:pointer; font-family:'Inter',sans-serif; transition:all 0.2s; }
+  .filter-btn.active { border-color:var(--gold); color:var(--gold); background:var(--gold-dim); }
+
+  /* ── LAWYER VERIFICATION ── */
+  .verify-card { background:var(--bg-card); border:1px solid var(--border); padding:20px; margin-bottom:12px; display:flex; align-items:flex-start; gap:16px; }
+  .verify-avatar { width:44px; height:44px; background:var(--gold-dim); border:1px solid var(--border-gold); border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:'Cormorant Garamond',serif; font-size:18px; color:var(--gold); flex-shrink:0; }
+  .verify-info { flex:1; }
+  .verify-name { font-size:14px; font-weight:500; color:var(--text); margin-bottom:2px; }
+  .verify-meta { font-size:11px; color:var(--text-muted); }
+  .verify-actions { display:flex; gap:8px; margin-top:12px; }
+  .verify-btn { padding:6px 16px; font-size:10px; letter-spacing:1px; text-transform:uppercase; border:none; cursor:pointer; font-family:'Inter',sans-serif; font-weight:600; transition:all 0.2s; }
+  .verify-btn.approve { background:var(--green); color:#0a0a0a; }
+  .verify-btn.reject { background:transparent; border:1px solid var(--red); color:var(--red); }
+  .verify-btn.view { background:transparent; border:1px solid var(--border); color:var(--text-muted); }
+  .verify-badge { font-size:9px; letter-spacing:1.5px; text-transform:uppercase; padding:3px 8px; border:1px solid; margin-left:auto; flex-shrink:0; }
+  .verify-badge.pending { color:#f39c12; border-color:rgba(243,156,18,0.3); background:rgba(243,156,18,0.05); }
+
+  /* ── PLATFORM SETTINGS ── */
+  .settings-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .setting-card { background:var(--bg-card); border:1px solid var(--border); padding:20px; }
+  .setting-title { font-size:12px; font-weight:600; color:var(--text); margin-bottom:4px; }
+  .setting-desc { font-size:11px; color:var(--text-muted); margin-bottom:16px; line-height:1.5; }
+  .toggle-row { display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--border); }
+  .toggle-row:last-child { border-bottom:none; }
+  .toggle-label { font-size:12px; color:var(--text-secondary); }
+  .toggle { position:relative; width:40px; height:22px; }
+  .toggle input { opacity:0; width:0; height:0; }
+  .toggle-slider { position:absolute; inset:0; background:var(--bg-elevated); border:1px solid var(--border); cursor:pointer; transition:0.3s; border-radius:22px; }
+  .toggle-slider:before { content:''; position:absolute; width:16px; height:16px; left:2px; bottom:2px; background:var(--text-muted); transition:0.3s; border-radius:50%; }
+  input:checked + .toggle-slider { background:var(--gold-dim); border-color:var(--border-gold); }
+  input:checked + .toggle-slider:before { transform:translateX(18px); background:var(--gold); }
+  .number-input { background:var(--bg-elevated); border:1px solid var(--border); color:var(--text); padding:8px 12px; width:80px; font-size:13px; text-align:center; outline:none; }
+  .number-input:focus { border-color:var(--gold); }
+
+  /* ── ACTIVITY LOG ── */
+  .log-item { display:flex; gap:14px; padding:12px 0; border-bottom:1px solid var(--border); align-items:flex-start; }
+  .log-item:last-child { border-bottom:none; }
+  .log-dot { width:8px; height:8px; border-radius:50%; margin-top:4px; flex-shrink:0; }
+  .log-dot.green { background:var(--green); }
+  .log-dot.gold { background:var(--gold); }
+  .log-dot.red { background:var(--red); }
+  .log-dot.blue { background:var(--blue); }
+  .log-text { font-size:12px; color:var(--text-secondary); line-height:1.5; }
+  .log-time { font-size:10px; color:var(--text-muted); margin-top:2px; }
+
+  /* ── REVENUE ── */
+  .revenue-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:24px; }
+  .rev-card { background:var(--bg-card); border:1px solid var(--border); padding:20px; }
+  .rev-label { font-size:9px; letter-spacing:2px; text-transform:uppercase; color:var(--text-muted); margin-bottom:6px; }
+  .rev-value { font-family:'Cormorant Garamond',serif; font-size:30px; color:var(--text); }
+  .rev-sub { font-size:11px; color:var(--text-muted); margin-top:4px; }
+
+  /* ── LOGIN SCREEN ── */
+  #loginScreen { position:fixed; inset:0; background:var(--bg); z-index:999; display:flex; align-items:center; justify-content:center; }
+  .login-box { background:var(--bg-card); border:1px solid var(--border-gold); padding:48px 40px; width:360px; text-align:center; }
+  .login-logo { font-family:'Cormorant Garamond',serif; font-size:28px; letter-spacing:3px; margin-bottom:4px; }
+  .login-sub { font-size:10px; letter-spacing:3px; text-transform:uppercase; color:var(--gold); margin-bottom:32px; }
+  .login-field { margin-bottom:14px; text-align:left; }
+  .login-label { font-size:9px; letter-spacing:1.5px; text-transform:uppercase; color:var(--text-muted); display:block; margin-bottom:6px; }
+  .login-input { width:100%; background:var(--bg-elevated); border:1px solid var(--border); color:var(--text); padding:12px 14px; font-size:13px; font-family:'Inter',sans-serif; outline:none; transition:border 0.2s; }
+  .login-input:focus { border-color:var(--gold); }
+  .login-btn { width:100%; padding:13px; background:var(--gold); color:#0a0a0a; border:none; font-family:'Inter',sans-serif; font-size:11px; font-weight:700; letter-spacing:2px; text-transform:uppercase; cursor:pointer; margin-top:8px; transition:all 0.2s; }
+  .login-btn:hover { background:var(--gold-light); }
+  .login-error { font-size:11px; color:var(--red); margin-top:10px; display:none; }
+
+  /* ── EMPTY STATE ── */
+  .empty-state { padding:48px; text-align:center; color:var(--text-muted); font-size:13px; }
+
+  /* ── TOAST ── */
+  #toast { position:fixed; bottom:28px; right:28px; background:var(--bg-card); border:1px solid var(--border-gold); padding:12px 20px; font-size:12px; color:var(--gold); z-index:9999; display:none; box-shadow:0 8px 32px rgba(0,0,0,0.4); }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 1100px) {
+    .stats-grid { grid-template-columns:repeat(2,1fr); }
+    .wallets-grid { grid-template-columns:1fr; }
+    .config-row { grid-template-columns:1fr; }
+    .settings-grid { grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="loginScreen">
+  <div class="login-box">
+    <div class="login-logo">LEX</div>
+    <div class="login-sub">Admin Console</div>
+    <div class="login-field">
+      <label class="login-label">Admin Email</label>
+      <input class="login-input" type="email" id="loginEmail" placeholder="admin@lex-ai.com" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <div class="login-field">
+      <label class="login-label">Password</label>
+      <input class="login-input" type="password" id="loginPass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <button class="login-btn" onclick="doLogin()">Access Console →</button>
+    <div class="login-error" id="loginError">Invalid credentials. Access denied.</div>
+  </div>
+</div>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+    <span class="logo-text">LEX</span>
+    <span class="admin-badge">Admin</span>
+  </div>
+  <nav class="nav">
+    <div class="nav-section">Overview</div>
+    <div class="nav-item active" onclick="showPage('overview',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      Overview
+    </div>
+    <div class="nav-item" onclick="showPage('activity',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Activity Log
+    </div>
+    <div class="nav-section">Payments</div>
+    <div class="nav-item" onclick="showPage('wallets',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 12V22H4V12"/><path d="M22 7H2v5h20V7z"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z"/></svg>
+      Crypto Wallets
+    </div>
+    <div class="nav-item" onclick="showPage('stripe',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+      Payment Config
+    </div>
+    <div class="nav-item" onclick="showPage('revenue',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+      Revenue
+    </div>
+    <div class="nav-section">Users</div>
+    <div class="nav-item" onclick="showPage('users',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+      All Users
+    </div>
+    <div class="nav-item" onclick="showPage('lawyers',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      Lawyer Verification
+      <span class="nav-dot" id="pendingDot" style="display:none;"></span>
+    </div>
+    <div class="nav-section">Platform</div>
+    <div class="nav-item" onclick="showPage('settings',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      Platform Settings
+    </div>
+  </nav>
+  <div class="sidebar-footer">
+    <button class="sign-out-btn" onclick="adminSignOut()">Sign Out</button>
+    <div class="theme-toggle">
+      <button class="theme-btn active" data-theme="dark" onclick="setTheme('dark')">🌙</button>
+      <button class="theme-btn" data-theme="light" onclick="setTheme('light')">☀️</button>
+    </div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+  <div class="topbar">
+    <div class="topbar-title" id="pageTitle">Overview</div>
+    <div class="topbar-right">
+      <div class="admin-name" id="adminNameDisplay">—</div>
+      <div class="status-dot"></div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- OVERVIEW PAGE -->
+    <div class="page active" id="page-overview">
+      <div class="stats-grid">
+        <div class="stat-card gold">
+          <div class="stat-label">Total Users</div>
+          <div class="stat-value" id="statTotalUsers">—</div>
+          <div class="stat-sub" id="statUsersGrowth">Loading...</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Premium Users</div>
+          <div class="stat-value" id="statPremiumUsers">—</div>
+          <div class="stat-sub" id="statPremiumSub">Loading...</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Lawyers</div>
+          <div class="stat-value" id="statLawyers">—</div>
+          <div class="stat-sub" id="statLawyersSub">Loading...</div>
+        </div>
+        <div class="stat-card gold">
+          <div class="stat-label">MRR (est.)</div>
+          <div class="stat-value" id="statMRR">—</div>
+          <div class="stat-sub">Monthly recurring</div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+        <div>
+          <div class="section-header">
+            <div class="section-title">Recent Activity</div>
+          </div>
+          <div class="config-card" style="padding:20px;" id="recentActivityList">
+            <div class="empty-state">Loading activity...</div>
+          </div>
+        </div>
+        <div>
+          <div class="section-header">
+            <div class="section-title">Pending Verifications</div>
+            <button class="section-action" onclick="showPage('lawyers', document.querySelector('[onclick*=lawyers]'))">View All →</button>
+          </div>
+          <div id="overviewPendingList">
+            <div class="config-card" style="padding:20px;"><div class="empty-state">Loading...</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CRYPTO WALLETS PAGE -->
+    <div class="page" id="page-wallets">
+      <div style="margin-bottom:24px;">
+        <div style="font-size:11px;color:var(--text-muted);line-height:1.7;background:var(--bg-card);border:1px solid var(--border-gold);padding:14px 18px;border-left:3px solid var(--gold);">
+          ⚡ These wallet addresses are used by the LEX Web3 payment gate. Users pay directly to these addresses. Update them anytime — changes take effect immediately on new payment sessions.
+        </div>
+      </div>
+
+      <div class="section-header">
+        <div class="section-title">Network Wallet Addresses</div>
+      </div>
+
+      <div class="wallets-grid">
+        <!-- ETH / Polygon (same EVM address) -->
+        <div class="wallet-card" id="wallet-eth">
+          <div class="wallet-network">
+            <div class="network-icon eth">Ξ</div>
+            <div>
+              <div class="network-name">Ethereum</div>
+              <div class="network-coins">ETH · USDT (ERC-20) · USDC (ERC-20)</div>
+            </div>
+            <span class="wallet-status empty" id="status-eth">NOT SET</span>
+          </div>
+          <div class="wallet-address-wrap">
+            <input class="wallet-address-input" id="addr-eth" placeholder="0x..." oninput="onWalletInput('eth')">
+            <button class="copy-btn" onclick="copyAddr('eth')" title="Copy">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            </button>
+          </div>
+          <button class="wallet-save-btn" id="save-eth" onclick="saveWallet('eth')">Save Address</button>
+          <div class="wallet-updated" id="updated-eth">✓ Saved successfully</div>
+        </div>
+
+        <!-- BNB Chain -->
+        <div class="wallet-card" id="wallet-bnb">
+          <div class="wallet-network">
+            <div class="network-icon bnb">B</div>
+            <div>
+              <div class="network-name">BNB Chain</div>
+              <div class="network-coins">BNB · USDT (BEP-20) · USDC (BEP-20)</div>
+            </div>
+            <span class="wallet-status empty" id="status-bnb">NOT SET</span>
+          </div>
+          <div class="wallet-address-wrap">
+            <input class="wallet-address-input" id="addr-bnb" placeholder="0x..." oninput="onWalletInput('bnb')">
+            <button class="copy-btn" onclick="copyAddr('bnb')" title="Copy">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            </button>
+          </div>
+          <button class="wallet-save-btn" id="save-bnb" onclick="saveWallet('bnb')">Save Address</button>
+          <div class="wallet-updated" id="updated-bnb">✓ Saved successfully</div>
+        </div>
+
+        <!-- Solana -->
+        <div class="wallet-card" id="wallet-sol">
+          <div class="wallet-network">
+            <div class="network-icon sol">◎</div>
+            <div>
+              <div class="network-name">Solana</div>
+              <div class="network-coins">SOL · USDC (SPL)</div>
+            </div>
+            <span class="wallet-status empty" id="status-sol">NOT SET</span>
+          </div>
+          <div class="wallet-address-wrap">
+            <input class="wallet-address-input" id="addr-sol" placeholder="Base58 address..." oninput="onWalletInput('sol')">
+            <button class="copy-btn" onclick="copyAddr('sol')" title="Copy">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            </button>
+          </div>
+          <button class="wallet-save-btn" id="save-sol" onclick="saveWallet('sol')">Save Address</button>
+          <div class="wallet-updated" id="updated-sol">✓ Saved successfully</div>
+        </div>
+
+        <!-- Polygon -->
+        <div class="wallet-card" id="wallet-matic">
+          <div class="wallet-network">
+            <div class="network-icon matic">⬡</div>
+            <div>
+              <div class="network-name">Polygon</div>
+              <div class="network-coins">MATIC · USDT (Polygon) · USDC (Polygon)</div>
+            </div>
+            <span class="wallet-status empty" id="status-matic">NOT SET</span>
+          </div>
+          <div class="wallet-address-wrap">
+            <input class="wallet-address-input" id="addr-matic" placeholder="0x..." oninput="onWalletInput('matic')">
+            <button class="copy-btn" onclick="copyAddr('matic')" title="Copy">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            </button>
+          </div>
+          <button class="wallet-save-btn" id="save-matic" onclick="saveWallet('matic')">Save Address</button>
+          <div class="wallet-updated" id="updated-matic">✓ Saved successfully</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- LEMON SQUEEZY CONFIG PAGE -->
+    <div class="page" id="page-stripe">
+      <div style="margin-bottom:24px;">
+        <div style="font-size:11px;color:var(--text-muted);line-height:1.7;background:var(--bg-card);border:1px solid var(--border-gold);padding:14px 18px;border-left:3px solid var(--gold);">
+          🍋 Lemon Squeezy is the active payment processor for LEX. Add your API key and webhook secret here. Get these from app.lemonsqueezy.com → Settings → API and Webhooks.
+        </div>
+      </div>
+
+      <div class="config-card">
+        <div class="config-title">Lemon Squeezy API</div>
+        <div class="config-desc">Your API key from Settings → API. Store ID is shown in Settings → Stores.</div>
+        <div class="config-row">
+          <div class="config-field">
+            <label class="config-label">API Key</label>
+            <input class="config-input" id="lsApiKey" placeholder="eyJ0eXAi..." type="password">
+          </div>
+          <div class="config-field">
+            <label class="config-label">Store ID</label>
+            <input class="config-input" id="lsStoreId" placeholder="314031" value="314031">
+          </div>
+        </div>
+        <div class="config-row">
+          <div class="config-field">
+            <label class="config-label">Webhook Secret</label>
+            <input class="config-input" id="lsWebhookSecret" placeholder="vaxjfkoll65lexsecret" type="password">
+          </div>
+        </div>
+      </div>
+
+      <div class="config-card">
+        <div class="config-title">Individual Premium Variant IDs</div>
+        <div class="config-desc">Get these from Products → each product → Variant ID</div>
+        <div class="config-row">
+          <div class="config-field">
+            <label class="config-label">Monthly — $4.99/mo</label>
+            <input class="config-input" id="lsIndMonthly" placeholder="1396669" value="1396669">
+          </div>
+          <div class="config-field">
+            <label class="config-label">Yearly — $49.90/yr</label>
+            <input class="config-input" id="lsIndYearly" placeholder="1396678" value="1396678">
+          </div>
+        </div>
+      </div>
+
+      <div class="config-card">
+        <div class="config-title">Lawyer Subscription Variant IDs</div>
+        <div class="config-desc">Get these from Products → each product → Variant ID</div>
+        <div class="config-row">
+          <div class="config-field">
+            <label class="config-label">Monthly — $24.99/mo</label>
+            <input class="config-input" id="lsLawMonthly" placeholder="1396689" value="1396689">
+          </div>
+          <div class="config-field">
+            <label class="config-label">Yearly — $249.90/yr</label>
+            <input class="config-input" id="lsLawYearly" placeholder="1396693" value="1396693">
+          </div>
+        </div>
+      </div>
+
+      <div class="config-card">
+        <div class="config-title">One-Time Payment Variant IDs</div>
+        <div class="config-desc">Verified Badge and Profile Boosts</div>
+        <div class="config-row">
+          <div class="config-field">
+            <label class="config-label">Verified Badge — $19.99</label>
+            <input class="config-input" id="lsVerifiedBadge" placeholder="1396698" value="1396698">
+          </div>
+          <div class="config-field">
+            <label class="config-label">7-Day Boost — $4.99</label>
+            <input class="config-input" id="lsBoost7" placeholder="1396701" value="1396701">
+          </div>
+        </div>
+        <div class="config-row">
+          <div class="config-field">
+            <label class="config-label">30-Day Boost — $12.99</label>
+            <input class="config-input" id="lsBoost30" placeholder="1396704" value="1396704">
+          </div>
+        </div>
+      </div>
+
+      <button class="config-save-btn" onclick="saveStripeConfig()">Save Payment Configuration →</button>
+    </div>
+
+    <!-- REVENUE PAGE -->
+    <div class="page" id="page-revenue">
+      <div class="revenue-grid">
+        <div class="rev-card">
+          <div class="rev-label">Total Revenue (est.)</div>
+          <div class="rev-value" id="revTotal">$0.00</div>
+          <div class="rev-sub">All time</div>
+        </div>
+        <div class="rev-card">
+          <div class="rev-label">MRR (est.)</div>
+          <div class="rev-value" id="revMRR">$0.00</div>
+          <div class="rev-sub">Monthly recurring</div>
+        </div>
+        <div class="rev-card">
+          <div class="rev-label">ARR (est.)</div>
+          <div class="rev-value" id="revARR">$0.00</div>
+          <div class="rev-sub">Annual run rate</div>
+        </div>
+      </div>
+      <div class="config-card">
+        <div class="config-title">Revenue Breakdown</div>
+        <div class="config-desc">Estimated based on active subscriptions in Firestore</div>
+        <div id="revenueBreakdown" style="margin-top:16px;">
+          <div class="empty-state">Loading...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- USERS PAGE -->
+    <div class="page" id="page-users">
+      <input class="search-bar" id="userSearch" placeholder="Search by name, email or UID..." oninput="filterUsers()">
+      <div class="filter-row">
+        <button class="filter-btn active" onclick="setUserFilter('all',this)">All</button>
+        <button class="filter-btn" onclick="setUserFilter('premium',this)">Premium</button>
+        <button class="filter-btn" onclick="setUserFilter('free',this)">Free</button>
+        <button class="filter-btn" onclick="setUserFilter('lawyer',this)">Lawyers</button>
+      </div>
+      <div class="table-wrap">
+        <div class="table-header">
+          <div class="th">Name / Email</div>
+          <div class="th">Role</div>
+          <div class="th">Plan</div>
+          <div class="th">Country</div>
+          <div class="th">Joined</div>
+          <div class="th">Actions</div>
+        </div>
+        <div id="usersTableBody"><div class="empty-state">Loading users...</div></div>
+      </div>
+    </div>
+
+    <!-- LAWYER VERIFICATION PAGE -->
+    <div class="page" id="page-lawyers">
+      <div class="filter-row">
+        <button class="filter-btn active" onclick="setLawyerFilter('pending',this)">Pending</button>
+        <button class="filter-btn" onclick="setLawyerFilter('verified',this)">Verified</button>
+        <button class="filter-btn" onclick="setLawyerFilter('all',this)">All Lawyers</button>
+      </div>
+      <div id="lawyersList"><div class="empty-state">Loading...</div></div>
+    </div>
+
+    <!-- ACTIVITY LOG PAGE -->
+    <div class="page" id="page-activity">
+      <div class="config-card" style="padding:20px;">
+        <div id="activityLogList"><div class="empty-state">Loading activity...</div></div>
+      </div>
+    </div>
+
+    <!-- PLATFORM SETTINGS PAGE -->
+    <div class="page" id="page-settings">
+      <div class="settings-grid">
+        <div class="setting-card">
+          <div class="setting-title">Free Tier Limits</div>
+          <div class="setting-desc">Daily question limits for non-premium users</div>
+          <div class="toggle-row">
+            <span class="toggle-label">Free users daily limit</span>
+            <input class="number-input" id="settingFreeLimit" type="number" value="5" min="1" max="50">
+          </div>
+          <div class="toggle-row">
+            <span class="toggle-label">Guest users daily limit</span>
+            <input class="number-input" id="settingGuestLimit" type="number" value="3" min="1" max="20">
+          </div>
+        </div>
+
+        <div class="setting-card">
+          <div class="setting-title">Feature Flags</div>
+          <div class="setting-desc">Enable or disable platform features globally</div>
+          <div class="toggle-row">
+            <span class="toggle-label">New user signups</span>
+            <label class="toggle"><input type="checkbox" id="flagSignups" checked><span class="toggle-slider"></span></label>
+          </div>
+          <div class="toggle-row">
+            <span class="toggle-label">Lawyer registrations</span>
+            <label class="toggle"><input type="checkbox" id="flagLawyerReg" checked><span class="toggle-slider"></span></label>
+          </div>
+          <div class="toggle-row">
+            <span class="toggle-label">Crypto payments</span>
+            <label class="toggle"><input type="checkbox" id="flagCrypto" checked><span class="toggle-slider"></span></label>
+          </div>
+          <div class="toggle-row">
+            <span class="toggle-label">Card payments (Lemon Squeezy)</span>
+            <label class="toggle"><input type="checkbox" id="flagStripe" checked><span class="toggle-slider"></span></label>
+          </div>
+        </div>
+
+        <div class="setting-card">
+          <div class="setting-title">Maintenance Mode</div>
+          <div class="setting-desc">Show a maintenance message to all users. Admin access still works.</div>
+          <div class="toggle-row">
+            <span class="toggle-label">Maintenance mode</span>
+            <label class="toggle"><input type="checkbox" id="flagMaintenance"><span class="toggle-slider"></span></label>
+          </div>
+          <div class="toggle-row">
+            <span class="toggle-label">Show status banner</span>
+            <label class="toggle"><input type="checkbox" id="flagStatusBanner" checked><span class="toggle-slider"></span></label>
+          </div>
+        </div>
+
+        <div class="setting-card">
+          <div class="setting-title">Admin Access</div>
+          <div class="setting-desc">Manage admin credentials. Only change if you know what you're doing.</div>
+          <div class="config-field" style="margin-bottom:10px;">
+            <label class="config-label">Admin Email</label>
+            <input class="config-input" id="adminEmail" placeholder="admin@lex-ai.com">
+          </div>
+          <div class="config-field">
+            <label class="config-label">New Admin Password</label>
+            <input class="config-input" id="adminNewPass" type="password" placeholder="Leave blank to keep current">
+          </div>
+        </div>
+      </div>
+      <button class="config-save-btn" style="margin-top:20px;" onclick="savePlatformSettings()">Save All Settings →</button>
+    </div>
+
+  </div><!-- /content -->
+</main>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
+  import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+  import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, collection, query, where, orderBy, limit, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAW2Cc8KT4ss9Y0G3kpCRzDT4QE6PCiNr0",
+    authDomain: "lex-ai-bc013.firebaseapp.com",
+    projectId: "lex-ai-bc013",
+    storageBucket: "lex-ai-bc013.firebasestorage.app",
+    messagingSenderId: "668577225294",
+    appId: "1:668577225294:web:17d8f5c6ab4656d665411f"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  // ── ADMIN AUTH ──
+  // Hardcoded admin UID whitelist — add your Firebase UID here after first login
+  const ADMIN_UIDS = ['l8J7TQch8ac1QUqur8Gd7uC98FC2'];
+  // Fallback local password (used before Firebase auth is set up)
+  const LOCAL_ADMIN_PASS = 'lex-admin-2025';
+
+  let _allUsers = [];
+  let _allLawyers = [];
+  let _userFilter = 'all';
+  let _lawyerFilter = 'pending';
+
+  // ── LOGIN ──
+  window.doLogin = async function() {
+    const email = document.getElementById('loginEmail').value.trim();
+    const pass = document.getElementById('loginPass').value;
+    const errEl = document.getElementById('loginError');
+    errEl.style.display = 'none';
+
+    // Try Firebase auth first
+    try {
+      const cred = await signInWithEmailAndPassword(auth, email, pass);
+      if (!ADMIN_UIDS.includes('l8J7TQch8ac1QUqur8Gd7uC98FC2') && !ADMIN_UIDS.includes(cred.user.uid)) {
+        await signOut(auth);
+        errEl.style.display = 'block';
+        return;
+      }
+      bootAdmin(cred.user);
+    } catch(e) {
+      // Fallback: local password for initial setup
+      if (pass === LOCAL_ADMIN_PASS) {
+        bootAdmin({ email, uid: 'local', displayName: 'Admin' });
+      } else {
+        errEl.style.display = 'block';
+      }
+    }
+  };
+
+  function bootAdmin(user) {
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('adminNameDisplay').textContent = user.email || user.displayName || 'Admin';
+    loadOverview();
+    loadWallets();
+    loadStripeConfig();
+    loadUsers();
+    loadLawyers();
+    loadPlatformSettings();
+    logActivity('Admin signed in', 'green');
+  }
+
+  window.adminSignOut = async function() {
+    try { await signOut(auth); } catch(e) {}
+    document.getElementById('loginScreen').style.display = 'flex';
+  };
+
+  // ── NAVIGATION ──
+  window.showPage = function(page, el) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById('page-' + page).classList.add('active');
+    if (el) el.classList.add('active');
+    const titles = { overview:'Overview', wallets:'Crypto Wallets', stripe:'Payment Configuration', revenue:'Revenue', users:'All Users', lawyers:'Lawyer Verification', activity:'Activity Log', settings:'Platform Settings' };
+    document.getElementById('pageTitle').textContent = titles[page] || page;
+  };
+
+  // ── THEME ──
+  window.setTheme = function(t) {
+    document.documentElement.setAttribute('data-theme', t);
+    document.querySelectorAll('.theme-btn').forEach(b => b.classList.toggle('active', b.dataset.theme === t));
+    localStorage.setItem('lexAdminTheme', t);
+  };
+  setTheme(localStorage.getItem('lexAdminTheme') || 'dark');
+
+  // ── TOAST ──
+  window.showToast = function(msg, type='gold') {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.display = 'block';
+    t.style.color = type === 'green' ? 'var(--green)' : type === 'red' ? 'var(--red)' : 'var(--gold)';
+    setTimeout(() => t.style.display = 'none', 3000);
+  };
+
+  // ── WALLETS ──
+  async function loadWallets() {
+    try {
+      const snap = await getDoc(doc(db, 'admin', 'wallets'));
+      if (snap.exists()) {
+        const d = snap.data();
+        ['eth','bnb','sol','matic'].forEach(net => {
+          if (d[net]) {
+            document.getElementById('addr-' + net).value = d[net];
+            setWalletStatus(net, true);
+          }
+        });
+      }
+    } catch(e) { console.warn('Wallets load:', e); }
+  }
+
+  function setWalletStatus(net, isSet) {
+    const el = document.getElementById('status-' + net);
+    const card = document.getElementById('wallet-' + net);
+    if (isSet) {
+      el.textContent = 'SET ✓';
+      el.className = 'wallet-status set';
+      card.classList.add('active-wallet');
+    } else {
+      el.textContent = 'NOT SET';
+      el.className = 'wallet-status empty';
+      card.classList.remove('active-wallet');
+    }
+  }
+
+  window.onWalletInput = function(net) {
+    const val = document.getElementById('addr-' + net).value.trim();
+    setWalletStatus(net, val.length > 10);
+  };
+
+  window.saveWallet = async function(net) {
+    const addr = document.getElementById('addr-' + net).value.trim();
+    const btn = document.getElementById('save-' + net);
+    const updEl = document.getElementById('updated-' + net);
+    if (!addr) { showToast('Enter a wallet address first', 'red'); return; }
+    btn.textContent = 'Saving...';
+    btn.classList.add('saving');
+    try {
+      await setDoc(doc(db, 'admin', 'wallets'), { [net]: addr, [`${net}UpdatedAt`]: serverTimestamp() }, { merge: true });
+      setWalletStatus(net, true);
+      updEl.style.display = 'block';
+      setTimeout(() => updEl.style.display = 'none', 3000);
+      showToast(`${net.toUpperCase()} wallet saved ✓`, 'green');
+      logActivity(`${net.toUpperCase()} wallet address updated`, 'gold');
+    } catch(e) {
+      showToast('Save failed — check Firestore rules', 'red');
+    }
+    btn.textContent = 'Save Address';
+    btn.classList.remove('saving');
+  };
+
+  window.copyAddr = function(net) {
+    const val = document.getElementById('addr-' + net).value;
+    if (!val) return;
+    navigator.clipboard.writeText(val).then(() => showToast('Address copied ✓', 'green'));
+  };
+
+  // ── STRIPE CONFIG ──
+  async function loadStripeConfig() {
+    try {
+      const snap = await getDoc(doc(db, 'admin', 'stripe'));
+      if (snap.exists()) {
+        const d = snap.data();
+        const fields = ['lsApiKey','lsStoreId','lsWebhookSecret','lsIndMonthly','lsIndYearly','lsLawMonthly','lsLawYearly','lsVerifiedBadge','lsBoost7','lsBoost30'];
+        fields.forEach(f => { const el = document.getElementById(f); if (el && d[f]) el.value = d[f]; });
+      }
+    } catch(e) {}
+  }
+
+  window.saveStripeConfig = async function() {
+    const fields = ['lsApiKey','lsStoreId','lsWebhookSecret','lsIndMonthly','lsIndYearly','lsLawMonthly','lsLawYearly','lsVerifiedBadge','lsBoost7','lsBoost30'];
+    const data = {};
+    fields.forEach(f => { const v = document.getElementById(f).value.trim(); if (v) data[f] = v; });
+    data.updatedAt = serverTimestamp();
+    try {
+      await setDoc(doc(db, 'admin', 'stripe'), data, { merge: true });
+      showToast('Payment config saved ✓', 'green');
+      logActivity('Payment configuration updated', 'blue');
+    } catch(e) { showToast('Save failed', 'red'); }
+  };
+
+  // ── USERS ──
+  async function loadUsers() {
+    try {
+      const snap = await getDocs(collection(db, 'users'));
+      _allUsers = [];
+      snap.forEach(d => _allUsers.push({ id: d.id, ...d.data() }));
+      renderUsers();
+      updateStats();
+    } catch(e) { document.getElementById('usersTableBody').innerHTML = '<div class="empty-state">Failed to load users</div>'; }
+  }
+
+  function renderUsers() {
+    const search = document.getElementById('userSearch').value.toLowerCase();
+    let users = _allUsers.filter(u => {
+      if (_userFilter === 'premium') return u.plan === 'premium';
+      if (_userFilter === 'free') return !u.plan || u.plan === 'free';
+      if (_userFilter === 'lawyer') return u.role === 'lawyer';
+      return true;
+    }).filter(u => !search || (u.name||'').toLowerCase().includes(search) || (u.email||'').toLowerCase().includes(search) || u.id.includes(search));
+
+    if (!users.length) { document.getElementById('usersTableBody').innerHTML = '<div class="empty-state">No users found</div>'; return; }
+
+    document.getElementById('usersTableBody').innerHTML = users.map(u => `
+      <div class="table-row">
+        <div class="td name">${u.name || '—'}<div style="font-size:10px;color:var(--text-muted);margin-top:2px;">${u.email || u.id}</div></div>
+        <div class="td"><span class="role-badge">${u.role || 'user'}</span></div>
+        <div class="td"><span class="plan-badge ${u.plan === 'premium' ? 'premium' : u.role === 'lawyer' ? 'lawyer' : 'free'}">${u.plan || 'free'}</span></div>
+        <div class="td">${u.country || '—'}</div>
+        <div class="td">${u.createdAt ? new Date(u.createdAt.seconds*1000).toLocaleDateString() : '—'}</div>
+        <div class="td"><div class="action-btns">
+          <button class="action-btn" onclick="upgradePlan('${u.id}','premium')">Premium</button>
+          <button class="action-btn danger" onclick="confirmBanUser('${u.id}','${u.name||u.id}')">Ban</button>
+        </div></div>
+      </div>`).join('');
+  }
+
+  window.filterUsers = renderUsers;
+  window.setUserFilter = function(f, el) {
+    _userFilter = f;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    el.classList.add('active');
+    renderUsers();
+  };
+
+  window.upgradePlan = async function(uid, plan) {
+    try {
+      await updateDoc(doc(db, 'users', uid), { plan });
+      const u = _allUsers.find(x => x.id === uid);
+      if (u) u.plan = plan;
+      renderUsers();
+      showToast(`User upgraded to ${plan} ✓`, 'green');
+    } catch(e) { showToast('Update failed', 'red'); }
+  };
+
+  window.confirmBanUser = function(uid, name) {
+    if (!confirm(`Ban user ${name}? This will mark their account as banned.`)) return;
+    updateDoc(doc(db, 'users', uid), { banned: true, bannedAt: serverTimestamp() })
+      .then(() => { showToast('User banned ✓', 'red'); logActivity(`User banned: ${name}`, 'red'); })
+      .catch(() => showToast('Failed to ban user', 'red'));
+  };
+
+  // ── LAWYERS ──
+  async function loadLawyers() {
+    try {
+      const snap = await getDocs(query(collection(db, 'users'), where('role', '==', 'lawyer')));
+      _allLawyers = [];
+      snap.forEach(d => _allLawyers.push({ id: d.id, ...d.data() }));
+      renderLawyers();
+      const pending = _allLawyers.filter(l => !l.verified).length;
+      const dot = document.getElementById('pendingDot');
+      dot.style.display = pending > 0 ? 'block' : 'none';
+    } catch(e) {}
+  }
+
+  function renderLawyers() {
+    let lawyers = _allLawyers;
+    if (_lawyerFilter === 'pending') lawyers = lawyers.filter(l => !l.verified);
+    if (_lawyerFilter === 'verified') lawyers = lawyers.filter(l => l.verified);
+
+    if (!lawyers.length) {
+      document.getElementById('lawyersList').innerHTML = '<div class="empty-state">No lawyers in this category</div>';
+      return;
+    }
+
+    document.getElementById('lawyersList').innerHTML = lawyers.map(l => `
+      <div class="verify-card">
+        <div class="verify-avatar">${(l.name||'L')[0].toUpperCase()}</div>
+        <div class="verify-info">
+          <div class="verify-name">${l.name || 'Unknown'}</div>
+          <div class="verify-meta">${l.email || ''} · ${l.specialisation || 'General'} · ${l.country || '—'}</div>
+          ${l.barNumber ? `<div class="verify-meta" style="margin-top:4px;">Bar No: <span style="color:var(--text);">${l.barNumber}</span></div>` : ''}
+          ${l.firm ? `<div class="verify-meta">Firm: ${l.firm}</div>` : ''}
+          <div class="verify-actions">
+            ${!l.verified ? `<button class="verify-btn approve" onclick="verifyLawyer('${l.id}', true)">✓ Verify</button>` : '<span style="color:var(--green);font-size:11px;">✓ Verified</span>'}
+            ${l.verified ? `<button class="verify-btn reject" onclick="verifyLawyer('${l.id}', false)">Revoke</button>` : `<button class="verify-btn reject" onclick="verifyLawyer('${l.id}', false, true)">✗ Reject</button>`}
+          </div>
+        </div>
+        <span class="verify-badge ${l.verified ? '' : 'pending'}">${l.verified ? '✓ VERIFIED' : 'PENDING'}</span>
+      </div>`).join('');
+  }
+
+  window.setLawyerFilter = function(f, el) {
+    _lawyerFilter = f;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    el.classList.add('active');
+    renderLawyers();
+  };
+
+  window.verifyLawyer = async function(uid, approve, reject=false) {
+    try {
+      await updateDoc(doc(db, 'users', uid), { verified: approve, verifiedAt: approve ? serverTimestamp() : null });
+      const l = _allLawyers.find(x => x.id === uid);
+      if (l) l.verified = approve;
+      renderLawyers();
+      showToast(approve ? 'Lawyer verified ✓' : 'Verification revoked', approve ? 'green' : 'red');
+      logActivity(`Lawyer ${approve ? 'verified' : 'rejected'}: ${l?.name || uid}`, approve ? 'green' : 'red');
+      await loadLawyers();
+    } catch(e) { showToast('Update failed', 'red'); }
+  };
+
+  // ── STATS ──
+  function updateStats() {
+    const total = _allUsers.length;
+    const premium = _allUsers.filter(u => u.plan === 'premium').length;
+    const lawyers = _allUsers.filter(u => u.role === 'lawyer').length;
+    const premiumLawyers = _allUsers.filter(u => u.role === 'lawyer' && u.plan === 'premium').length;
+    const mrr = (premium * 4.99 + premiumLawyers * 24.99).toFixed(2);
+
+    document.getElementById('statTotalUsers').textContent = total;
+    document.getElementById('statPremiumUsers').textContent = premium;
+    document.getElementById('statLawyers').textContent = lawyers;
+    document.getElementById('statMRR').textContent = '$' + mrr;
+    document.getElementById('statUsersGrowth').textContent = `${lawyers} lawyers · ${total - lawyers} individuals`;
+    document.getElementById('statPremiumSub').textContent = `${((premium/Math.max(total,1))*100).toFixed(1)}% conversion`;
+    document.getElementById('statLawyersSub').textContent = `${_allLawyers.filter(l=>!l.verified).length} pending verification`;
+
+    // Revenue page
+    document.getElementById('revMRR').textContent = '$' + mrr;
+    document.getElementById('revARR').textContent = '$' + (mrr * 12).toFixed(2);
+    document.getElementById('revTotal').textContent = '$' + mrr; // live estimate only
+
+    document.getElementById('revenueBreakdown').innerHTML = `
+      <div class="toggle-row"><span class="toggle-label">Individual Premium (${premium} users × $4.99)</span><span style="color:var(--gold);">$${(premium*4.99).toFixed(2)}/mo</span></div>
+      <div class="toggle-row"><span class="toggle-label">Lawyer Subscriptions (${premiumLawyers} lawyers × $24.99)</span><span style="color:var(--gold);">$${(premiumLawyers*24.99).toFixed(2)}/mo</span></div>
+      <div class="toggle-row" style="border-top:1px solid var(--border-gold);margin-top:8px;padding-top:16px;"><span style="color:var(--text);font-weight:600;">Estimated MRR</span><span style="color:var(--gold);font-weight:600;">$${mrr}/mo</span></div>`;
+  }
+
+  // ── OVERVIEW ──
+  async function loadOverview() {
+    // Pending verifications preview
+    await loadLawyers();
+    const pending = _allLawyers.filter(l => !l.verified);
+    document.getElementById('overviewPendingList').innerHTML = pending.length ? pending.slice(0,3).map(l => `
+      <div class="verify-card" style="margin-bottom:8px;">
+        <div class="verify-avatar" style="width:36px;height:36px;font-size:15px;">${(l.name||'L')[0]}</div>
+        <div class="verify-info">
+          <div class="verify-name" style="font-size:13px;">${l.name||'Unknown'}</div>
+          <div class="verify-meta">${l.specialisation||'General'} · ${l.country||'—'}</div>
+        </div>
+        <span class="verify-badge pending">PENDING</span>
+      </div>`).join('') : '<div class="config-card" style="padding:20px;"><div class="empty-state">No pending verifications</div></div>';
+  }
+
+  // ── ACTIVITY LOG ──
+  const _activityLog = [];
+  function logActivity(text, type='gold') {
+    const now = new Date();
+    _activityLog.unshift({ text, type, time: now.toLocaleTimeString() });
+    if (_activityLog.length > 50) _activityLog.pop();
+    renderActivityLog();
+  }
+
+  function renderActivityLog() {
+    const list = _activityLog.length ? _activityLog.map(a => `
+      <div class="log-item">
+        <div class="log-dot ${a.type}"></div>
+        <div><div class="log-text">${a.text}</div><div class="log-time">${a.time}</div></div>
+      </div>`).join('') : '<div class="empty-state">No activity yet</div>';
+
+    document.getElementById('activityLogList').innerHTML = list;
+    document.getElementById('recentActivityList').innerHTML = _activityLog.slice(0,6).map(a => `
+      <div class="log-item">
+        <div class="log-dot ${a.type}"></div>
+        <div><div class="log-text">${a.text}</div><div class="log-time">${a.time}</div></div>
+      </div>`).join('') || '<div class="empty-state">No activity yet</div>';
+  }
+
+  // ── PLATFORM SETTINGS ──
+  async function loadPlatformSettings() {
+    try {
+      const snap = await getDoc(doc(db, 'admin', 'settings'));
+      if (snap.exists()) {
+        const d = snap.data();
+        if (d.freeLimit) document.getElementById('settingFreeLimit').value = d.freeLimit;
+        if (d.guestLimit) document.getElementById('settingGuestLimit').value = d.guestLimit;
+        if (d.adminEmail) document.getElementById('adminEmail').value = d.adminEmail;
+        ['flagSignups','flagLawyerReg','flagCrypto','flagStripe','flagMaintenance','flagStatusBanner'].forEach(f => {
+          if (d[f] !== undefined) document.getElementById(f).checked = d[f];
+        });
+      }
+    } catch(e) {}
+  }
+
+  window.savePlatformSettings = async function() {
+    const data = {
+      freeLimit: parseInt(document.getElementById('settingFreeLimit').value),
+      guestLimit: parseInt(document.getElementById('settingGuestLimit').value),
+      adminEmail: document.getElementById('adminEmail').value,
+      flagSignups: document.getElementById('flagSignups').checked,
+      flagLawyerReg: document.getElementById('flagLawyerReg').checked,
+      flagCrypto: document.getElementById('flagCrypto').checked,
+      flagStripe: document.getElementById('flagStripe').checked,
+      flagMaintenance: document.getElementById('flagMaintenance').checked,
+      flagStatusBanner: document.getElementById('flagStatusBanner').checked,
+      updatedAt: serverTimestamp()
+    };
+    try {
+      await setDoc(doc(db, 'admin', 'settings'), data, { merge: true });
+      showToast('Platform settings saved ✓', 'green');
+      logActivity('Platform settings updated', 'gold');
+    } catch(e) { showToast('Save failed', 'red'); }
+  };
+
+  logActivity('Admin console loaded', 'gold');
+</script>
+</body>
+</html>
