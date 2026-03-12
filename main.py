@@ -1,1393 +1,1506 @@
-import os
-import json
-import logging
-import datetime
-import io
-import hmac
-import hashlib
-from collections import defaultdict
-from flask import Flask, request, jsonify, send_file, Response
-import google.generativeai as genai
-import requests
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>LEX — AI Global Legal Navigator</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-primary: #0a0a0a;
+    --bg-secondary: #111111;
+    --bg-card: #161616;
+    --bg-elevated: #1c1c1c;
+    --text-primary: #ffffff;
+    --text-secondary: #a0a0a0;
+    --text-muted: #666666;
+    --accent-gold: #c9a86c;
+    --accent-gold-light: #e0c090;
+    --border: #2a2a2a;
+    --border-light: #333333;
+  }
 
-try:
-    import pdfplumber
-    PDF_SUPPORT = True
-except ImportError:
-    PDF_SUPPORT = False
-
-try:
-    from docx import Document as DocxDocument
-    DOCX_SUPPORT = True
-except ImportError:
-    DOCX_SUPPORT = False
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-app = Flask(__name__)
-
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-TAVILY_API_KEY = os.environ.get("TAVILY_API_KEY")
-
-# ── LEMON SQUEEZY CONFIG ──
-LS_API_KEY = os.environ.get("LEMONSQUEEZY_API_KEY")
-LS_STORE_ID = os.environ.get("LEMONSQUEEZY_STORE_ID", "314031")
-LS_WEBHOOK_SECRET = os.environ.get("LEMONSQUEEZY_WEBHOOK_SECRET", "vaxjfkoll65lexsecret")
-
-LS_VARIANT_IDS = {
-    "premium_monthly":  "1396669",
-    "premium_yearly":   "1396678",
-    "lawyer_monthly":   "1396689",
-    "lawyer_yearly":    "1396693",
-    "verified_badge":   "1396698",
-    "boost_7day":       "1396701",
-    "boost_30day":      "1396704",
+[data-theme="light"] {
+--bg-primary: #fafafa;
+--bg-secondary: #ffffff;
+--bg-card: #f5f5f5;
+--bg-elevated: #ffffff;
+--text-primary: #1a1a1a;
+--text-secondary: #666666;
+--text-muted: #999999;
+--accent-gold: #8b7355;
+--accent-gold-light: #a08060;
+--border: #e5e5e5;
+--border-light: #eeeeee;
 }
 
-# Map variant ID → plan/action for webhook processing
-LS_VARIANT_MAP = {
-    "1396669": {"plan": "premium",   "role": "individual", "billing": "monthly"},
-    "1396678": {"plan": "premium",   "role": "individual", "billing": "yearly"},
-    "1396689": {"plan": "premium",   "role": "lawyer",     "billing": "monthly"},
-    "1396693": {"plan": "premium",   "role": "lawyer",     "billing": "yearly"},
-    "1396698": {"plan": "badge",     "role": "lawyer",     "billing": "one_time"},
-    "1396701": {"plan": "boost_7",   "role": "lawyer",     "billing": "one_time"},
-    "1396704": {"plan": "boost_30",  "role": "lawyer",     "billing": "one_time"},
+* { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+  line-height: 1.6;
+  transition: background 0.5s ease, color 0.5s ease;
+  }
+  .font-serif { font-family: 'Cormorant Garamond', serif; }
+
+.theme-toggle {
+position: fixed;
+bottom: 24px;
+right: 24px;
+z-index: 1001;
+background: var(--bg-card);
+border: 1px solid var(--border);
+border-radius: 50px;
+padding: 6px;
+display: flex;
+gap: 4px;
+cursor: pointer;
+transition: all 0.3s ease;
+box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+.theme-toggle:hover { border-color: var(--accent-gold); }
+.theme-btn {
+width: 32px; height: 32px;
+border: none; background: transparent; border-radius: 50%;
+cursor: pointer; display: flex; align-items: center; justify-content: center;
+color: var(--text-secondary); transition: all 0.3s ease; font-size: 14px;
+}
+.theme-btn.active { background: var(--accent-gold); color: var(--bg-primary); }
+
+/* Custom Chat Button */
+.chat-trigger-btn {
+  position: fixed;
+  bottom: 90px;
+  right: 24px;
+  z-index: 999999;
+  background: var(--accent-gold);
+  color: var(--bg-primary);
+  border: none;
+  border-radius: 50px;
+  padding: 14px 24px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 20px rgba(201, 168, 108, 0.4);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.chat-trigger-btn:hover {
+  background: var(--accent-gold-light);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(201, 168, 108, 0.5);
+}
+.chat-trigger-btn.hidden {
+  display: none !important;
+}
+.chat-trigger-btn svg {
+  width: 18px;
+  height: 18px;
 }
 
-model = None
-if GEMINI_API_KEY:
-    try:
-        genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel(model_name="gemini-2.5-flash")
-        logger.info("LEX AI Engine online.")
-    except Exception as e:
-        logger.error(f"Gemini failed: {e}")
-
-usage_tracker = defaultdict(lambda: {"count": 0, "date": str(datetime.date.today())})
-
-FREE_PROMPT = """You are LEX, an AI legal information assistant. You provide clear, simple legal information to everyday people.
-
-PERSONALITY: Formal but simple and clear. You speak plainly so anyone can understand — no legal jargon unless explained.
-
-YOUR CAPABILITIES:
-- Answer legal questions based on the laws of the specified country
-- Cite specific laws, acts, and sections where possible
-- Explain what the law means in simple terms
-- Provide basic next steps the person can take
-
-RULES:
-- Keep answers clear and structured with numbered points
-- Always name the specific law or act you are referencing
-- Always end with: "This is legal information only, not legal advice. For your specific situation, consult a qualified lawyer."
-- Do NOT draft documents (premium feature)
-- Do NOT provide deep case analysis (premium feature)
-- Be helpful but keep responses concise"""
-
-PREMIUM_PROMPT = """You are LEX Premium, an advanced AI legal advisor. You provide friendly, thorough legal guidance with warmth and care.
-
-PERSONALITY: Like a knowledgeable friend who happens to be a lawyer. Warm, approachable, detailed, and genuinely helpful. You make people feel supported and informed.
-
-YOUR CAPABILITIES:
-- Answer any legal question with detailed analysis
-- Cite specific laws, acts, sections, and relevant case law
-- Draft legal documents (letters, notices, complaints, simple contracts)
-- Analyze the user's legal position and recommend strategy
-- Search for current legal developments when needed
-- Explain complex legal concepts with relatable examples
-- Predict likely outcomes based on the facts given
-
-DOCUMENT DRAFTING: When asked to draft a document, produce a complete, properly formatted legal document ready to use.
-
-RULES:
-- Be warm, supportive and thorough
-- Use clear headings and numbered points
-- Always cite the specific law
-- Always end with: "This analysis is provided as legal information. For court proceedings or binding legal matters, I recommend consulting a qualified lawyer."
-- Go above and beyond — give the user everything they need"""
-
-BUSINESS_PROMPT = """You are LEX Business, an elite AI legal counsel system designed for businesses and legal professionals.
-
-PERSONALITY: Like a senior partner at a top law firm. Precise, authoritative, thorough, and highly professional. You speak the language of lawyers and business leaders.
-
-YOUR CAPABILITIES:
-- Provide comprehensive legal analysis with full citations
-- Draft any legal document: contracts, NDAs, employment agreements, demand letters, corporate resolutions
-- Conduct multi-jurisdictional legal analysis
-- Predict case outcomes with probability assessments based on precedent
-- Identify legal risks and compliance gaps
-- Provide strategic legal recommendations
-- Analyze contracts and identify problematic clauses
-- Research current laws, regulations and recent case law
-
-DOCUMENT DRAFTING: Produce complete, court-ready legal documents with proper headings, clauses, and legal language.
-
-CASE ANALYSIS FORMAT:
-1. Legal Issues Identified
-2. Applicable Laws and Regulations
-3. Precedent Cases (if relevant)
-4. Legal Position Assessment
-5. Risk Analysis
-6. Strategic Recommendations
-7. Probability of Success (%)
-
-RULES:
-- Be precise, thorough and authoritative
-- Always cite specific statutes with section numbers
-- Use proper legal terminology
-- Structure responses professionally with clear headings
-- Always end with: "This analysis constitutes legal information prepared by LEX Business AI. It does not establish an attorney-client relationship. Verify all citations before use in legal proceedings."
-- Deliver elite-level legal intelligence"""
-
-# ── LEGAL RESEARCH DOMAINS BY REGION ──
-LEGAL_DOMAINS = [
-    # International / General
-    "worldlii.org", "law.cornell.edu", "legal-dictionary.thefreedictionary.com",
-    "lawteacher.net", "legislation.gov.uk", "bailii.org",
-    # Africa
-    "nigerialii.org", "supremecourt.gov.ng", "lawnigeria.com",
-    "ghanalii.org", "kenyalaw.org", "saflii.org", "lawlibrary.org.za",
-    # Americas
-    "justice.gov", "supremecourt.gov", "law.justia.com", "canlii.org",
-    # Asia-Pacific
-    "austlii.edu.au", "lawphil.net", "singaporelegaladvice.com",
-    # Europe
-    "eur-lex.europa.eu", "echr.coe.int",
-]
-
-SOURCE_TYPE_KEYWORDS = {
-    "case law": ["v.", "vs.", "appeal", "court", "judgment", "ruling", "decision", "held"],
-    "legislation": ["act", "law", "statute", "code", "regulation", "section", "article", "ordinance"],
-    "regulation": ["regulation", "rule", "order", "directive", "circular", "gazette"],
-    "commentary": ["guide", "overview", "explained", "analysis", "what is", "how to"],
+/* Notification dot on chat button */
+.chat-trigger-btn.has-notification::after {
+  content: '';
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 12px;
+  height: 12px;
+  background: #e74c3c;
+  border-radius: 50%;
+  border: 2px solid var(--accent-gold);
+  animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.2); opacity: 0.8; }
 }
 
-def classify_source(title, content):
-    """Classify a search result by source type."""
-    text = (title + " " + content).lower()
-    for stype, keywords in SOURCE_TYPE_KEYWORDS.items():
-        if any(k in text for k in keywords):
-            return stype
-    return "legal reference"
-
-def optimise_legal_query(question, country, model_instance):
-    """Use AI to rewrite user question into an optimised legal research query."""
-    if not model_instance:
-        return f"{question} {country} law"
-    try:
-        prompt = f"""You are a legal research assistant. Convert the following user question into an optimised legal search query for finding case law, legislation and legal precedents.
-
-User question: {question}
-Country: {country}
-
-Rules:
-- Include the country name
-- Include relevant legal terminology
-- Include relevant act/law names if you know them
-- Keep it under 15 words
-- Return ONLY the search query, nothing else"""
-        response = model_instance.generate_content(prompt)
-        optimised = response.text.strip().replace('"', '').replace("'", '')
-        return optimised if optimised else f"{question} {country} law"
-    except:
-        return f"{question} {country} law legal"
-
-def search_legal_info(query, country, optimise=False):
-    """Search for legal information using Tavily. Returns (context_string, sources_list)."""
-    if not TAVILY_API_KEY:
-        return None, []
-    try:
-        search_query = optimise_legal_query(query, country, model) if optimise else f"{query} {country} law legal"
-        
-        response = requests.post(
-            "https://api.tavily.com/search",
-            json={
-                "api_key": TAVILY_API_KEY,
-                "query": search_query,
-                "search_depth": "advanced",
-                "max_results": 7,
-                "include_domains": LEGAL_DOMAINS,
-                "include_answer": True,
-            },
-            timeout=12
-        )
-        if response.status_code == 200:
-            data = response.json()
-            results = data.get("results", [])
-            if not results:
-                return None, []
-
-            # Filter by jurisdiction relevance
-            country_lower = country.lower()
-            scored = []
-            for r in results:
-                score = r.get('score', 0)
-                title = r.get('title', '')
-                content = r.get('content', '')
-                url = r.get('url', '')
-                # Boost if country mentioned
-                if country_lower in (title + content + url).lower():
-                    score += 0.3
-                scored.append({ 'title': title, 'content': content, 'url': url, 'score': score, 'type': classify_source(title, content) })
-
-            scored.sort(key=lambda x: x['score'], reverse=True)
-            top = scored[:5]
-
-            # Build context for AI
-            search_summary = "\n\nLEGAL RESEARCH SOURCES FOUND:\n"
-            for r in top:
-                search_summary += f"\n[{r['type'].upper()}] {r['title']}\n{r['content'][:400]}\n"
-
-            # Build clean sources list for frontend display
-            sources = [{'title': r['title'], 'url': r['url'], 'type': r['type'], 'snippet': r['content'][:200]} for r in top]
-
-            return search_summary, sources
-    except Exception as e:
-        logger.error(f"Search error: {e}")
-    return None, []
-
-def detect_query_type(question):
-    q = question.lower()
-    if any(word in q for word in ["draft", "write", "create", "prepare", "template", "letter", "contract", "agreement", "notice", "document"]):
-        return "document"
-    elif any(word in q for word in ["analyze", "analyse", "chance", "likely", "outcome", "win", "lose", "case", "predict", "probability"]):
-        return "analysis"
-    elif any(word in q for word in ["current", "latest", "recent", "new law", "updated", "2024", "2025", "2026", "today"]):
-        return "research"
-    else:
-        return "question"
-
-def check_rate_limit(ip, tier):
-    if tier != "free":
-        return True
-    today = str(datetime.date.today())
-    user = usage_tracker[ip]
-    if user["date"] != today:
-        usage_tracker[ip] = {"count": 0, "date": today}
-    if usage_tracker[ip]["count"] >= 5:
-        return False
-    usage_tracker[ip]["count"] += 1
-    return True
-
-def get_remaining_questions(ip):
-    today = str(datetime.date.today())
-    user = usage_tracker[ip]
-    if user["date"] != today:
-        return 5
-    return max(0, 5 - user["count"])
-
-@app.route('/')
-def index():
-    static_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'index.html')
-    if os.path.exists(static_path):
-        return send_file(static_path)
-    return "<h1>LEX AI is online</h1>", 200
-
-@app.route('/auth.html')
-def auth():
-    static_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'auth.html')
-    if os.path.exists(static_path):
-        return send_file(static_path)
-    return "Not found", 404
-
-@app.route('/dashboard.html')
-def dashboard():
-    static_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dashboard.html')
-    if os.path.exists(static_path):
-        return send_file(static_path)
-    return "Not found", 404
-
-@app.route('/dashboard-lawyer.html')
-def dashboard_lawyer():
-    static_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dashboard-lawyer.html')
-    if os.path.exists(static_path):
-        return send_file(static_path)
-    return "Not found", 404
-
-@app.route('/ask', methods=['POST'])
-def ask():
-    data = request.json
-    question = data.get('question', '').strip()
-    country = data.get('country', 'Nigeria')
-    category = data.get('category', 'General Law')
-    tier = data.get('tier', 'free').lower()
-
-    if not question:
-        return jsonify({'error': 'No question provided'}), 400
-
-    if not model:
-        return jsonify({'error': 'LEX AI engine is offline. Please try again later.'}), 503
-
-    ip = request.remote_addr
-    if not check_rate_limit(ip, tier):
-        return jsonify({
-            'error': 'You have reached your 5 free questions for today. Upgrade to LEX Premium for unlimited access.',
-            'limit_reached': True
-        }), 429
-
-    try:
-        if tier == "business":
-            system_prompt = BUSINESS_PROMPT
-        elif tier == "premium":
-            system_prompt = PREMIUM_PROMPT
-        else:
-            system_prompt = FREE_PROMPT
-
-        query_type = detect_query_type(question)
-
-        search_context = ""
-        search_sources = []
-        if query_type == "research" or tier in ["premium", "business"]:
-            optimise = tier in ["premium", "business"]
-            search_context, search_sources = search_legal_info(question, country, optimise=optimise)
-            if not search_context:
-                search_context = ""
-
-        type_instructions = {
-            "document": "\n\nTASK TYPE: DOCUMENT DRAFTING\nThe user wants you to draft a legal document. Produce a complete, properly formatted document.",
-            "analysis": "\n\nTASK TYPE: CASE ANALYSIS\nAnalyze this legal situation thoroughly. Assess the legal position, risks, and likely outcomes.",
-            "research": "\n\nTASK TYPE: LEGAL RESEARCH\nResearch current laws and recent developments on this topic.",
-            "question": "\n\nTASK TYPE: LEGAL QUESTION\nAnswer this legal question clearly and thoroughly."
-        }
-
-        prompt = f"""Country/Jurisdiction: {country}
-Legal Category: {category}
-Query Type: {query_type.upper()}
-User Tier: {tier.upper()}
-{memory_context}
-
-User Request:
-{question}
-{search_context}
-{type_instructions.get(query_type, '')}
-
-Provide a comprehensive response based on the laws of {country}."""
-
-        tier_intro = {
-            "business": "elite-level legal counsel",
-            "premium": "thorough, friendly legal guidance",
-            "free": "clear, simple legal information"
-        }
-
-        chat = model.start_chat(history=[
-            {"role": "user", "parts": [system_prompt]},
-            {"role": "model", "parts": [f"Understood. I am LEX {'Business' if tier == 'business' else 'Premium' if tier == 'premium' else ''}. Ready to provide {tier_intro[tier]} based on the laws of {country}."]}
-        ])
-
-        response = chat.send_message(prompt)
-        answer = response.text
-
-        result = {
-            'answer': answer,
-            'country': country,
-            'category': category,
-            'tier': tier,
-            'query_type': query_type,
-            'web_search_used': bool(search_context),
-            'sources': search_sources,
-        }
-
-        if tier == "free":
-            result['remaining_questions'] = get_remaining_questions(ip)
-
-        return jsonify(result)
-
-    except Exception as e:
-        logger.error(f"LEX AI Error: {e}")
-        return jsonify({'error': f'LEX encountered an error: {str(e)[:150]}'}), 500
-
-@app.route('/ask-stream', methods=['POST'])
-def ask_stream():
-    data = request.json
-    question = data.get('question', '').strip()
-    country = data.get('country', 'Nigeria')
-    category = data.get('category', 'General Law')
-    tier = data.get('tier', 'free').lower()
-    history = data.get('history', [])
-    memories = data.get('memories', [])
-    memory_context = build_memory_context(memories)
-
-    if not question:
-        return jsonify({'error': 'No question provided'}), 400
-
-    if not model:
-        return jsonify({'error': 'LEX AI engine is offline. Please try again later.'}), 503
-
-    ip = request.remote_addr
-    if not check_rate_limit(ip, tier):
-        def limit_gen():
-            yield f"data: {json.dumps({'error': 'You have reached your 5 free questions for today. Upgrade to LEX Premium for unlimited access.', 'limit_reached': True})}\n\n"
-        return Response(limit_gen(), mimetype='text/event-stream')
-
-    try:
-        if tier == "business":
-            system_prompt = BUSINESS_PROMPT
-        elif tier == "premium":
-            system_prompt = PREMIUM_PROMPT
-        else:
-            system_prompt = FREE_PROMPT
-
-        query_type = detect_query_type(question)
-
-        search_context = ""
-        search_sources = []
-        if query_type == "research" or tier in ["premium", "business"]:
-            optimise = tier in ["premium", "business"]
-            search_context, search_sources = search_legal_info(question, country, optimise=optimise)
-            if not search_context:
-                search_context = ""
-
-        type_instructions = {
-            "document": "\n\nTASK TYPE: DOCUMENT DRAFTING\nThe user wants you to draft a legal document. Produce a complete, properly formatted document.",
-            "analysis": "\n\nTASK TYPE: CASE ANALYSIS\nAnalyze this legal situation thoroughly. Assess the legal position, risks, and likely outcomes.",
-            "research": "\n\nTASK TYPE: LEGAL RESEARCH\nResearch current laws and recent developments on this topic.",
-            "question": "\n\nTASK TYPE: LEGAL QUESTION\nAnswer this legal question clearly and thoroughly."
-        }
-
-        prompt = f"""Country/Jurisdiction: {country}
-Legal Category: {category}
-Query Type: {query_type.upper()}
-User Tier: {tier.upper()}
-{memory_context}
-
-User Request:
-{question}
-{search_context}
-{type_instructions.get(query_type, '')}
-
-Provide a comprehensive response based on the laws of {country}."""
-
-        tier_intro = {
-            "business": "elite-level legal counsel",
-            "premium": "thorough, friendly legal guidance",
-            "free": "clear, simple legal information"
-        }
-
-        memory_intro = f" I have access to this user's previous interactions and will reference them naturally when relevant." if memories else ""
-        chat_history = [
-            {"role": "user", "parts": [system_prompt]},
-            {"role": "model", "parts": [f"Understood. I am LEX {'Business' if tier == 'business' else 'Premium' if tier == 'premium' else ''}. Ready to provide {tier_intro[tier]} based on the laws of {country}.{memory_intro}"]}
-        ]
-
-        # Add conversation history
-        for msg in history:
-            role = "user" if msg.get("role") == "user" else "model"
-            chat_history.append({"role": role, "parts": [msg.get("content", "")]})
-
-        chat = model.start_chat(history=chat_history)
-
-        def generate():
-            try:
-                full_answer = ""
-                response = chat.send_message(prompt, stream=True)
-                for chunk in response:
-                    if chunk.text:
-                        full_answer += chunk.text
-                        yield f"data: {json.dumps({'chunk': chunk.text})}\n\n"
-
-                # Send final metadata
-                remaining = get_remaining_questions(ip) if tier == "free" else None
-                yield f"data: {json.dumps({'done': True, 'answer': full_answer, 'query_type': query_type, 'web_search_used': bool(search_context), 'sources': search_sources, 'remaining_questions': remaining})}\n\n"
-
-                # Update rate limit count
-                if tier == "free":
-                    usage_tracker[ip]["count"] = max(0, usage_tracker[ip]["count"] - 1)
-
-            except Exception as e:
-                logger.error(f"Stream error: {e}")
-                yield f"data: {json.dumps({'error': f'LEX encountered an error: {str(e)[:150]}'})}\n\n"
-
-        return Response(generate(), mimetype='text/event-stream', headers={
-            'Cache-Control': 'no-cache',
-            'X-Accel-Buffering': 'no'
-        })
-
-    except Exception as e:
-        logger.error(f"LEX Stream Setup Error: {e}")
-        return jsonify({'error': f'LEX encountered an error: {str(e)[:150]}'}), 500
-
-@app.route('/draft', methods=['POST'])
-def draft_document():
-    data = request.json
-    doc_type = data.get('doc_type', '')
-    details = data.get('details', '')
-    country = data.get('country', 'Nigeria')
-    tier = data.get('tier', 'free')
-
-    if tier == 'free':
-        return jsonify({'error': 'Document drafting is a Premium feature. Upgrade to access this capability.'}), 403
-
-    if not model:
-        return jsonify({'error': 'LEX AI engine is offline.'}), 503
-
-    try:
-        system_prompt = BUSINESS_PROMPT if tier == 'business' else PREMIUM_PROMPT
-
-        prompt = f"""DOCUMENT DRAFTING REQUEST
-Country: {country}
-Document Type: {doc_type}
-Details: {details}
-
-Draft a complete, properly formatted {doc_type} legally appropriate for {country}.
-Include all necessary clauses, proper headings, signature blocks, and legal language."""
-
-        chat = model.start_chat(history=[
-            {"role": "user", "parts": [system_prompt]},
-            {"role": "model", "parts": ["Understood. I will draft a complete legal document."]}
-        ])
-
-        response = chat.send_message(prompt)
-        return jsonify({'document': response.text, 'doc_type': doc_type, 'country': country})
-
-    except Exception as e:
-        logger.error(f"Draft error: {e}")
-        return jsonify({'error': str(e)[:150]}), 500
-
-
-def extract_text_from_file(file):
-    """Extract text from uploaded PDF, DOCX or TXT file."""
-    filename = file.filename.lower()
-    content = file.read()
-
-    if filename.endswith('.pdf') and PDF_SUPPORT:
-        text = []
-        with pdfplumber.open(io.BytesIO(content)) as pdf:
-            for page in pdf.pages:
-                t = page.extract_text()
-                if t:
-                    text.append(t)
-        return '\n'.join(text)
-
-    elif filename.endswith('.docx') and DOCX_SUPPORT:
-        doc = DocxDocument(io.BytesIO(content))
-        return '\n'.join([p.text for p in doc.paragraphs if p.text.strip()])
-
-    elif filename.endswith('.txt'):
-        return content.decode('utf-8', errors='ignore')
-
-    else:
-        return content.decode('utf-8', errors='ignore')
-
-
-CONTRACT_REVIEW_PROMPT = """You are LEX Contract Analyst, an expert legal AI specialising in contract review across all jurisdictions worldwide.
-
-Analyse the contract below and provide a thorough review structured exactly as follows:
-
-## OVERVIEW
-Brief summary of what this contract is and its key purpose.
-
-## PARTIES & KEY TERMS
-List the parties involved and the main commercial terms (duration, value, governing law etc).
-
-## CLAUSE ANALYSIS
-For each significant clause, provide:
-- Clause name
-- Risk level: 🔴 HIGH / 🟡 MEDIUM / 🟢 LOW
-- What it says (plain English)
-- Any concerns or issues
-
-## RED FLAGS 🚨
-List any clauses that are unusual, one-sided, potentially unenforceable, or that the user should urgently review with a lawyer.
-
-## MISSING CLAUSES ⚠️
-List important clauses that are absent from this contract but should be present.
-
-## RECOMMENDATIONS
-Specific actionable advice for the user before signing.
-
-## OVERALL RISK RATING
-Give an overall contract risk rating: LOW / MEDIUM / HIGH / VERY HIGH with a brief explanation.
-
-Be thorough, clear and use plain English throughout. Flag anything that could harm the user."""
-
-REDLINE_PROMPT = """You are LEX Redline Expert, a specialist in contract redlining and negotiation across all jurisdictions.
-
-Review the contract below and produce a detailed redline report structured as follows:
-
-## REDLINE REPORT
-
-For each clause that needs attention, provide:
-
-### [Clause Name/Number]
-**Issue:** What is wrong or risky about this clause
-**Risk Level:** 🔴 HIGH / 🟡 MEDIUM / 🟢 LOW
-**Original Language:**
-> [Quote the problematic text]
-
-**Suggested Revision:**
-[Provide improved alternative wording]
-
-**Why:** Brief explanation of why this change protects the user better
-
----
-
-## NEGOTIATION PRIORITIES
-Rank the top 5 changes the user should push for, in order of importance.
-
-## CLAUSES TO REJECT
-List any clauses that should be removed entirely and why.
-
-## CLAUSES TO ADD
-List new clauses the user should request be added to protect their interests.
-
-Be specific with revised language. Write as if advising a client preparing for contract negotiation."""
-
-
-@app.route('/review-stream', methods=['POST'])
-def review_stream():
-    """Stream contract review with clause flagging."""
-    if not model:
-        return jsonify({'error': 'LEX AI engine is offline.'}), 503
-
-    file = request.files.get('file')
-    country = request.form.get('country', 'Nigeria')
-    tier = request.form.get('tier', 'free')
-    memories = json.loads(request.form.get('memories', '[]'))
-    memory_context = build_memory_context(memories)
-
-    if not file:
-        return jsonify({'error': 'No file uploaded.'}), 400
-
-    try:
-        text = extract_text_from_file(file)
-        if not text or len(text.strip()) < 50:
-            return jsonify({'error': 'Could not extract text from file. Please ensure it is a readable PDF, Word or text document.'}), 400
-
-        # Truncate very long contracts to avoid token limits
-        if len(text) > 15000:
-            text = text[:15000] + '\n\n[Document truncated for analysis — first 15,000 characters reviewed]'
-
-        prompt = f"""Country/Jurisdiction: {country}
-{memory_context}
-
-CONTRACT TEXT:
-{text}
-
-{CONTRACT_REVIEW_PROMPT}"""
-
-        def generate():
-            try:
-                chat = model.start_chat(history=[
-                    {"role": "user", "parts": [BUSINESS_PROMPT if tier == 'business' else PREMIUM_PROMPT]},
-                    {"role": "model", "parts": ["Understood. I am LEX Contract Analyst. I will provide a thorough contract review."]}
-                ])
-                response = chat.send_message(prompt, stream=True)
-                full = ""
-                for chunk in response:
-                    if chunk.text:
-                        full += chunk.text
-                        yield f"data: {json.dumps({'chunk': chunk.text})}\n\n"
-                yield f"data: {json.dumps({'done': True, 'full': full})}\n\n"
-            except Exception as e:
-                logger.error(f"Review stream error: {e}")
-                yield f"data: {json.dumps({'error': str(e)[:150]})}\n\n"
-
-        return Response(generate(), mimetype='text/event-stream', headers={
-            'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'
-        })
-
-    except Exception as e:
-        logger.error(f"Review setup error: {e}")
-        return jsonify({'error': str(e)[:150]}), 500
-
-
-@app.route('/redline-stream', methods=['POST'])
-def redline_stream():
-    """Stream contract redlining with suggested revisions."""
-    if not model:
-        return jsonify({'error': 'LEX AI engine is offline.'}), 503
-
-    file = request.files.get('file')
-    country = request.form.get('country', 'Nigeria')
-    tier = request.form.get('tier', 'free')
-
-    if not file:
-        return jsonify({'error': 'No file uploaded.'}), 400
-
-    try:
-        text = extract_text_from_file(file)
-        if not text or len(text.strip()) < 50:
-            return jsonify({'error': 'Could not extract text from file. Please ensure it is a readable PDF, Word or text document.'}), 400
-
-        if len(text) > 15000:
-            text = text[:15000] + '\n\n[Document truncated — first 15,000 characters reviewed]'
-
-        prompt = f"""Country/Jurisdiction: {country}
-
-CONTRACT TEXT:
-{text}
-
-{REDLINE_PROMPT}"""
-
-        def generate():
-            try:
-                chat = model.start_chat(history=[
-                    {"role": "user", "parts": [BUSINESS_PROMPT if tier == 'business' else PREMIUM_PROMPT]},
-                    {"role": "model", "parts": ["Understood. I am LEX Redline Expert. I will produce a detailed redline report with specific revision suggestions."]}
-                ])
-                response = chat.send_message(prompt, stream=True)
-                full = ""
-                for chunk in response:
-                    if chunk.text:
-                        full += chunk.text
-                        yield f"data: {json.dumps({'chunk': chunk.text})}\n\n"
-                yield f"data: {json.dumps({'done': True, 'full': full})}\n\n"
-            except Exception as e:
-                logger.error(f"Redline stream error: {e}")
-                yield f"data: {json.dumps({'error': str(e)[:150]})}\n\n"
-
-        return Response(generate(), mimetype='text/event-stream', headers={
-            'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'
-        })
-
-    except Exception as e:
-        logger.error(f"Redline setup error: {e}")
-        return jsonify({'error': str(e)[:150]}), 500
-
-
-CLAUSE_LIBRARY_PROMPT = """You are LEX Clause Library, an expert in legal drafting across all jurisdictions worldwide.
-
-The user is looking for a legal clause. Provide the following structured response:
-
-## CLAUSE: [Clause Name]
-**Category:** [e.g. Employment / NDA / Lease / Service Agreement / etc.]
-**Jurisdiction:** [Country/Region or General]
-**Risk Level:** 🟢 LOW / 🟡 MEDIUM / 🔴 HIGH (for the party using it)
-
----
-
-## PLAIN ENGLISH EXPLANATION
-What this clause means in simple terms and why it matters.
-
-## STANDARD CLAUSE TEXT
-```
-[Provide clean, professional standard clause text ready to use]
-```
-
-## VARIATIONS
-Provide 2–3 alternative versions:
-1. **[Variation name e.g. "Stronger / More Protective"]**
-```
-[Variation text]
-```
-2. **[Variation name e.g. "Balanced / Mutual"]**
-```
-[Variation text]
-```
-
-## NEGOTIATION NOTES
-Key points to watch for when this clause is used against you, and what to push for.
-
-## JURISDICTION NOTES
-Any important differences for the specified jurisdiction compared to international standard.
-
-Be thorough, practical and provide clause text that is ready to copy and use."""
-
-
-OUTCOME_PROMPT = """You are LEX Case Analyst, an expert in legal case assessment and outcome prediction across all jurisdictions.
-
-Analyse the case described and provide a structured assessment:
-
-## CASE SUMMARY
-Brief restatement of the key facts and legal issue.
-
-## LEGAL FRAMEWORK
-What area of law applies and the key legal principles relevant to this case.
-
-## OUTCOME PREDICTION
-
-### Likelihood of Success
-Provide a probability range (e.g. 60–75%) with confidence level and clear reasoning.
-
-### Favourable Factors ✅
-List specific facts that support a positive outcome.
-
-### Unfavourable Factors ❌
-List specific facts that work against a positive outcome.
-
-### Key Uncertainties ⚠️
-What unknowns could significantly change the outcome.
-
-## POSSIBLE OUTCOMES
-Describe 3 realistic scenarios:
-1. **Best Case** — what it looks like and what needs to go right
-2. **Most Likely Case** — the realistic middle ground
-3. **Worst Case** — what it looks like if things go wrong
-
-## FINANCIAL ASSESSMENT
-Rough estimate of potential costs, damages or compensation involved if applicable.
-
-## RECOMMENDED NEXT STEPS
-Specific, actionable advice ranked by priority.
-
-## URGENCY FLAG
-🔴 URGENT / 🟡 TIME SENSITIVE / 🟢 NO IMMEDIATE DEADLINE — with explanation of any deadlines or limitation periods that apply.
-
-Be honest about uncertainty. Never guarantee outcomes. Always recommend consulting a qualified lawyer for formal legal advice."""
-
-
-@app.route('/clause-stream', methods=['POST'])
-def clause_stream():
-    """Stream clause library response."""
-    if not model:
-        return jsonify({'error': 'LEX AI engine is offline.'}), 503
-
-    data = request.json
-    query = data.get('query', '').strip()
-    country = data.get('country', 'Nigeria')
-    tier = data.get('tier', 'free')
-    memories = data.get('memories', [])
-    memory_context = build_memory_context(memories)
-
-    if not query:
-        return jsonify({'error': 'Please describe the clause you need.'}), 400
-
-    prompt = f"""Jurisdiction: {country}
-{memory_context}
-Clause Request: {query}
-
-{CLAUSE_LIBRARY_PROMPT}"""
-
-    def generate():
-        try:
-            chat = model.start_chat(history=[
-                {"role": "user", "parts": [BUSINESS_PROMPT if tier == 'business' else PREMIUM_PROMPT]},
-                {"role": "model", "parts": ["Understood. I am LEX Clause Library. I will provide comprehensive clause information including standard text, variations and negotiation notes."]}
-            ])
-            response = chat.send_message(prompt, stream=True)
-            full = ""
-            for chunk in response:
-                if chunk.text:
-                    full += chunk.text
-                    yield f"data: {json.dumps({'chunk': chunk.text})}\n\n"
-            yield f"data: {json.dumps({'done': True, 'full': full})}\n\n"
-        except Exception as e:
-            logger.error(f"Clause stream error: {e}")
-            yield f"data: {json.dumps({'error': str(e)[:150]})}\n\n"
-
-    return Response(generate(), mimetype='text/event-stream', headers={
-        'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'
-    })
-
-
-@app.route('/outcome-stream', methods=['POST'])
-def outcome_stream():
-    """Stream case outcome prediction."""
-    if not model:
-        return jsonify({'error': 'LEX AI engine is offline.'}), 503
-
-    data = request.json
-    facts = data.get('facts', '').strip()
-    country = data.get('country', 'Nigeria')
-    area = data.get('area', 'General')
-    tier = data.get('tier', 'free')
-    memories = data.get('memories', [])
-    memory_context = build_memory_context(memories)
-
-    if not facts or len(facts) < 30:
-        return jsonify({'error': 'Please provide more detail about your case for an accurate assessment.'}), 400
-
-    prompt = f"""Jurisdiction: {country}
-Area of Law: {area}
-{memory_context}
-
-CASE FACTS:
-{facts}
-
-{OUTCOME_PROMPT}"""
-
-    def generate():
-        try:
-            chat = model.start_chat(history=[
-                {"role": "user", "parts": [BUSINESS_PROMPT if tier == 'business' else PREMIUM_PROMPT]},
-                {"role": "model", "parts": ["Understood. I am LEX Case Analyst. I will provide a thorough case assessment with outcome predictions and recommendations."]}
-            ])
-            response = chat.send_message(prompt, stream=True)
-            full = ""
-            for chunk in response:
-                if chunk.text:
-                    full += chunk.text
-                    yield f"data: {json.dumps({'chunk': chunk.text})}\n\n"
-            yield f"data: {json.dumps({'done': True, 'full': full})}\n\n"
-        except Exception as e:
-            logger.error(f"Outcome stream error: {e}")
-            yield f"data: {json.dumps({'error': str(e)[:150]})}\n\n"
-
-    return Response(generate(), mimetype='text/event-stream', headers={
-        'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'
-    })
-
-
-COMPARE_PROMPT = """You are LEX Document Comparison Expert, a specialist in comparative legal analysis across all jurisdictions.
-
-You have been provided with two legal documents. Conduct a thorough side-by-side comparison structured as follows:
-
-## DOCUMENT OVERVIEW
-
-### Document A — [Identify type, parties, date if visible]
-Brief summary of Document A's purpose and key terms.
-
-### Document B — [Identify type, parties, date if visible]
-Brief summary of Document B's purpose and key terms.
-
----
-
-## KEY DIFFERENCES
-
-For each significant difference found, provide:
-
-### [Topic/Clause Name]
-| | Document A | Document B |
-|---|---|---|
-| **Position** | [What A says] | [What B says] |
-| **Impact** | [Who this favours and why] |
-
-Risk Level: 🔴 HIGH / 🟡 MEDIUM / 🟢 LOW difference
-
----
-
-## CONFLICTING CLAUSES ⚠️
-List any clauses that directly contradict each other between the two documents, with explanation of the conflict and its legal implications.
-
-## CLAUSES IN A BUT NOT IN B
-List important clauses present in Document A that are missing from Document B.
-
-## CLAUSES IN B BUT NOT IN A
-List important clauses present in Document B that are missing from Document A.
-
-## OVERALL COMPARISON VERDICT
-
-### Which document is more favourable?
-State clearly whether Document A or Document B is more protective/favourable for the typical signing party, and why.
-
-### Risk Summary
-- Document A overall risk: LOW / MEDIUM / HIGH
-- Document B overall risk: LOW / MEDIUM / HIGH
-
-## RECOMMENDATIONS
-Specific advice on which document to use, what to negotiate, and what clauses to add or remove before signing.
-
-Be thorough, specific and use plain English. Reference clauses by name wherever possible."""
-
-
-@app.route('/compare-stream', methods=['POST'])
-def compare_stream():
-    """Stream multi-document comparison analysis."""
-    if not model:
-        return jsonify({'error': 'LEX AI engine is offline.'}), 503
-
-    file_a = request.files.get('file_a')
-    file_b = request.files.get('file_b')
-    country = request.form.get('country', 'Nigeria')
-    tier = request.form.get('tier', 'free')
-
-    if not file_a or not file_b:
-        return jsonify({'error': 'Please upload both documents to compare.'}), 400
-
-    try:
-        text_a = extract_text_from_file(file_a)
-        text_b = extract_text_from_file(file_b)
-
-        if not text_a or len(text_a.strip()) < 30:
-            return jsonify({'error': 'Could not extract text from Document A. Please ensure it is a readable PDF, Word or text file.'}), 400
-        if not text_b or len(text_b.strip()) < 30:
-            return jsonify({'error': 'Could not extract text from Document B. Please ensure it is a readable PDF, Word or text file.'}), 400
-
-        # Truncate each to 8000 chars to fit both in context
-        if len(text_a) > 8000:
-            text_a = text_a[:8000] + '\n\n[Document A truncated — first 8,000 characters reviewed]'
-        if len(text_b) > 8000:
-            text_b = text_b[:8000] + '\n\n[Document B truncated — first 8,000 characters reviewed]'
-
-        prompt = f"""Jurisdiction: {country}
-
-===== DOCUMENT A =====
-{text_a}
-
-===== DOCUMENT B =====
-{text_b}
-
-{COMPARE_PROMPT}"""
-
-        def generate():
-            try:
-                chat = model.start_chat(history=[
-                    {{"role": "user", "parts": [BUSINESS_PROMPT if tier == 'business' else PREMIUM_PROMPT]}},
-                    {{"role": "model", "parts": ["Understood. I am LEX Document Comparison Expert. I will conduct a thorough side-by-side analysis of both documents."]}}
-                ])
-                response = chat.send_message(prompt, stream=True)
-                full = ""
-                for chunk in response:
-                    if chunk.text:
-                        full += chunk.text
-                        yield f"data: {json.dumps({'chunk': chunk.text})}\n\n"
-                yield f"data: {json.dumps({'done': True, 'full': full})}\n\n"
-            except Exception as e:
-                logger.error(f"Compare stream error: {e}")
-                yield f"data: {json.dumps({'error': str(e)[:150]})}\n\n"
-
-        return Response(generate(), mimetype='text/event-stream', headers={{
-            'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'
-        }})
-
-    except Exception as e:
-        logger.error(f"Compare setup error: {e}")
-        return jsonify({{'error': str(e)[:150]}}), 500
-
-
-RESEARCH_PROMPT = """You are LEX Legal Research Engine, an expert legal researcher with access to current case law, legislation and legal commentary across all jurisdictions worldwide.
-
-Conduct thorough legal research on the topic provided and structure your response as follows:
-
-## RESEARCH TOPIC
-Restate the research topic clearly with the relevant jurisdiction.
-
-## APPLICABLE LEGISLATION
-List the key laws, acts, codes and regulations that apply, with specific sections where relevant. Format each as:
-**[Law Name]** (Year) — [Jurisdiction]
-Section/Article [X]: [What it says and why it matters]
-
-## RELEVANT CASE LAW
-List the most relevant cases with brief summaries. Format each as:
-**[Case Name]** [Year] — [Court]
-*Held:* [What the court decided and the principle established]
-
-## CURRENT LEGAL POSITION
-A clear, authoritative statement of what the law currently says on this topic in the specified jurisdiction.
-
-## RECENT DEVELOPMENTS
-Any recent changes, amendments, new cases or upcoming reforms relevant to this topic.
-
-## JURISDICTIONAL VARIATIONS
-If relevant, note how the law differs in nearby or commonly compared jurisdictions.
-
-## RESEARCH SUMMARY
-A concise 3-5 sentence summary of the key legal position for practical use.
-
-## SOURCES & CITATIONS
-List all sources referenced with proper legal citation format.
-
-Be thorough and authoritative. Cite specific laws and cases wherever possible."""
-
-
-@app.route('/research-stream', methods=['POST'])
-def research_stream():
-    """Dedicated legal research endpoint with optimised search and source citations."""
-    if not model:
-        return jsonify({'error': 'LEX AI engine is offline.'}), 503
-
-    data = request.json
-    topic = data.get('topic', '').strip()
-    country = data.get('country', 'Nigeria')
-    tier = data.get('tier', 'free')
-    memories = data.get('memories', [])
-    memory_context = build_memory_context(memories)
-
-    if not topic or len(topic) < 5:
-        return jsonify({'error': 'Please enter a research topic.'}), 400
-
-    # Always use optimised search for research
-    search_context, sources = search_legal_info(topic, country, optimise=True)
-
-    prompt = f"""Research Topic: {topic}
-Jurisdiction: {country}
-{memory_context}
-
-{search_context or ''}
-
-{RESEARCH_PROMPT}"""
-
-    def generate():
-        try:
-            system = BUSINESS_PROMPT if tier == 'business' else PREMIUM_PROMPT
-            chat = model.start_chat(history=[
-                {"role": "user", "parts": [system]},
-                {"role": "model", "parts": [f"Understood. I am LEX Legal Research Engine. I will conduct thorough research on this topic for {country} jurisdiction."]}
-            ])
-            response = chat.send_message(prompt, stream=True)
-            full = ""
-            for chunk in response:
-                if chunk.text:
-                    full += chunk.text
-                    yield f"data: {json.dumps({'chunk': chunk.text})}\n\n"
-            yield f"data: {json.dumps({'done': True, 'full': full, 'sources': sources})}\n\n"
-        except Exception as e:
-            logger.error(f"Research stream error: {e}")
-            yield f"data: {json.dumps({'error': str(e)[:150]})}\n\n"
-
-    return Response(generate(), mimetype='text/event-stream', headers={
-        'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'
-    })
-
-
-
-# ── MEMORY SYSTEM ──
-# Memory is saved/loaded via REST endpoints called from the frontend
-# Frontend uses Firebase SDK directly for Firestore reads/writes
-# Backend injects memory context into AI prompts via memory parameter
-
-def build_memory_context(memories):
-    """Build a memory context string from saved memories to inject into prompts."""
-    if not memories:
-        return ""
-    
-    lines = ["\n\n=== USER MEMORY CONTEXT ==="]
-    lines.append("The following is important context from this user's previous interactions with LEX.")
-    lines.append("Use this to provide personalised, contextually aware responses:\n")
-    
-    for m in memories[:10]:  # Max 10 most recent memories
-        mtype = m.get('type', 'interaction')
-        summary = m.get('summary', '')
-        date = m.get('date', '')
-        if summary:
-            lines.append(f"[{mtype.upper()} — {date}]: {summary}")
-    
-    lines.append("\n=== END MEMORY CONTEXT ===")
-    lines.append("When relevant, reference this history naturally. If the user asks about a previous case or document, refer to it directly.")
-    return "\n".join(lines)
-
-
-@app.route('/summarise-memory', methods=['POST'])
-def summarise_memory():
-    """Generate a concise memory summary of an AI interaction to save to Firestore."""
-    if not model:
-        return jsonify({'error': 'AI engine offline.'}), 503
-
-    data = request.json
-    interaction_type = data.get('type', 'question')
-    content_to_summarise = data.get('content', '').strip()
-    
-    if not content_to_summarise or len(content_to_summarise) < 20:
-        return jsonify({'error': 'Nothing to summarise.'}), 400
-
-    type_instructions = {
-        'question': 'Summarise the legal question asked and the key advice given. Include the legal topic, jurisdiction if mentioned, and the main conclusion.',
-        'contract_review': 'Summarise the contract reviewed. Include document type, parties if visible, overall risk rating, and the top 3 red flags found.',
-        'redline': 'Summarise the document redlined. Include document type, the most critical revision needed, and overall assessment.',
-        'clause': 'Summarise the clause searched for and the key information retrieved.',
-        'outcome': 'Summarise the case described and the predicted outcome. Include area of law, probability of success range, and urgency level.',
-        'compare': 'Summarise the two documents compared and the verdict. Include document types and which was more favourable.',
+/* Smartsupp widget - hidden by default, shown when opened */
+#smartsupp-widget-container,
+#smartsupp-widget-container iframe,
+.smartsupp-widget-container,
+.smartsupp-chat,
+.smartsupp-box {
+  z-index: 2147483647 !important;
+  position: fixed !important;
+  bottom: 0 !important;
+  right: 0 !important;
+  top: auto !important;
+  left: auto !important;
+  display: none !important; /* Hidden by default */
+}
+
+/* Show when Smartsupp is active */
+#smartsupp-widget-container.smartsupp--active,
+#smartsupp-widget-container[data-state="opened"],
+.smartsupp-widget-container--opened {
+  display: block !important;
+}
+
+/* Cookie Consent Banner */
+.cookie-banner {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--bg-card);
+  border-top: 1px solid var(--border);
+  padding: 20px 24px;
+  z-index: 1000000;
+  transform: translateY(100%);
+  transition: transform 0.4s ease, opacity 0.4s ease;
+  opacity: 0;
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.2);
+}
+.cookie-banner.visible {
+  transform: translateY(0);
+  opacity: 1;
+}
+.cookie-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: flex-start;
+}
+.cookie-content {
+  flex: 1;
+}
+.cookie-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+  letter-spacing: 0.5px;
+}
+.cookie-text {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  font-weight: 300;
+}
+.cookie-text a {
+  color: var(--accent-gold);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.3s;
+}
+.cookie-text a:hover {
+  border-bottom-color: var(--accent-gold);
+}
+.cookie-actions {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  flex-direction: column;
+}
+.cookie-btn {
+  padding: 12px 24px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border-radius: 6px;
+  border: none;
+  text-align: center;
+}
+.cookie-btn-primary {
+  background: var(--accent-gold);
+  color: var(--bg-primary);
+}
+.cookie-btn-primary:hover {
+  background: var(--accent-gold-light);
+}
+.cookie-btn-secondary {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+.cookie-btn-secondary:hover {
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
+}
+
+/* Adjust fixed elements when cookie banner is visible */
+body.cookie-visible .theme-toggle {
+  bottom: 140px;
+}
+/* Chat button stays fixed at bottom: 90px regardless of cookie banner */
+
+/* Fix hero background for better visibility in both modes */
+.hero-background {
+position: fixed; top: 0; left: 0; width: 100%; height: 100vh;
+z-index: 0; pointer-events: none;
+background: var(--bg-primary);
+}
+.hero-background img {
+width: 100%; height: 100%; object-fit: cover;
+opacity: 0.4; filter: grayscale(100%) brightness(0.4); transition: opacity 0.1s linear;
+}
+[data-theme="light"] .hero-background img { 
+  filter: grayscale(100%) brightness(0.6); 
+  opacity: 0.3;
+}
+
+nav {
+position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+display: flex; align-items: center; justify-content: space-between;
+padding: 20px 24px;
+background: linear-gradient(to bottom, var(--bg-primary), transparent);
+transition: all 0.3s ease;
+}
+nav.scrolled {
+background: rgba(10, 10, 10, 0.95);
+backdrop-filter: blur(20px);
+border-bottom: 1px solid var(--border);
+padding: 16px 24px;
+}
+[data-theme="light"] nav.scrolled { background: rgba(250, 250, 250, 0.95); }
+
+.logo {
+font-family: 'Cormorant Garamond', serif; font-size: 24px; font-weight: 700;
+color: var(--text-primary); letter-spacing: 2px; display: flex; align-items: center; gap: 10px;
+}
+.logo-icon {
+width: 32px; height: 32px; border: 1.5px solid var(--accent-gold); border-radius: 50%;
+display: flex; align-items: center; justify-content: center; font-size: 14px; color: var(--accent-gold);
+}
+.nav-links { display: none; }
+.nav-cta {
+background: transparent; color: var(--accent-gold); border: 1px solid var(--accent-gold);
+padding: 10px 20px; font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600;
+letter-spacing: 1.5px; text-transform: uppercase; cursor: pointer; transition: all 0.3s;
+}
+.nav-cta:hover { background: var(--accent-gold); color: var(--bg-primary); }
+
+.mobile-menu-btn {
+display: flex; flex-direction: column; gap: 5px;
+background: none; border: none; cursor: pointer; padding: 5px; z-index: 101;
+}
+.mobile-menu-btn span { width: 24px; height: 1.5px; background: var(--text-primary); transition: all 0.3s; }
+
+.mobile-menu {
+position: fixed; inset: 0; background: var(--bg-primary); z-index: 99;
+display: flex; flex-direction: column; justify-content: center; align-items: center;
+gap: 32px; opacity: 0; pointer-events: none; transition: opacity 0.3s;
+}
+.mobile-menu.open { opacity: 1; pointer-events: all; }
+.mobile-menu a {
+font-family: 'Cormorant Garamond', serif; font-size: 32px;
+color: var(--text-primary); text-decoration: none; transition: color 0.3s;
+}
+.mobile-menu a:hover { color: var(--accent-gold); }
+
+.hero {
+position: relative; min-height: 100vh; padding: 120px 24px 80px;
+max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; z-index: 1;
+}
+.hero-content { position: relative; z-index: 2; }
+
+.hero-label {
+font-size: 10px; letter-spacing: 3px; text-transform: uppercase;
+color: var(--accent-gold); margin-bottom: 24px; display: flex; align-items: center; gap: 12px;
+}
+.hero-label::before { content: ''; width: 40px; height: 1px; background: var(--accent-gold); }
+
+.hero h1 {
+font-family: 'Cormorant Garamond', serif;
+font-size: clamp(36px, 10vw, 72px); font-weight: 400; line-height: 1.05;
+margin-bottom: 24px; color: var(--text-primary); letter-spacing: -0.5px;
+text-shadow: 0 2px 20px rgba(0,0,0,0.5);
+}
+.hero h1 em { font-style: italic; color: var(--accent-gold); }
+
+.hero-sub {
+font-size: 15px; color: var(--text-secondary); line-height: 1.7;
+margin-bottom: 40px; max-width: 500px; font-weight: 300;
+text-shadow: 0 1px 10px rgba(0,0,0,0.5);
+}
+
+.hero-actions { display: flex; flex-direction: column; gap: 16px; margin-bottom: 60px; }
+
+.btn-primary {
+background: var(--accent-gold); color: var(--bg-primary); border: none;
+padding: 18px 32px; font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600;
+letter-spacing: 2px; text-transform: uppercase; cursor: pointer; transition: all 0.3s;
+display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%;
+}
+.btn-primary:hover { background: var(--accent-gold-light); }
+
+.btn-secondary {
+background: transparent; color: var(--text-primary); border: 1px solid var(--border-light);
+padding: 18px 32px; font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600;
+letter-spacing: 2px; text-transform: uppercase; cursor: pointer; transition: all 0.3s;
+display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%;
+text-shadow: 0 1px 10px rgba(0,0,0,0.5);
+}
+.btn-secondary:hover { border-color: var(--accent-gold); color: var(--accent-gold); }
+
+.btn-text {
+color: var(--text-primary); text-decoration: none; font-size: 12px;
+letter-spacing: 1.5px; text-transform: uppercase; text-align: center;
+padding: 12px; transition: color 0.3s; text-shadow: 0 1px 10px rgba(0,0,0,0.5);
+}
+.btn-text:hover { color: var(--accent-gold); }
+
+.widgets-container {
+position: relative; height: 280px; margin-bottom: 40px; z-index: 2;
+}
+.widget {
+position: absolute; background: rgba(22, 22, 22, 0.9); backdrop-filter: blur(10px);
+border: 1px solid var(--border); border-radius: 50%;
+display: flex; flex-direction: column; align-items: center; justify-content: center;
+text-align: center; animation: float 6s ease-in-out infinite;
+}
+[data-theme="light"] .widget { background: rgba(245, 245, 245, 0.95); }
+.widget-1 { width: 100px; height: 100px; top: 0; right: 10%; }
+.widget-2 { width: 80px; height: 80px; top: 40%; left: 5%; animation-delay: 2s; }
+.widget-3 { width: 70px; height: 70px; bottom: 10%; right: 25%; animation-delay: 4s; }
+.widget-num {
+font-family: 'Cormorant Garamond', serif; font-size: 24px; font-weight: 600;
+color: var(--accent-gold); line-height: 1;
+}
+.widget-2 .widget-num { font-size: 20px; }
+.widget-3 .widget-num { font-size: 18px; }
+.widget-label { font-size: 8px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-muted); margin-top: 2px; }
+@keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-10px); } }
+
+.content-wrapper { position: relative; z-index: 1; background: var(--bg-primary); }
+
+.ask-section { padding: 80px 24px; background: var(--bg-secondary); }
+.ask-container { max-width: 1200px; margin: 0 auto; }
+.ask-header { margin-bottom: 40px; }
+
+.section-label {
+font-size: 10px; letter-spacing: 3px; text-transform: uppercase;
+color: var(--accent-gold); margin-bottom: 16px; display: flex; align-items: center; gap: 12px;
+}
+.section-label::before { content: ''; width: 30px; height: 1px; background: var(--accent-gold); }
+.section-title {
+font-family: 'Cormorant Garamond', serif; font-size: clamp(32px, 8vw, 48px);
+font-weight: 400; margin-bottom: 16px; line-height: 1.1; color: var(--text-primary);
+}
+.section-sub { color: var(--text-secondary); font-size: 15px; line-height: 1.7; font-weight: 300; }
+
+.ask-box {
+background: var(--bg-card); border: 1px solid var(--border); padding: 28px; position: relative;
+}
+.ask-box::before {
+content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 2px;
+background: linear-gradient(to right, var(--accent-gold), transparent);
+}
+
+.country-select-row { display: grid; grid-template-columns: 1fr; gap: 16px; margin-bottom: 24px; }
+.select-label {
+font-size: 9px; letter-spacing: 2px; text-transform: uppercase;
+color: var(--text-muted); margin-bottom: 8px; display: block;
+}
+.country-select {
+width: 100%; background: var(--bg-elevated); border: 1px solid var(--border);
+color: var(--text-primary); padding: 14px 16px; font-family: 'Inter', sans-serif;
+font-size: 14px; cursor: pointer; appearance: none;
+background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23666' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+background-repeat: no-repeat; background-position: right 16px center; transition: all 0.3s;
+}
+.country-select:focus { outline: none; border-color: var(--accent-gold); }
+
+.jurisdiction-wrap { margin-bottom: 24px; }
+.jurisdiction-search-wrap { position: relative; }
+.jurisdiction-input {
+width: 100%; background: var(--bg-elevated); border: 1px solid var(--border);
+color: var(--text-primary); padding: 14px 16px; font-family: 'Inter', sans-serif;
+font-size: 14px; transition: all 0.3s;
+}
+.jurisdiction-input:focus { outline: none; border-color: var(--accent-gold); }
+.jurisdiction-input::placeholder { color: var(--text-muted); }
+.jurisdiction-suggestions {
+position: absolute; top: 100%; left: 0; right: 0;
+background: var(--bg-elevated); border: 1px solid var(--border); border-top: none;
+z-index: 200; max-height: 200px; overflow-y: auto; display: none;
+}
+.jurisdiction-suggestions.visible { display: block; }
+.suggestion-item {
+padding: 12px 16px; font-size: 13px; color: var(--text-secondary);
+cursor: pointer; border-bottom: 1px solid var(--border); transition: all 0.2s;
+}
+.suggestion-item:last-child { border-bottom: none; }
+.suggestion-item:hover, .suggestion-item.active { background: rgba(201,168,108,0.08); color: var(--accent-gold); }
+.jurisdiction-hint { font-size: 10px; color: var(--text-muted); margin-top: 6px; }
+
+.sample-questions { margin-bottom: 20px; }
+.sample-label { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 12px; }
+.sample-grid { display: flex; flex-direction: column; gap: 8px; }
+.sample-q {
+background: transparent; border: 1px solid var(--border); color: var(--text-secondary);
+padding: 12px 16px; font-family: 'Inter', sans-serif; font-size: 13px;
+cursor: pointer; transition: all 0.3s; text-align: left;
+}
+.sample-q:hover { border-color: var(--accent-gold); color: var(--accent-gold); }
+
+.question-input {
+width: 100%; background: var(--bg-elevated); border: 1px solid var(--border);
+color: var(--text-primary); padding: 16px; font-family: 'Inter', sans-serif;
+font-size: 15px; resize: none; height: 120px; transition: all 0.3s; margin-bottom: 20px;
+}
+.question-input:focus { outline: none; border-color: var(--accent-gold); }
+.question-input::placeholder { color: var(--text-muted); }
+
+.ask-footer { display: flex; flex-direction: column; gap: 16px; }
+.ask-meta { font-size: 11px; color: var(--text-muted); text-align: center; order: 2; }
+.ask-btn {
+background: var(--accent-gold); color: var(--bg-primary); border: none; padding: 16px;
+font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 2px;
+text-transform: uppercase; cursor: pointer; transition: all 0.3s;
+display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; order: 1;
+}
+.ask-btn:hover { background: var(--accent-gold-light); }
+.ask-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.loading {
+display: none; align-items: center; gap: 12px; padding: 20px 28px;
+color: var(--text-secondary); font-size: 13px; border-top: 1px solid var(--border);
+background: var(--bg-elevated);
+}
+.loading.visible { display: flex; }
+.loading-dots { display: flex; gap: 4px; }
+.loading-dots span {
+width: 6px; height: 6px; background: var(--accent-gold); border-radius: 50%; animation: bounce 1.4s infinite;
+}
+.loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+.loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes bounce { 0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; } 40% { transform: scale(1); opacity: 1; } }
+
+.answer-box {
+background: var(--bg-elevated); border-top: 1px solid var(--border); padding: 28px;
+display: none; animation: fadeUp 0.6s ease both;
+}
+.answer-box.visible { display: block; }
+.answer-header { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+.answer-badge {
+background: rgba(201, 168, 108, 0.15); color: var(--accent-gold); font-size: 10px;
+letter-spacing: 2px; text-transform: uppercase; padding: 6px 12px;
+border: 1px solid rgba(201, 168, 108, 0.3); width: fit-content;
+}
+.answer-country { font-size: 12px; color: var(--text-muted); }
+.answer-text { font-size: 15px; line-height: 1.8; color: var(--text-secondary); white-space: pre-wrap; font-weight: 300; }
+.answer-disclaimer {
+margin-top: 24px; padding: 16px; background: rgba(201, 168, 108, 0.05);
+border: 1px solid var(--border); font-size: 11px; color: var(--text-muted); line-height: 1.6;
+}
+.error-box { background: rgba(231, 76, 60, 0.05); border-top: 1px solid rgba(231, 76, 60, 0.2); padding: 20px 28px; display: none; }
+.error-box.visible { display: block; }
+.error-text { font-size: 13px; color: #e74c3c; }
+
+.practice-section { padding: 80px 24px; background: var(--bg-primary); }
+.practice-container { max-width: 1400px; margin: 0 auto; }
+.practice-header { margin-bottom: 40px; }
+.practice-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
+.practice-card { position: relative; aspect-ratio: 16/10; overflow: hidden; cursor: pointer; }
+.practice-card img {
+width: 100%; height: 100%; object-fit: cover;
+filter: grayscale(100%) brightness(0.6); transition: all 0.6s ease;
+}
+.practice-card:hover img { filter: grayscale(0%) brightness(0.7); transform: scale(1.05); }
+.practice-overlay {
+position: absolute; inset: 0;
+background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, transparent 70%);
+display: flex; flex-direction: column; justify-content: flex-end; padding: 24px;
+}
+.practice-num {
+font-family: 'Cormorant Garamond', serif; font-size: 36px; font-weight: 300;
+color: var(--accent-gold); opacity: 0.4; line-height: 1; margin-bottom: 8px;
+}
+.practice-title { font-family: 'Cormorant Garamond', serif; font-size: 24px; font-weight: 400; color: var(--text-primary); }
+
+[data-theme="light"] .practice-overlay {
+  background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.6) 50%, rgba(0,0,0,0.2) 100%);
+}
+[data-theme="light"] .practice-title {
+  color: #ffffff;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+}
+
+.features-section { padding: 80px 24px; background: var(--bg-secondary); }
+.features-container { max-width: 1200px; margin: 0 auto; }
+.features-header { margin-bottom: 48px; }
+.features-list { display: flex; flex-direction: column; gap: 0; }
+.feature-item { display: grid; grid-template-columns: 60px 1fr; gap: 20px; padding: 32px 0; border-bottom: 1px solid var(--border); }
+.feature-item:first-child { padding-top: 0; }
+.feature-item:last-child { border-bottom: none; padding-bottom: 0; }
+.feature-num { font-family: 'Cormorant Garamond', serif; font-size: 14px; font-weight: 400; color: var(--accent-gold); letter-spacing: 2px; line-height: 1; }
+.feature-content h3 { font-family: 'Cormorant Garamond', serif; font-size: 24px; font-weight: 400; margin-bottom: 12px; color: var(--text-primary); line-height: 1.3; }
+.feature-content p { font-size: 15px; color: var(--text-secondary); line-height: 1.8; font-weight: 300; }
+
+.pricing-section { padding: 80px 24px; background: var(--bg-primary); }
+.pricing-container { max-width: 1200px; margin: 0 auto; }
+.pricing-header { text-align: center; margin-bottom: 40px; }
+.pricing-toggle {
+display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 40px;
+background: var(--bg-card); padding: 6px; border-radius: 50px;
+width: fit-content; margin-left: auto; margin-right: auto; border: 1px solid var(--border);
+}
+.toggle-btn {
+padding: 10px 24px; border: none; background: transparent; font-family: 'Inter', sans-serif;
+font-size: 14px; font-weight: 500; color: var(--text-secondary); cursor: pointer;
+border-radius: 50px; transition: all 0.2s ease;
+}
+.toggle-btn.active { background: var(--bg-elevated); color: var(--text-primary); box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+.save-badge { background: #e74c3c; color: #ffffff; font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 20px; margin-left: 4px; }
+.pricing-grid { display: flex; flex-direction: column; gap: 24px; }
+.pricing-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 32px 28px; position: relative; transition: all 0.3s ease; }
+.pricing-card.featured { border: 2px solid var(--accent-gold); }
+.pricing-badge {
+position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+background: var(--accent-gold); color: var(--bg-primary); font-size: 10px; font-weight: 700;
+letter-spacing: 1.5px; text-transform: uppercase; padding: 6px 16px; border-radius: 20px; white-space: nowrap;
+}
+.pricing-tier { font-size: 12px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 16px; }
+.pricing-price { font-family: 'Inter', sans-serif; font-size: 48px; font-weight: 700; color: var(--text-primary); line-height: 1; margin-bottom: 8px; display: flex; align-items: flex-start; }
+.pricing-price sup { font-size: 24px; font-weight: 400; margin-right: 2px; color: var(--text-secondary); }
+.pricing-price span { font-size: 16px; color: var(--text-muted); font-weight: 400; margin-left: 4px; margin-top: 8px; }
+.pricing-desc { font-size: 15px; color: var(--text-secondary); margin-bottom: 28px; line-height: 1.6; font-weight: 300; }
+.pricing-features { list-style: none; margin-bottom: 32px; }
+.pricing-features li { font-size: 14px; padding: 12px 0; border-bottom: 1px solid var(--border); color: var(--text-secondary); display: flex; align-items: center; gap: 12px; }
+.pricing-features li:last-child { border-bottom: none; }
+.pricing-features li::before { content: '✓'; color: var(--accent-gold); font-weight: 700; width: 20px; height: 20px; background: rgba(201, 168, 108, 0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; }
+.pricing-btn { width: 100%; padding: 16px; font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; transition: all 0.3s; border-radius: 12px; border: 1.5px solid var(--border); background: transparent; color: var(--text-primary); }
+.pricing-btn:hover { border-color: var(--accent-gold); color: var(--accent-gold); }
+.pricing-btn.filled { background: var(--accent-gold); color: var(--bg-primary); border-color: var(--accent-gold); }
+.pricing-btn.filled:hover { background: var(--accent-gold-light); }
+
+footer { background: var(--bg-secondary); border-top: 1px solid var(--border); padding: 60px 24px; }
+.footer-container { max-width: 1400px; margin: 0 auto; }
+.footer-brand { margin-bottom: 40px; }
+.footer-logo { font-family: 'Cormorant Garamond', serif; font-size: 28px; font-weight: 700; color: var(--text-primary); margin-bottom: 16px; letter-spacing: 2px; }
+.footer-tagline { font-size: 14px; color: var(--text-secondary); line-height: 1.7; font-weight: 300; max-width: 300px; }
+.footer-links { display: grid; grid-template-columns: repeat(2, 1fr); gap: 32px; margin-bottom: 40px; }
+.footer-col h4 { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--text-primary); margin-bottom: 20px; }
+.footer-col ul { list-style: none; }
+.footer-col li { margin-bottom: 10px; }
+.footer-col a { color: var(--text-muted); text-decoration: none; font-size: 14px; transition: color 0.3s; }
+.footer-col a:hover { color: var(--accent-gold); }
+.footer-bottom { padding-top: 24px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-muted); text-align: center; }
+
+@keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+@media (min-width: 768px) {
+.theme-toggle { top: auto; bottom: 24px; right: 24px; }
+.chat-trigger-btn { bottom: 90px; right: 24px; }
+nav { padding: 24px 40px; }
+.nav-links { display: flex; gap: 32px; list-style: none; }
+.nav-links a { color: var(--text-secondary); text-decoration: none; font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; transition: color 0.3s; }
+.mobile-menu-btn { display: none; }
+.hero { padding: 160px 40px 100px; }
+.hero-actions { flex-direction: row; width: fit-content; }
+.btn-primary, .btn-secondary { width: auto; }
+.widgets-container { height: 350px; }
+.widget-1 { width: 130px; height: 130px; right: 15%; }
+.widget-2 { width: 100px; height: 100px; left: 10%; }
+.widget-3 { width: 90px; height: 90px; right: 30%; }
+.country-select-row { grid-template-columns: 1fr 1fr; }
+.sample-grid { flex-direction: row; flex-wrap: wrap; }
+.sample-q { width: calc(50% - 4px); }
+.ask-footer { flex-direction: row; justify-content: space-between; align-items: center; }
+.ask-meta { order: 1; text-align: left; }
+.ask-btn { width: auto; order: 2; }
+.practice-grid { grid-template-columns: repeat(2, 1fr); }
+.pricing-grid { flex-direction: row; flex-wrap: wrap; justify-content: center; }
+.pricing-card { flex: 1; min-width: 300px; max-width: 380px; }
+.pricing-card.featured { transform: scale(1.03); z-index: 2; }
+.footer-links { grid-template-columns: repeat(4, 1fr); }
+}
+
+@media (min-width: 1024px) {
+.hero { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center; padding: 140px 80px 100px; }
+.widgets-container { position: absolute; right: 0; top: 50%; transform: translateY(-50%); width: 400px; height: 400px; }
+.widget-1 { width: 140px; height: 140px; right: 20%; top: 0; }
+.widget-2 { width: 110px; height: 110px; left: 0; top: 40%; }
+.widget-3 { width: 90px; height: 90px; right: 10%; bottom: 10%; }
+.ask-container { display: grid; grid-template-columns: 1fr 1.2fr; gap: 80px; align-items: start; }
+.ask-header { position: sticky; top: 120px; }
+.practice-grid { grid-template-columns: repeat(3, 1fr); }
+.practice-card { aspect-ratio: 4/5; }
+.features-container { display: grid; grid-template-columns: 1fr 1.5fr; gap: 100px; }
+.footer-container { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 60px; }
+.footer-links { margin-bottom: 0; }
+}
+</style>
+
+<base target="_blank">
+<base target="_blank">
+</head>
+<body>
+
+<div class="mobile-menu" id="mobileMenu">
+  <a href="#ask" onclick="closeMenu()">Ask LEX</a>
+  <a href="#practice" onclick="closeMenu()">Practice Areas</a>
+  <a href="#features" onclick="closeMenu()">Features</a>
+  <a href="#pricing" onclick="closeMenu()">Pricing</a>
+</div>
+
+<div class="theme-toggle" onclick="toggleTheme()">
+  <button class="theme-btn active" data-theme="dark" title="Dark Mode">🌙</button>
+  <button class="theme-btn" data-theme="light" title="Light Mode">☀️</button>
+</div>
+
+<!-- Custom Chat Trigger Button - Always visible -->
+<button class="chat-trigger-btn" id="chatTrigger" onclick="openChat()" title="Chat with us">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+  </svg>
+  Chat
+</button>
+
+<!-- Cookie Consent Banner -->
+<div class="cookie-banner" id="cookieBanner">
+  <div class="cookie-container">
+    <div class="cookie-content">
+      <h3 class="cookie-title">Your Privacy Matters</h3>
+      <p class="cookie-text">
+        LEX uses cookies to enhance your experience, analyze site traffic, and personalize content. 
+        By clicking "Accept All", you consent to our use of cookies. 
+        <a href="#" onclick="showCookieDetails(); return false;">Learn more</a> about our Cookie Policy.
+      </p>
+    </div>
+    <div class="cookie-actions">
+      <button class="cookie-btn cookie-btn-secondary" onclick="rejectCookies()">Essential Only</button>
+      <button class="cookie-btn cookie-btn-primary" onclick="acceptCookies()">Accept All</button>
+    </div>
+  </div>
+</div>
+
+<nav id="navbar">
+  <div class="logo">
+    <div class="logo-icon">⚖</div>
+    LEX
+  </div>
+  <ul class="nav-links">
+    <li><a href="#ask">Ask LEX</a></li>
+    <li><a href="#practice">Practice Areas</a></li>
+    <li><a href="#features">Features</a></li>
+    <li><a href="#pricing">Pricing</a></li>
+  </ul>
+  <button class="nav-cta" onclick="window.location.href='auth.html'">Get Started</button>
+  <button class="mobile-menu-btn" onclick="toggleMenu()">
+    <span></span><span></span>
+  </button>
+</nav>
+
+<!-- Original hero background image — alt cleared so broken text never shows -->
+
+<div class="hero-background" id="heroBg">
+  <img src="https://images.unsplash.com/photo-1589994965851-a8f479c573a9?w=1920&h=1080&fit=crop" alt="">
+</div>
+
+<section class="hero">
+  <div class="hero-content">
+    <div class="hero-label">AI-Powered Legal Intelligence · 150+ Jurisdictions</div>
+    <h1>Legal clarity for everyone. <em>Professional tools for those who deliver it.</em></h1>
+    <p class="hero-sub">Whether you're an individual facing a legal situation and need answers fast — or a lawyer who needs AI research tools, client leads, and a marketplace to get found globally — LEX is your platform.</p>
+    <div class="hero-actions">
+      <button class="btn-primary" onclick="window.location.href='auth.html'">
+        I Need Legal Help
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8H13M13 8L9 4M13 8L9 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="btn-secondary" onclick="window.location.href='auth.html?role=lawyer'">
+        I'm a Lawyer / Firm
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8H13M13 8L9 4M13 8L9 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="widgets-container">
+    <div class="widget widget-1"><div class="widget-num">195+</div><div class="widget-label">Countries</div></div>
+    <div class="widget widget-2"><div class="widget-num">1M+</div><div class="widget-label">Laws</div></div>
+    <div class="widget widget-3"><div class="widget-num">24/7</div><div class="widget-label">Support</div></div>
+  </div>
+</section>
+
+<div class="content-wrapper">
+
+<section class="ask-section" id="ask">
+  <div class="ask-container">
+    <div class="ask-header">
+      <div class="section-label">Legal Consultation</div>
+      <h2 class="section-title">Ask anything. Get clarity.</h2>
+      <p class="section-sub">Our AI legal assistant understands context, jurisdiction, and nuance. Ask in plain language—no legal background required.</p>
+    </div>
+
+<div class="ask-box">
+  <div class="country-select-row">
+    <div>
+      <label class="select-label">Jurisdiction — Country</label>
+      <select class="country-select" id="countrySelect"></select>
+    </div>
+    <div>
+      <label class="select-label">Practice Area</label>
+      <select class="country-select" id="categorySelect">
+        <option value="General Law">General Counsel</option>
+        <option value="Criminal Law">Criminal Defense</option>
+        <option value="Civil Rights">Civil Rights</option>
+        <option value="Employment Law">Employment</option>
+        <option value="Property & Tenancy Law">Real Estate</option>
+        <option value="Family Law">Family Matters</option>
+        <option value="Business & Corporate Law">Corporate</option>
+        <option value="Constitutional Rights">Constitutional</option>
+        <option value="Immigration Law">Immigration</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="jurisdiction-wrap">
+    <label class="select-label">Specific City / State / Region <span style="color:var(--text-muted);font-size:9px;letter-spacing:0;">(optional)</span></label>
+    <div class="jurisdiction-search-wrap">
+      <input type="text" class="jurisdiction-input" id="jurisdictionInput" placeholder="e.g. Lagos, California, Dubai, London..." autocomplete="off">
+      <div class="jurisdiction-suggestions" id="jurisdictionSuggestions"></div>
+    </div>
+    <div class="jurisdiction-hint">Type a city, state or region for more precise legal guidance</div>
+  </div>
+
+  <div class="sample-questions">
+    <div class="sample-label">Common Inquiries</div>
+    <div class="sample-grid">
+      <button class="sample-q" onclick="setQ('What are my rights if arrested by police?')">Arrest Rights</button>
+      <button class="sample-q" onclick="setQ('Can my landlord evict me without notice?')">Tenant Protection</button>
+      <button class="sample-q" onclick="setQ('What is the penalty for theft in my jurisdiction?')">Criminal Penalties</button>
+      <button class="sample-q" onclick="setQ('How do I register a business entity?')">Business Formation</button>
+      <button class="sample-q" onclick="setQ('What constitutes wrongful dismissal?')">Employment Rights</button>
+    </div>
+  </div>
+
+  <textarea class="question-input" id="questionInput" placeholder="Describe your legal situation in detail..."></textarea>
+
+  <div class="ask-footer">
+    <span class="ask-meta">Encrypted • 5 free daily</span>
+    <button class="ask-btn" id="askBtn" onclick="askLex()">
+      Submit Inquiry
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8H13M13 8L9 4M13 8L9 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </div>
+
+  <div class="loading" id="loading">
+    <div class="loading-dots"><span></span><span></span><span></span></div>
+    <span>Analyzing <span id="loadingCountry" style="color:var(--accent-gold)"></span> framework...</span>
+  </div>
+
+  <div class="answer-box" id="answerBox">
+    <div class="answer-header">
+      <span class="answer-badge">LEX Analysis</span>
+      <span class="answer-country" id="answerMeta"></span>
+    </div>
+    <div class="answer-text" id="answerText"></div>
+    <div class="answer-disclaimer">This response is generated by artificial intelligence for educational purposes only. It does not constitute legal advice nor establish an attorney-client relationship.</div>
+  </div>
+
+  <div class="error-box" id="errorBox">
+    <div class="error-text" id="errorText"></div>
+  </div>
+</div>
+
+  </div>
+</section>
+
+<section class="practice-section" id="practice">
+  <div class="practice-container">
+    <div class="practice-header">
+      <div class="section-label">Areas of Practice</div>
+      <h2 class="section-title">Comprehensive legal coverage</h2>
+    </div>
+    <div class="practice-grid">
+      <div class="practice-card">
+        <img src="https://images.unsplash.com/photo-1589994965851-a8f479c573a9?w=600&h=750&fit=crop" alt="Corporate Law">
+        <div class="practice-overlay"><div class="practice-num">01</div><div class="practice-title">Corporate & Business</div></div>
+      </div>
+      <div class="practice-card">
+        <img src="https://images.unsplash.com/photo-1450101499163-c8848c66ca85?w=600&h=750&fit=crop" alt="Real Estate">
+        <div class="practice-overlay"><div class="practice-num">02</div><div class="practice-title">Real Estate & Property</div></div>
+      </div>
+      <div class="practice-card">
+        <img src="https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=600&h=750&fit=crop" alt="Employment Law">
+        <div class="practice-overlay"><div class="practice-num">03</div><div class="practice-title">Employment Law</div></div>
+      </div>
+      <div class="practice-card">
+        <img src="https://kimi-web-img.moonshot.cn/img/img.freepik.com/b670d9eb435991040feda540eae6b2a12dd1c8c2.jpg" alt="Criminal Defense">
+        <div class="practice-overlay"><div class="practice-num">04</div><div class="practice-title">Criminal Defense</div></div>
+      </div>
+      <div class="practice-card">
+        <img src="https://images.unsplash.com/photo-1515187029135-18ee286d815b?w=600&h=750&fit=crop" alt="Family Law">
+        <div class="practice-overlay"><div class="practice-num">05</div><div class="practice-title">Family Matters</div></div>
+      </div>
+      <div class="practice-card">
+        <img src="https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=600&h=750&fit=crop" alt="Intellectual Property">
+        <div class="practice-overlay"><div class="practice-num">06</div><div class="practice-title">Intellectual Property</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="features-section" id="features">
+  <div class="features-container">
+    <div class="features-header">
+      <div class="section-label">Capabilities</div>
+      <h2 class="section-title">Why leading firms choose LEX</h2>
+    </div>
+    <div class="features-list">
+      <div class="feature-item">
+        <div class="feature-num">01</div>
+        <div class="feature-content">
+          <h3>Multi-Jurisdictional Intelligence</h3>
+          <p>Seamlessly navigate conflicts of law across borders. Our AI understands how different legal systems interact.</p>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-num">02</div>
+        <div class="feature-content">
+          <h3>Document Generation & Review</h3>
+          <p>Draft contracts, pleadings, and legal correspondence that comply with local requirements.</p>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-num">03</div>
+        <div class="feature-content">
+          <h3>Predictive Case Analysis</h3>
+          <p>Assess likely outcomes based on precedent analysis and jurisdiction-specific factors.</p>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-num">04</div>
+        <div class="feature-content">
+          <h3>Secure & Confidential</h3>
+          <p>Enterprise-grade encryption with zero data retention options. Your consultations remain strictly confidential.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="pricing-section" id="pricing">
+  <div class="pricing-container">
+    <div class="pricing-header">
+      <div class="section-label">Pricing</div>
+      <h2 class="section-title">Transparent pricing</h2>
+    </div>
+    <div class="pricing-toggle">
+      <button class="toggle-btn active" onclick="togglePricing('monthly')">Monthly</button>
+      <button class="toggle-btn" onclick="togglePricing('yearly')">Yearly <span class="save-badge">Save 20%</span></button>
+    </div>
+    <div class="pricing-grid">
+      <div class="pricing-card">
+        <div class="pricing-tier">Free</div>
+        <div class="pricing-price"><sup>$</sup>0<span>/mo</span></div>
+        <div class="pricing-desc">Perfect for occasional legal questions</div>
+        <ul class="pricing-features">
+          <li>LEX AI research tool</li>
+          <li>Free daily reset</li>
+          <li>195 countries covered</li>
+          <li>Basic legal information</li>
+          <li>Email support</li>
+        </ul>
+        <button class="pricing-btn" onclick="window.location.href='auth.html'">Get Started</button>
+      </div>
+      <div class="pricing-card featured">
+        <div class="pricing-badge">Most Popular</div>
+        <div class="pricing-tier">Premium</div>
+        <div class="pricing-price" data-monthly="4.99" data-yearly="3.99"><sup>$</sup>4.99<span>/mo</span></div>
+        <div class="pricing-desc">For individuals with ongoing legal needs</div>
+        <ul class="pricing-features">
+          <li>Unlimited questions</li>
+          <li>195 countries covered</li>
+          <li>AI document drafting</li>
+          <li>Case strategy analysis</li>
+          <li>Priority support</li>
+          <li>Lawyer referrals</li>
+        </ul>
+        <button class="pricing-btn filled" onclick="window.location.href='auth.html'">Start Premium</button>
+      </div>
+      <div class="pricing-card">
+        <div class="pricing-tier">Lawyer / Firm</div>
+        <div class="pricing-price" data-monthly="24.99" data-yearly="19.99"><sup>$</sup>24.99<span>/mo</span></div>
+        <div class="pricing-desc">For lawyers and law firms ready to grow with AI</div>
+        <ul class="pricing-features">
+          <li>LEX AI research & drafting tool</li>
+          <li>Client lead pipeline</li>
+          <li>Global marketplace listing</li>
+          <li>Case manager</li>
+          <li>Verified lawyer badge</li>
+          <li>Priority placement</li>
+        </ul>
+        <button class="pricing-btn" onclick="window.location.href='auth.html?role=lawyer'">Join as Lawyer</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-container">
+    <div class="footer-brand">
+      <div class="footer-logo">LEX</div>
+      <p class="footer-tagline">Democratizing legal intelligence through artificial intelligence.</p>
+    </div>
+    <div class="footer-links">
+      <div class="footer-col">
+        <h4>Product</h4>
+        <ul>
+          <li><a href="#ask">Consultation</a></li>
+          <li><a href="#features">Features</a></li>
+          <li><a href="#pricing">Pricing</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Company</h4>
+        <ul>
+          <li><a href="#">About</a></li>
+          <li><a href="#">Careers</a></li>
+          <li><a href="#">Contact</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Legal</h4>
+        <ul>
+          <li><a href="#">Privacy</a></li>
+          <li><a href="#">Terms</a></li>
+          <li><a href="#">Disclaimer</a></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="footer-bottom">© 2026 LEX Global Legal Navigator. All rights reserved.</div>
+</footer>
+
+</div>
+
+<script>
+// ── MOBILE MENU ──
+function toggleMenu() { document.getElementById('mobileMenu').classList.toggle('open'); }
+function closeMenu() { document.getElementById('mobileMenu').classList.remove('open'); }
+
+// ── THEME ──
+function toggleTheme() {
+  const html = document.documentElement;
+  const newTheme = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  html.setAttribute('data-theme', newTheme);
+  document.querySelectorAll('.theme-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('data-theme') === newTheme);
+  });
+  localStorage.setItem('lexTheme', newTheme);
+}
+
+const savedTheme = localStorage.getItem('lexTheme') || 'dark';
+document.documentElement.setAttribute('data-theme', savedTheme);
+document.querySelectorAll('.theme-btn').forEach(btn => {
+  btn.classList.toggle('active', btn.getAttribute('data-theme') === savedTheme);
+});
+
+// ── COOKIE CONSENT ──
+const COOKIE_CONSENT_KEY = 'lexCookieConsent';
+
+function showCookieBanner() {
+  const consent = localStorage.getItem(COOKIE_CONSENT_KEY);
+  if (!consent) {
+    document.getElementById('cookieBanner').classList.add('visible');
+    document.body.classList.add('cookie-visible');
+  }
+}
+
+function hideCookieBanner() {
+  document.getElementById('cookieBanner').classList.remove('visible');
+  document.body.classList.remove('cookie-visible');
+}
+
+function acceptCookies() {
+  localStorage.setItem(COOKIE_CONSENT_KEY, JSON.stringify({
+    essential: true,
+    analytics: true,
+    marketing: true,
+    timestamp: new Date().toISOString()
+  }));
+  hideCookieBanner();
+  console.log('All cookies accepted');
+}
+
+function rejectCookies() {
+  localStorage.setItem(COOKIE_CONSENT_KEY, JSON.stringify({
+    essential: true,
+    analytics: false,
+    marketing: false,
+    timestamp: new Date().toISOString()
+  }));
+  hideCookieBanner();
+  console.log('Only essential cookies accepted');
+}
+
+function showCookieDetails() {
+  alert('Cookie Policy: Essential cookies are required for site functionality. Analytics cookies help us improve our service. Marketing cookies are used to personalize your experience.');
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  setTimeout(showCookieBanner, 1000);
+});
+
+// ── CHAT FUNCTIONALITY ──
+// Smartsupp configuration (must be global before script loads)
+var _smartsupp = _smartsupp || {};
+_smartsupp.key = '99d6caca759541ed4edb4f3443bf5969a35e7845';
+_smartsupp.offsetY = 20;
+_smartsupp.offsetX = 20;
+_smartsupp.position = 'bottom-right';
+_smartsupp.hideWidget = true;
+_smartsupp.zIndex = 2147483647;
+
+// Chat state
+let chatInitialized = false;
+let chatOpen = false;
+let pendingMessages = 0;
+
+// Initialize chat events once Smartsupp is ready
+function initChatEvents() {
+  if (chatInitialized || typeof smartsupp === 'undefined') return;
+  chatInitialized = true;
+
+  // Chat opened - hide button, clear notification
+  smartsupp('on', 'opened', function() {
+    chatOpen = true;
+    hideChatButton();
+    hideThemeToggle();
+    clearNotification();
+  });
+
+  // Chat closed (down arrow clicked) - show button
+  smartsupp('on', 'closed', function() {
+    chatOpen = false;
+    showChatButton();
+    showThemeToggle();
+    hideSmartsuppWidget();
+  });
+
+  // New message received - show notification if chat not open
+  smartsupp('on', 'message', function(msg) {
+    if (!chatOpen && msg && msg.type === 'received') {
+      showNotification();
     }
+  });
 
-    instruction = type_instructions.get(interaction_type, type_instructions['question'])
+  // Also listen for unread count changes
+  smartsupp('on', 'unread', function(count) {
+    if (!chatOpen && count > 0) {
+      showNotification();
+    }
+  });
+}
 
-    prompt = f"""You are a legal memory assistant. Your job is to create a concise 1-3 sentence memory summary of the following legal interaction.
+function hideSmartsuppWidget() {
+  // Completely hide Smartsupp widget
+  try {
+    smartsupp('chat:hide');
+    smartsupp('chat:close');
+  } catch(e) {}
 
-Interaction Type: {interaction_type}
-Instructions: {instruction}
+  var widget = document.getElementById('smartsupp-widget-container');
+  if (widget) {
+    widget.style.display = 'none';
+  }
+}
 
-Content to summarise:
-{content_to_summarise[:3000]}
+function showSmartsuppWidget() {
+  var widget = document.getElementById('smartsupp-widget-container');
+  if (widget) {
+    widget.style.display = 'block';
+  }
 
-Rules:
-- Write in past tense from LEX's perspective (e.g. "User asked about...", "Reviewed a contract...")
-- Be specific — include document names, risk levels, outcomes where present
-- Maximum 3 sentences
-- No preamble, just the summary itself"""
+  try {
+    smartsupp('chat:show');
+    smartsupp('chat:open');
+  } catch(e) {}
+}
 
-    try:
-        response = model.generate_content(prompt)
-        summary = response.text.strip()
-        return jsonify({'summary': summary})
-    except Exception as e:
-        logger.error(f"Memory summarise error: {e}")
-        return jsonify({'error': str(e)[:150]}), 500
+function openChat() {
+  if (typeof smartsupp === 'undefined') {
+    console.log('Chat not ready yet');
+    return;
+  }
 
+  hideChatButton();
+  hideThemeToggle();
+  clearNotification();
+  showSmartsuppWidget();
+  chatOpen = true;
+}
 
-@app.route('/create-checkout', methods=['POST'])
-def create_checkout():
-    """Create a Lemon Squeezy checkout session and return the checkout URL."""
-    data = request.json
-    variant_key = data.get('variant_key', '').strip()
-    user_email = data.get('email', '').strip()
-    user_uid = data.get('uid', '').strip()
-    custom_data = data.get('custom_data', {})
+function hideChatButton() {
+  var btn = document.getElementById('chatTrigger');
+  if (btn) btn.classList.add('hidden');
+}
 
-    if not variant_key or variant_key not in LS_VARIANT_IDS:
-        return jsonify({'error': 'Invalid product selected.'}), 400
+function showChatButton() {
+  var btn = document.getElementById('chatTrigger');
+  if (btn) btn.classList.remove('hidden');
+}
 
-    if not LS_API_KEY:
-        return jsonify({'error': 'Payment system not configured.'}), 503
+function showNotification() {
+  pendingMessages++;
+  var btn = document.getElementById('chatTrigger');
+  if (btn && !chatOpen) btn.classList.add('has-notification');
+}
 
-    variant_id = LS_VARIANT_IDS[variant_key]
+function clearNotification() {
+  pendingMessages = 0;
+  var btn = document.getElementById('chatTrigger');
+  if (btn) btn.classList.remove('has-notification');
+}
 
-    try:
-        payload = {
-            "data": {
-                "type": "checkouts",
-                "attributes": {
-                    "checkout_options": {
-                        "embed": False,
-                        "media": False,
-                        "logo": True,
-                    },
-                    "checkout_data": {
-                        "email": user_email,
-                        "custom": {
-                            "uid": user_uid,
-                            "variant_key": variant_key,
-                            **custom_data
-                        }
-                    },
-                    "product_options": {
-                        "redirect_url": "https://lex-production-cf5f.up.railway.app/dashboard.html?payment=success",
-                        "receipt_link_url": "https://lex-production-cf5f.up.railway.app/dashboard.html",
-                        "receipt_thank_you_note": "Thank you for subscribing to LEX! Your account has been upgraded."
-                    },
-                    "expires_at": None
-                },
-                "relationships": {
-                    "store": {
-                        "data": {"type": "stores", "id": str(LS_STORE_ID)}
-                    },
-                    "variant": {
-                        "data": {"type": "variants", "id": str(variant_id)}
-                    }
-                }
-            }
-        }
+function hideThemeToggle() {
+  var toggle = document.querySelector('.theme-toggle');
+  if (toggle) {
+    toggle.style.opacity = '0';
+    toggle.style.pointerEvents = 'none';
+  }
+}
 
-        response = requests.post(
-            "https://api.lemonsqueezy.com/v1/checkouts",
-            headers={
-                "Authorization": f"Bearer {LS_API_KEY}",
-                "Content-Type": "application/vnd.api+json",
-                "Accept": "application/vnd.api+json",
-            },
-            json=payload,
-            timeout=15
-        )
+function showThemeToggle() {
+  var toggle = document.querySelector('.theme-toggle');
+  if (toggle) {
+    toggle.style.opacity = '1';
+    toggle.style.pointerEvents = 'auto';
+  }
+}
 
-        if response.status_code == 201:
-            checkout_data = response.json()
-            checkout_url = checkout_data['data']['attributes']['url']
-            return jsonify({'checkout_url': checkout_url, 'variant_key': variant_key})
-        else:
-            logger.error(f"LS checkout error: {response.status_code} {response.text}")
-            return jsonify({'error': 'Could not create checkout. Please try again.'}), 500
+// Load Smartsupp script immediately
+(function() {
+  var s = document.getElementsByTagName('script')[0];
+  var c = document.createElement('script');
+  c.type = 'text/javascript';
+  c.charset = 'utf-8';
+  c.async = true;
+  c.src = 'https://www.smartsuppchat.com/loader.js?';
+  s.parentNode.insertBefore(c, s);
 
-    except Exception as e:
-        logger.error(f"Checkout creation error: {e}")
-        return jsonify({'error': str(e)[:150]}), 500
+  // Wait for Smartsupp to load and then hide it
+  var checkInterval = setInterval(function() {
+    if (typeof smartsupp !== 'undefined') {
+      clearInterval(checkInterval);
+      initChatEvents();
+      // Initially hide the widget
+      setTimeout(hideSmartsuppWidget, 500);
+    }
+  }, 100);
 
+  // Stop checking after 10 seconds
+  setTimeout(function() {
+    clearInterval(checkInterval);
+  }, 10000);
+})();
 
-@app.route('/webhook/lemonsqueezy', methods=['POST'])
-def lemonsqueezy_webhook():
-    """Handle Lemon Squeezy webhook events and update Firestore user plans."""
-    raw_body = request.get_data()
-    signature = request.headers.get('X-Signature', '')
+// ── SCROLL ──
+window.addEventListener('scroll', () => {
+  const nav = document.getElementById('navbar');
+  const heroBg = document.getElementById('heroBg');
+  const scrollY = window.scrollY;
+  if (scrollY > 50) { nav.classList.add('scrolled'); } else { nav.classList.remove('scrolled'); }
+  if (heroBg) {
+    const opacity = Math.max(0, 0.4 - (scrollY / window.innerHeight) * 0.6);
+    heroBg.querySelector('img').style.opacity = opacity;
+  }
+});
 
-    # Verify webhook signature
-    mac = hmac.new(LS_WEBHOOK_SECRET.encode('utf-8'), raw_body, hashlib.sha256)
-    expected = mac.hexdigest()
+// ── TIMEZONE → COUNTRY DETECTION ──
+const TZ_MAP = {
+  'Africa/Lagos':'Nigeria','Africa/Abuja':'Nigeria','Africa/Accra':'Ghana','Africa/Nairobi':'Kenya',
+  'Africa/Johannesburg':'South Africa','Africa/Cairo':'Egypt','Africa/Casablanca':'Morocco',
+  'Africa/Addis_Ababa':'Ethiopia','Africa/Dar_es_Salaam':'Tanzania','Africa/Kampala':'Uganda',
+  'Africa/Kigali':'Rwanda','Africa/Douala':'Cameroon','Africa/Abidjan':'Ivory Coast',
+  'Africa/Dakar':'Senegal','Africa/Harare':'Zimbabwe','Africa/Lusaka':'Zambia',
+  'Africa/Luanda':'Angola','Africa/Kinshasa':'DR Congo','Africa/Ndjamena':'Chad',
+  'Africa/Niamey':'Niger','Africa/Bamako':'Mali','Africa/Ouagadougou':'Burkina Faso',
+  'Africa/Conakry':'Guinea','Africa/Freetown':'Sierra Leone','Africa/Monrovia':'Liberia',
+  'Africa/Lome':'Togo','Africa/Porto-Novo':'Benin','Africa/Libreville':'Gabon',
+  'Africa/Bujumbura':'Burundi','Africa/Mogadishu':'Somalia','Africa/Khartoum':'Sudan',
+  'Africa/Juba':'South Sudan','Africa/Tripoli':'Libya','Africa/Tunis':'Tunisia',
+  'Africa/Algiers':'Algeria','Africa/Windhoek':'Namibia','Africa/Gaborone':'Botswana',
+  'Africa/Maseru':'Lesotho','Africa/Mbabane':'Eswatini',
+  'Indian/Antananarivo':'Madagascar','Indian/Mauritius':'Mauritius',
+  'America/New_York':'United States','America/Chicago':'United States',
+  'America/Denver':'United States','America/Los_Angeles':'United States',
+  'America/Phoenix':'United States','America/Anchorage':'United States',
+  'Pacific/Honolulu':'United States','America/Toronto':'Canada','America/Vancouver':'Canada',
+  'America/Winnipeg':'Canada','America/Halifax':'Canada',
+  'America/Sao_Paulo':'Brazil','America/Manaus':'Brazil',
+  'America/Mexico_City':'Mexico','America/Monterrey':'Mexico','America/Tijuana':'Mexico',
+  'America/Argentina/Buenos_Aires':'Argentina','America/Lima':'Peru','America/Bogota':'Colombia',
+  'America/Santiago':'Chile','America/Caracas':'Venezuela','America/La_Paz':'Bolivia',
+  'America/Asuncion':'Paraguay','America/Montevideo':'Uruguay','America/Guayaquil':'Ecuador',
+  'America/Port_of_Spain':'Trinidad and Tobago','America/Nassau':'Bahamas',
+  'America/Havana':'Cuba','America/Jamaica':'Jamaica','America/Panama':'Panama',
+  'America/Costa_Rica':'Costa Rica','America/Guatemala':'Guatemala',
+  'America/Tegucigalpa':'Honduras','America/El_Salvador':'El Salvador','America/Managua':'Nicaragua',
+  'Europe/London':'United Kingdom','Europe/Dublin':'Ireland','Europe/Berlin':'Germany',
+  'Europe/Paris':'France','Europe/Rome':'Italy','Europe/Madrid':'Spain',
+  'Europe/Amsterdam':'Netherlands','Europe/Brussels':'Belgium','Europe/Zurich':'Switzerland',
+  'Europe/Vienna':'Austria','Europe/Warsaw':'Poland','Europe/Prague':'Czech Republic',
+  'Europe/Budapest':'Hungary','Europe/Bucharest':'Romania','Europe/Sofia':'Bulgaria',
+  'Europe/Athens':'Greece','Europe/Lisbon':'Portugal','Europe/Stockholm':'Sweden',
+  'Europe/Oslo':'Norway','Europe/Copenhagen':'Denmark','Europe/Helsinki':'Finland',
+  'Europe/Tallinn':'Estonia','Europe/Riga':'Latvia','Europe/Vilnius':'Lithuania',
+  'Europe/Kiev':'Ukraine','Europe/Moscow':'Russia','Europe/Istanbul':'Turkey',
+  'Europe/Belgrade':'Serbia','Europe/Zagreb':'Croatia','Europe/Ljubljana':'Slovenia',
+  'Europe/Chisinau':'Moldova','Europe/Bratislava':'Slovakia','Europe/Luxembourg':'Luxembourg',
+  'Europe/Nicosia':'Cyprus','Europe/Valletta':'Malta','Europe/Reykjavik':'Iceland',
+  'Asia/Dubai':'UAE','Asia/Riyadh':'Saudi Arabia','Asia/Kuwait':'Kuwait',
+  'Asia/Bahrain':'Bahrain','Asia/Qatar':'Qatar','Asia/Muscat':'Oman',
+  'Asia/Kolkata':'India','Asia/Colombo':'Sri Lanka','Asia/Dhaka':'Bangladesh',
+  'Asia/Kathmandu':'Nepal','Asia/Karachi':'Pakistan','Asia/Kabul':'Afghanistan',
+  'Asia/Tokyo':'Japan','Asia/Seoul':'South Korea','Asia/Shanghai':'China',
+  'Asia/Hong_Kong':'Hong Kong','Asia/Singapore':'Singapore','Asia/Kuala_Lumpur':'Malaysia',
+  'Asia/Jakarta':'Indonesia','Asia/Manila':'Philippines','Asia/Bangkok':'Thailand',
+  'Asia/Ho_Chi_Minh':'Vietnam','Asia/Yangon':'Myanmar','Asia/Phnom_Penh':'Cambodia',
+  'Asia/Taipei':'Taiwan','Asia/Ulaanbaatar':'Mongolia','Asia/Tashkent':'Uzbekistan',
+  'Asia/Almaty':'Kazakhstan','Asia/Baku':'Azerbaijan','Asia/Tbilisi':'Georgia',
+  'Asia/Yerevan':'Armenia','Asia/Tehran':'Iran','Asia/Baghdad':'Iraq',
+  'Asia/Beirut':'Lebanon','Asia/Damascus':'Syria','Asia/Amman':'Jordan',
+  'Asia/Jerusalem':'Israel','Asia/Aden':'Yemen',
+  'Australia/Sydney':'Australia','Australia/Melbourne':'Australia',
+  'Australia/Brisbane':'Australia','Australia/Perth':'Australia','Australia/Adelaide':'Australia',
+  'Pacific/Auckland':'New Zealand','Pacific/Fiji':'Fiji','Pacific/Port_Moresby':'Papua New Guinea',
+};
 
-    if not hmac.compare_digest(expected, signature):
-        logger.warning("LS webhook: invalid signature")
-        return jsonify({'error': 'Invalid signature'}), 401
+const ALL_COUNTRIES = [
+  'Afghanistan','Albania','Algeria','Andorra','Angola','Antigua and Barbuda','Argentina','Armenia',
+  'Australia','Austria','Azerbaijan','Bahamas','Bahrain','Bangladesh','Barbados','Belarus','Belgium',
+  'Belize','Benin','Bhutan','Bolivia','Bosnia and Herzegovina','Botswana','Brazil','Brunei',
+  'Bulgaria','Burkina Faso','Burundi','Cabo Verde','Cambodia','Cameroon','Canada',
+  'Central African Republic','Chad','Chile','China','Colombia','Comoros','Congo','Costa Rica',
+  'Croatia','Cuba','Cyprus','Czech Republic','Denmark','Djibouti','Dominica','Dominican Republic',
+  'DR Congo','Ecuador','Egypt','El Salvador','Equatorial Guinea','Eritrea','Estonia','Eswatini',
+  'Ethiopia','Fiji','Finland','France','Gabon','Gambia','Georgia','Germany','Ghana','Greece',
+  'Grenada','Guatemala','Guinea','Guinea-Bissau','Guyana','Haiti','Honduras','Hong Kong','Hungary',
+  'Iceland','India','Indonesia','Iran','Iraq','Ireland','Israel','Italy','Ivory Coast','Jamaica',
+  'Japan','Jordan','Kazakhstan','Kenya','Kiribati','Kuwait','Kyrgyzstan','Laos','Latvia','Lebanon',
+  'Lesotho','Liberia','Libya','Liechtenstein','Lithuania','Luxembourg','Madagascar','Malawi',
+  'Malaysia','Maldives','Mali','Malta','Marshall Islands','Mauritania','Mauritius','Mexico',
+  'Micronesia','Moldova','Monaco','Mongolia','Montenegro','Morocco','Mozambique','Myanmar',
+  'Namibia','Nauru','Nepal','Netherlands','New Zealand','Nicaragua','Niger','Nigeria','North Korea',
+  'North Macedonia','Norway','Oman','Pakistan','Palau','Palestine','Panama','Papua New Guinea',
+  'Paraguay','Peru','Philippines','Poland','Portugal','Qatar','Republic of Congo','Romania',
+  'Russia','Rwanda','Saint Kitts and Nevis','Saint Lucia','Saint Vincent and the Grenadines',
+  'Samoa','San Marino','Sao Tome and Principe','Saudi Arabia','Senegal','Serbia','Seychelles',
+  'Sierra Leone','Singapore','Slovakia','Slovenia','Solomon Islands','Somalia','South Africa',
+  'South Korea','South Sudan','Spain','Sri Lanka','Sudan','Suriname','Sweden','Switzerland',
+  'Syria','Taiwan','Tajikistan','Tanzania','Thailand','Timor-Leste','Togo','Tonga',
+  'Trinidad and Tobago','Tunisia','Turkey','Turkmenistan','Tuvalu','Uganda','Ukraine','UAE',
+  'United Kingdom','United States','Uruguay','Uzbekistan','Vanuatu','Vatican City','Venezuela',
+  'Vietnam','Yemen','Zambia','Zimbabwe'
+];
 
-    try:
-        event_name = request.headers.get('X-Event-Name', '')
-        payload = request.json
-        meta = payload.get('meta', {})
-        custom_data = meta.get('custom_data', {})
-        user_uid = custom_data.get('uid', '')
-        variant_key = custom_data.get('variant_key', '')
+const SUB_JURISDICTIONS = [
+  'Lagos, Nigeria','Abuja, Nigeria','Kano, Nigeria','Ibadan, Nigeria','Port Harcourt, Nigeria',
+  'Benin City, Nigeria','Kaduna, Nigeria','Enugu, Nigeria','Owerri, Nigeria','Warri, Nigeria',
+  'Ughelli, Nigeria','Asaba, Nigeria','Calabar, Nigeria','Uyo, Nigeria','Jos, Nigeria',
+  'Delta State, Nigeria','Rivers State, Nigeria','Ogun State, Nigeria','Anambra State, Nigeria',
+  'Lagos State, Nigeria','Oyo State, Nigeria','Kano State, Nigeria','Enugu State, Nigeria',
+  'California, United States','New York, United States','Texas, United States',
+  'Florida, United States','Illinois, United States','Pennsylvania, United States',
+  'Ohio, United States','Georgia, United States','North Carolina, United States',
+  'Michigan, United States','New Jersey, United States','Virginia, United States',
+  'Washington State, United States','Arizona, United States','Massachusetts, United States',
+  'Los Angeles, United States','New York City, United States','Chicago, United States',
+  'Houston, United States','Phoenix, United States','Philadelphia, United States',
+  'San Francisco, United States','Seattle, United States','Miami, United States',
+  'Atlanta, United States','Boston, United States','Washington DC, United States',
+  'England, United Kingdom','Scotland, United Kingdom','Wales, United Kingdom',
+  'Northern Ireland, United Kingdom','London, United Kingdom','Manchester, United Kingdom',
+  'Birmingham, United Kingdom','Edinburgh, United Kingdom','Glasgow, United Kingdom',
+  'Ontario, Canada','Quebec, Canada','British Columbia, Canada','Alberta, Canada',
+  'Toronto, Canada','Vancouver, Canada','Montreal, Canada','Calgary, Canada','Ottawa, Canada',
+  'New South Wales, Australia','Victoria, Australia','Queensland, Australia',
+  'Western Australia, Australia','South Australia, Australia',
+  'Sydney, Australia','Melbourne, Australia','Brisbane, Australia','Perth, Australia',
+  'Delhi, India','Mumbai, India','Bangalore, India','Chennai, India','Kolkata, India',
+  'Hyderabad, India','Maharashtra, India','Karnataka, India','Tamil Nadu, India',
+  'Gujarat, India','Rajasthan, India','Uttar Pradesh, India','West Bengal, India',
+  'Dubai, UAE','Abu Dhabi, UAE','Sharjah, UAE','Ajman, UAE','Ras Al Khaimah, UAE',
+  'Gauteng, South Africa','Western Cape, South Africa','KwaZulu-Natal, South Africa',
+  'Johannesburg, South Africa','Cape Town, South Africa','Durban, South Africa','Pretoria, South Africa',
+  'Nairobi, Kenya','Mombasa, Kenya','Kisumu, Kenya','Nakuru, Kenya',
+  'Accra, Ghana','Kumasi, Ghana','Tamale, Ghana',
+  'Bavaria, Germany','Berlin, Germany','Hamburg, Germany','Frankfurt, Germany','Munich, Germany',
+  'Paris, France','Lyon, France','Marseille, France','Bordeaux, France',
+  'São Paulo, Brazil','Rio de Janeiro, Brazil','Brasília, Brazil',
+  'São Paulo State, Brazil','Rio de Janeiro State, Brazil','Minas Gerais, Brazil',
+  'Beijing, China','Shanghai, China','Guangzhou, China','Shenzhen, China',
+  'Kuala Lumpur, Malaysia','Jakarta, Indonesia','Manila, Philippines',
+  'Bangkok, Thailand','Ho Chi Minh City, Vietnam','Hanoi, Vietnam',
+  'Riyadh, Saudi Arabia','Jeddah, Saudi Arabia','Doha, Qatar','Kuwait City, Kuwait',
+  'Muscat, Oman','Manama, Bahrain','Cairo, Egypt','Alexandria, Egypt',
+  'Casablanca, Morocco','Addis Ababa, Ethiopia','Dar es Salaam, Tanzania',
+  'Kampala, Uganda','Kigali, Rwanda','Dakar, Senegal',
+  'Tokyo, Japan','Osaka, Japan','Seoul, South Korea','Busan, South Korea',
+  'Auckland, New Zealand','Mexico City, Mexico','Buenos Aires, Argentina',
+  'Bogotá, Colombia','Lima, Peru','Santiago, Chile',
+];
 
-        attrs = payload.get('data', {}).get('attributes', {})
-        variant_id = str(attrs.get('first_order_item', {}).get('variant_id', '')
-                         or attrs.get('variant_id', ''))
+function detectCountry() {
+  try { return TZ_MAP[Intl.DateTimeFormat().resolvedOptions().timeZone] || 'Nigeria'; }
+  catch { return 'Nigeria'; }
+}
 
-        variant_info = LS_VARIANT_MAP.get(variant_id, {})
-        plan = variant_info.get('plan', '')
-        billing = variant_info.get('billing', '')
+const detectedCountry = detectCountry();
+const countrySelect = document.getElementById('countrySelect');
+ALL_COUNTRIES.forEach(c => {
+  const opt = document.createElement('option');
+  opt.value = c; opt.textContent = c;
+  if (c === detectedCountry) opt.selected = true;
+  countrySelect.appendChild(opt);
+});
 
-        logger.info(f"LS webhook: {event_name} | uid={user_uid} | variant={variant_id} | plan={plan}")
+const jurisdictionInput = document.getElementById('jurisdictionInput');
+const suggestionsBox = document.getElementById('jurisdictionSuggestions');
+let activeIdx = -1;
+const ALL_JURISDICTIONS = [...SUB_JURISDICTIONS, ...ALL_COUNTRIES];
 
-        if not user_uid:
-            logger.warning("LS webhook: no uid in custom_data")
-            return jsonify({'status': 'ok', 'note': 'no uid'}), 200
+jurisdictionInput.addEventListener('input', function() {
+  const val = this.value.trim().toLowerCase();
+  suggestionsBox.innerHTML = ''; activeIdx = -1;
+  if (!val || val.length < 2) { suggestionsBox.classList.remove('visible'); return; }
+  const matches = ALL_JURISDICTIONS.filter(j => j.toLowerCase().includes(val)).slice(0, 10);
+  if (!matches.length) { suggestionsBox.classList.remove('visible'); return; }
+  matches.forEach(match => {
+    const item = document.createElement('div');
+    item.className = 'suggestion-item'; item.textContent = match;
+    item.addEventListener('mousedown', () => {
+      jurisdictionInput.value = match;
+      suggestionsBox.classList.remove('visible');
+    });
+    suggestionsBox.appendChild(item);
+  });
+  suggestionsBox.classList.add('visible');
+});
 
-        # ── Handle events ──
-        update_payload = {}
+jurisdictionInput.addEventListener('keydown', function(e) {
+  const items = suggestionsBox.querySelectorAll('.suggestion-item');
+  if (e.key === 'ArrowDown') { activeIdx = Math.min(activeIdx+1, items.length-1); }
+  else if (e.key === 'ArrowUp') { activeIdx = Math.max(activeIdx-1, 0); }
+  else if (e.key === 'Enter' && activeIdx >= 0) {
+    jurisdictionInput.value = items[activeIdx].textContent;
+    suggestionsBox.classList.remove('visible'); e.preventDefault(); return;
+  } else if (e.key === 'Escape') { suggestionsBox.classList.remove('visible'); return; }
+  items.forEach((item, i) => item.classList.toggle('active', i === activeIdx));
+});
 
-        if event_name in ('order_created', 'subscription_created'):
-            if plan == 'premium':
-                update_payload = {
-                    'plan': 'premium',
-                    'premiumSince': datetime.datetime.utcnow().isoformat(),
-                    'billing': billing,
-                    'lsVariantId': variant_id,
-                    'lsSubscriptionId': attrs.get('subscription_id', '') or attrs.get('id', ''),
-                }
-            elif plan == 'badge':
-                update_payload = {'verifiedBadge': True, 'badgePurchasedAt': datetime.datetime.utcnow().isoformat()}
-            elif plan == 'boost_7':
-                boost_end = (datetime.datetime.utcnow() + datetime.timedelta(days=7)).isoformat()
-                update_payload = {'profileBoost': True, 'boostEndsAt': boost_end, 'boostType': '7day'}
-            elif plan == 'boost_30':
-                boost_end = (datetime.datetime.utcnow() + datetime.timedelta(days=30)).isoformat()
-                update_payload = {'profileBoost': True, 'boostEndsAt': boost_end, 'boostType': '30day'}
+document.addEventListener('click', e => {
+  if (!jurisdictionInput.contains(e.target) && !suggestionsBox.contains(e.target)) {
+    suggestionsBox.classList.remove('visible');
+  }
+});
 
-        elif event_name == 'subscription_cancelled':
-            update_payload = {
-                'plan': 'free',
-                'premiumSince': None,
-                'billing': None,
-                'lsSubscriptionId': None,
-            }
+function togglePricing(period) {
+  document.querySelectorAll('.toggle-btn').forEach(btn => btn.classList.remove('active'));
+  event.target.classList.add('active');
+  document.querySelectorAll('.pricing-price[data-monthly]').forEach(price => {
+    const val = price.getAttribute('data-' + period);
+    price.innerHTML = `<sup>$</sup>${val}<span>/mo</span>`;
+  });
+}
 
-        elif event_name == 'subscription_resumed':
-            update_payload = {
-                'plan': 'premium',
-                'billing': billing,
-                'lsVariantId': variant_id,
-            }
+function setQ(text) {
+  document.getElementById('questionInput').value = text;
+  document.getElementById('questionInput').focus();
+}
 
-        elif event_name == 'subscription_expired':
-            update_payload = {
-                'plan': 'free',
-                'premiumSince': None,
-                'billing': None,
-            }
+async function askLex() {
+  const question = document.getElementById('questionInput').value.trim();
+  const country = document.getElementById('countrySelect').value;
+  const category = document.getElementById('categorySelect').value;
+  const specificJurisdiction = jurisdictionInput.value.trim();
+  const jurisdiction = specificJurisdiction || country;
 
-        # Write to Firestore if we have an update
-        if update_payload and user_uid:
-            try:
-                import firebase_admin
-                from firebase_admin import credentials, firestore as fs
+  if (!question) {
+    document.getElementById('questionInput').style.borderColor = 'var(--accent-gold)';
+    setTimeout(() => { document.getElementById('questionInput').style.borderColor = 'var(--border)'; }, 2000);
+    return;
+  }
 
-                if not firebase_admin._apps:
-                    cred_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
-                    if cred_path:
-                        cred = credentials.Certificate(cred_path)
-                        firebase_admin.initialize_app(cred)
-                    else:
-                        firebase_admin.initialize_app()
+  const btn = document.getElementById('askBtn');
+  const loading = document.getElementById('loading');
+  const answerBox = document.getElementById('answerBox');
+  const errorBox = document.getElementById('errorBox');
 
-                db = fs.client()
-                db.collection('users').document(user_uid).update(update_payload)
-                logger.info(f"Firestore updated for uid={user_uid}: {update_payload}")
-            except Exception as fe:
-                logger.error(f"Firestore update error: {fe}")
+  btn.disabled = true;
+  loading.classList.add('visible');
+  answerBox.classList.remove('visible');
+  errorBox.classList.remove('visible');
+  document.getElementById('loadingCountry').textContent = jurisdiction;
 
-        return jsonify({'status': 'ok', 'event': event_name}), 200
+  try {
+    const response = await fetch('/ask-stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question, country: jurisdiction, category })
+    });
+    loading.classList.remove('visible');
+    btn.disabled = false;
 
-    except Exception as e:
-        logger.error(f"Webhook processing error: {e}")
-        return jsonify({'error': str(e)[:150]}), 500
+    if (!response.ok) throw new Error('Network error');
 
+    // Show answer box and start streaming
+    document.getElementById('answerMeta').textContent = jurisdiction + ' · ' + category;
+    const answerTextEl = document.getElementById('answerText');
+    answerTextEl.textContent = '';
+    answerBox.classList.add('visible');
+    answerBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
-@app.route('/health')
-def health():
-    return jsonify({
-        'status': 'online',
-        'ai': 'online' if model else 'offline',
-        'web_search': 'online' if TAVILY_API_KEY else 'offline',
-        'tiers': ['free', 'premium', 'business'],
-        'version': '2.0'
-    })
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
 
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const payload = JSON.parse(line.slice(6));
+          if (payload.error) {
+            answerBox.classList.remove('visible');
+            document.getElementById('errorText').textContent = '⚠️ ' + payload.error;
+            errorBox.classList.add('visible');
+            break;
+          }
+          if (payload.chunk) {
+            answerTextEl.textContent += payload.chunk;
+          }
+        } catch(e) {}
+      }
+    }
+  } catch (err) {
+    loading.classList.remove('visible');
+    btn.disabled = false;
+    document.getElementById('errorText').textContent = '⚠️ Connection error. Please try again.';
+    errorBox.classList.add('visible');
+  }
+}
+
+document.getElementById('questionInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && e.ctrlKey) askLex();
+});
+</script>
+
+</body>
+</html>
