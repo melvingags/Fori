@@ -128,6 +128,8 @@
   .nav-item.active { color: var(--accent-gold); border-left-color: var(--accent-gold); background: rgba(201,168,108,0.05); }
   .nav-icon { width: 18px; height: 18px; flex-shrink: 0; }
   .nav-badge { margin-left: auto; background: var(--accent-gold); color: var(--bg-primary); font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 10px; }
+  .clause-chip { padding: 6px 14px; background: transparent; border: 1px solid var(--border); color: var(--text-secondary); font-family: 'Inter', sans-serif; font-size: 11px; letter-spacing: 1px; cursor: pointer; transition: all 0.2s; text-transform: uppercase; }
+  .clause-chip:hover { border-color: var(--accent-gold); color: var(--accent-gold); }
 
   /* Upgrade CTA */
   .upgrade-cta { margin: 16px; padding: 16px; background: linear-gradient(135deg, rgba(201,168,108,0.12), rgba(201,168,108,0.04)); border: 1px solid rgba(201,168,108,0.25); }
@@ -347,12 +349,22 @@
   .cookie-btn.accept:hover { background: var(--accent-gold-light); }
   .cookie-btn.essential { background: transparent; border: 1px solid var(--border); color: var(--text-secondary); }
   .cookie-btn.essential:hover { border-color: var(--accent-gold); color: var(--accent-gold); }
+
+  /* ── SUPPORT MODAL ── */
+  .faq-item { border-top:1px solid var(--border);padding:12px 0;cursor:pointer; }
+  .faq-item:first-child { border-top:none;padding-top:0; }
+  .faq-q { font-size:12px;color:var(--text-primary);font-weight:600;letter-spacing:0.3px;padding-right:20px;position:relative;line-height:1.5; }
+  .faq-q::after { content:'＋';position:absolute;right:0;top:0;color:var(--text-muted);font-size:14px;transition:transform 0.2s; }
+  .faq-item.open .faq-q::after { content:'－'; }
+  .faq-a { display:none;font-size:11px;color:var(--text-secondary);margin-top:8px;line-height:1.7; }
+  .faq-item.open .faq-a { display:block; }
+  #supportModal.visible { display:flex !important; }
 </style>
 <!-- Firebase SDK -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
-  import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
-  import { getFirestore, doc, getDoc, addDoc, collection, query, where, orderBy, onSnapshot, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+  import { getAuth, onAuthStateChanged, signOut, updatePassword, deleteUser, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+  import { getFirestore, doc, getDoc, getDocs, addDoc, collection, query, where, orderBy, onSnapshot, updateDoc, serverTimestamp, deleteDoc } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
   import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-storage.js";
 
   const firebaseConfig = {
@@ -392,6 +404,61 @@
   // ── FIRESTORE CONNECTION FUNCTIONS ──
   window._db = db;
   window._storage = storage;
+
+  // ── MEMORY SYSTEM — FIRESTORE ──
+  window.lexMemory = {
+    
+    // Load user's memories from Firestore (last 10)
+    load: async function() {
+      if (!window._lexUid || !db) return [];
+      try {
+        const q = query(
+          collection(db, 'memories', window._lexUid, 'entries'),
+          orderBy('createdAt', 'desc')
+        );
+        const snap = await getDocs(q);
+        const memories = [];
+        snap.forEach(doc => {
+          if (memories.length < 10) memories.push(doc.data());
+        });
+        window._lexMemories = memories;
+        return memories;
+      } catch(e) {
+        console.warn('LEX Memory load error:', e);
+        return [];
+      }
+    },
+
+    // Save a memory entry to Firestore
+    save: async function(type, summary) {
+      if (!window._lexUid || !db || !summary) return;
+      try {
+        await addDoc(collection(db, 'memories', window._lexUid, 'entries'), {
+          type,
+          summary,
+          date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+          createdAt: serverTimestamp()
+        });
+        // Refresh cached memories
+        await window.lexMemory.load();
+      } catch(e) {
+        console.warn('LEX Memory save error:', e);
+      }
+    },
+
+    // Get current cached memories (fast, no Firestore call)
+    get: function() {
+      return window._lexMemories || [];
+    }
+  };
+
+  // Auto-load memories on init
+  setTimeout(async () => {
+    if (window._lexUid) {
+      await window.lexMemory.load();
+    }
+  }, 2000);
+
 
   window.fsSubmitContact = async function(lawyerId, lawyerName, desc, fromUid, fromName) {
     await addDoc(collection(db, 'connections'), {
@@ -449,9 +516,18 @@
   };
 
   window.fsDeleteDoc = async function(docId) {
-    const { deleteDoc, doc: fsDoc } = await import('https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js');
-    await deleteDoc(fsDoc(db, 'documents', docId));
+    await deleteDoc(doc(db, 'documents', docId));
   };
+</script>
+<script>
+  // Suppress cross-origin "Script error." messages from third-party scripts (e.g. Smartsupp)
+  window.addEventListener('error', function(e) {
+    if (e.message === 'Script error.' || e.message === 'Uncaught Error: Script error.') {
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      return true;
+    }
+  }, true);
 </script>
 </head>
 
@@ -492,6 +568,31 @@
       Find a Lawyer
       <span class="nav-badge">NEW</span>
     </a>
+    <a class="nav-item" onclick="gatedPage('contract', this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      Contract Review
+      <span class="nav-badge" style="background:var(--accent-gold);color:var(--bg-primary);">AI</span>
+    </a>
+    <a class="nav-item" onclick="gatedPage('clause', this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6h16M4 10h16M4 14h10M4 18h7"/></svg>
+      Clause Library
+      <span class="nav-badge" style="background:var(--accent-gold);color:var(--bg-primary);">AI</span>
+    </a>
+    <a class="nav-item" onclick="gatedPage('outcome', this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Case Outcome
+      <span class="nav-badge" style="background:var(--accent-gold);color:var(--bg-primary);">AI</span>
+    </a>
+    <a class="nav-item" onclick="gatedPage('compare', this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="8" height="18" rx="1"/><rect x="13" y="3" width="8" height="18" rx="1"/></svg>
+      Compare Docs
+      <span class="nav-badge" style="background:var(--accent-gold);color:var(--bg-primary);">AI</span>
+    </a>
+    <a class="nav-item" onclick="gatedPage('research', this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      Legal Research
+      <span class="nav-badge" style="background:var(--accent-gold);color:var(--bg-primary);">AI</span>
+    </a>
     <a class="nav-item" onclick="showPage('mylawyers', this)" id="navMyLawyers">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
       My Lawyers
@@ -502,6 +603,10 @@
     <a class="nav-item" onclick="showPage('settings', this)">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
       Settings
+    </a>
+    <a class="nav-item" onclick="openSupport()">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      Help & Support
     </a>
     <a class="nav-item" onclick="logout()">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
@@ -531,7 +636,6 @@
     </button>
     <div class="topbar-title" id="topbarTitle">Ask LEX</div>
     <div class="topbar-right">
-      <span style="font-size:11px;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase;" id="topbarCounter"></span>
       <div class="notif-wrap">
         <button class="notif-btn" id="notifBtn" onclick="toggleNotif()">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
@@ -553,7 +657,7 @@
         <!-- Welcome message -->
         <div class="chat-bubble assistant">
           <div class="bubble-label">LEX</div>
-          <div class="bubble-content assistant">Good to have you here. I'm LEX — your AI legal navigator. Ask me anything about law in your jurisdiction, upload a document for review, or request a draft. How can I help you today?</div>
+          <div class="bubble-content assistant" id="lexWelcomeMsg">Good to have you here. I'm LEX — your AI legal navigator. Ask me anything about law in your jurisdiction, upload a document for review, or request a draft. How can I help you today?</div>
         </div>
       </div>
       <div class="chat-typing" id="chatTyping">
@@ -647,16 +751,338 @@
     <div class="page-area lawyers-page">
       <div class="page-label">Marketplace</div>
       <h1 class="page-title">Find a <em>Lawyer</em></h1>
+
       <div class="lawyer-location-note" id="lawyerLocationNote">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
-        Showing lawyers near <span id="userLocationLabel">your location</span>
+        <span id="lawyerLocationText">Loading lawyers...</span>
       </div>
-      <div class="lawyer-search-bar">
-        <input type="text" class="lawyer-search-input" id="lawyerSearchInput" placeholder="Search by name, city, or practice area...">
-        <button class="lawyer-search-btn" onclick="searchLawyers()">Search</button>
-        <button class="lawyer-search-btn" style="background:transparent;border:1px solid var(--border);color:var(--text-secondary);" onclick="searchLawyers('anywhere')">Search Anywhere</button>
+
+      <!-- Search + Filters -->
+      <div class="lawyer-search-bar" style="flex-wrap:wrap;gap:8px;">
+        <input type="text" class="lawyer-search-input" id="lawyerSearchInput" placeholder="Search by name, city, or practice area..." oninput="filterLawyers()" style="flex:1;min-width:200px;">
+        <select id="lawyerFilterSpec" onchange="filterLawyers()" style="padding:8px 12px;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-secondary);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;">
+          <option value="">All Specialisations</option>
+          <option>Corporate Law</option>
+          <option>Criminal Defense</option>
+          <option>Family Law</option>
+          <option>Property Law</option>
+          <option>Employment Law</option>
+          <option>Immigration</option>
+          <option>Civil Rights</option>
+          <option>Intellectual Property</option>
+          <option>Tax Law</option>
+          <option>Contract Law</option>
+          <option>Litigation</option>
+          <option>Other</option>
+        </select>
+        <select id="lawyerFilterCountry" onchange="filterLawyers()" style="padding:8px 12px;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-secondary);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;">
+          <option value="">All Countries</option>
+        </select>
+        <button class="lawyer-search-btn" style="background:transparent;border:1px solid var(--border);color:var(--text-secondary);" onclick="loadAllLawyers()">Show All</button>
       </div>
-      <div id="lawyersGrid" class="lawyers-grid"></div>
+
+      <!-- Loading State -->
+      <div id="lawyersLoading" style="padding:60px 20px;text-align:center;">
+        <div style="font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--text-muted);margin-bottom:8px;">Loading lawyers...</div>
+        <div style="font-size:12px;color:var(--text-muted);">Fetching from directory</div>
+      </div>
+
+      <!-- Grid -->
+      <div id="lawyersGrid" class="lawyers-grid" style="display:none;"></div>
+
+      <!-- Empty State -->
+      <div id="lawyersEmpty" style="display:none;padding:60px 20px;text-align:center;">
+        <div style="font-size:40px;margin-bottom:16px;">&#128269;</div>
+        <div style="font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--text-primary);margin-bottom:8px;">No lawyers found</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">Try adjusting your search or filters</div>
+        <button onclick="loadAllLawyers()" style="padding:10px 24px;background:transparent;border:1px solid var(--accent-gold);color:var(--accent-gold);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Show All Lawyers</button>
+      </div>
+
+    </div>
+  </div>
+
+
+
+
+
+  <!-- LEGAL RESEARCH PAGE -->
+  <div class="page" id="page-research">
+    <div class="page-area">
+      <div class="page-label">AI Tools</div>
+      <h1 class="page-title">Legal <em>Research</em></h1>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:24px;line-height:1.7;">Search current legislation, case law and legal precedents. LEX optimises your query, searches authoritative legal databases and cites every source.</p>
+
+      <!-- Popular Topics -->
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;">
+        <button onclick="setResearchTopic('Wrongful termination employee rights')" class="clause-chip">Wrongful Termination</button>
+        <button onclick="setResearchTopic('Landlord tenant eviction rights')" class="clause-chip">Eviction Rights</button>
+        <button onclick="setResearchTopic('Contract breach remedies damages')" class="clause-chip">Breach of Contract</button>
+        <button onclick="setResearchTopic('Intellectual property copyright infringement')" class="clause-chip">IP & Copyright</button>
+        <button onclick="setResearchTopic('Consumer protection unfair trade practices')" class="clause-chip">Consumer Rights</button>
+        <button onclick="setResearchTopic('Data protection privacy law GDPR')" class="clause-chip">Data Privacy</button>
+        <button onclick="setResearchTopic('Criminal law self defence justification')" class="clause-chip">Self-Defence</button>
+        <button onclick="setResearchTopic('Company law directors duties obligations')" class="clause-chip">Directors Duties</button>
+      </div>
+
+      <!-- Search Bar -->
+      <div style="display:flex;gap:10px;margin-bottom:20px;">
+        <input type="text" id="researchTopic" class="form-input" placeholder="e.g. wrongful dismissal, breach of contract, tenancy rights..." style="flex:1;" onkeydown="if(event.key==='Enter')runResearch()">
+        <button onclick="runResearch()" style="padding:10px 20px;background:var(--accent-gold);color:var(--bg-primary);border:none;font-family:'Inter',sans-serif;font-size:11px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-weight:600;white-space:nowrap;">Research</button>
+      </div>
+
+      <!-- Processing -->
+      <div id="researchProcessing" style="display:none;text-align:center;padding:40px 20px;">
+        <div style="font-size:36px;margin-bottom:16px;">&#128269;</div>
+        <div style="font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--text-primary);margin-bottom:8px;">Searching legal databases...</div>
+        <div style="font-size:13px;color:var(--text-secondary);">LEX is searching legislation, case law and legal commentary. This may take 15–30 seconds.</div>
+      </div>
+
+      <!-- Results -->
+      <div id="researchResults" style="display:none;">
+        <!-- Sources Panel -->
+        <div id="researchSourcesPanel" style="display:none;margin-bottom:16px;">
+          <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px;">Sources Found</div>
+          <div id="researchSourcesList" style="display:flex;flex-direction:column;gap:6px;"></div>
+        </div>
+
+        <!-- Research Output -->
+        <div id="researchOutput" style="background:var(--bg-secondary);border:1px solid var(--border);padding:24px;line-height:1.9;font-size:14px;color:var(--text-primary);white-space:pre-wrap;font-family:'Inter',sans-serif;min-height:200px;"></div>
+
+        <!-- Actions -->
+        <div style="display:flex;gap:10px;margin-top:16px;">
+          <button onclick="copyResearchResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-secondary);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Copy</button>
+          <button onclick="downloadResearchResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--accent-gold);color:var(--accent-gold);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Download Report</button>
+          <button onclick="clearResearchResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-muted);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Clear</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COMPARE DOCUMENTS PAGE -->
+  <div class="page" id="page-compare">
+    <div class="page-area">
+      <div class="page-label">AI Tools</div>
+      <h1 class="page-title">Compare <em>Documents</em></h1>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:24px;line-height:1.7;">Upload two contracts or legal documents — LEX will compare them side by side, highlight key differences, conflicts and tell you which is more favourable.</p>
+
+      <!-- Two Upload Zones -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+
+        <!-- Document A -->
+        <div>
+          <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;">Document A</div>
+          <div id="compareZoneA" style="border:2px dashed var(--border);padding:24px 16px;text-align:center;cursor:pointer;transition:all 0.3s;min-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;" ondragover="event.preventDefault();this.style.borderColor='var(--accent-gold)'" ondragleave="this.style.borderColor='var(--border)'" ondrop="handleCompareDrop(event,'a')">
+            <div style="font-size:28px;">&#128196;</div>
+            <div style="font-size:12px;color:var(--text-secondary);">Drop file or click</div>
+            <button onclick="document.getElementById('compareFileA').click()" style="padding:5px 14px;background:transparent;border:1px solid var(--accent-gold);color:var(--accent-gold);font-family:'Inter',sans-serif;font-size:10px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Select</button>
+            <input type="file" id="compareFileA" accept=".pdf,.docx,.txt" style="display:none" onchange="handleCompareFileSelect(this,'a')">
+          </div>
+          <div id="compareFileInfoA" style="display:none;margin-top:8px;padding:8px 12px;background:var(--bg-secondary);border:1px solid var(--border);font-size:12px;color:var(--text-primary);display:none;align-items:center;gap:8px;">
+            <span>&#128206;</span>
+            <span id="compareFileNameA" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+            <button onclick="clearCompareFile('a')" style="background:transparent;border:none;color:var(--text-muted);cursor:pointer;font-size:16px;flex-shrink:0;">&#215;</button>
+          </div>
+        </div>
+
+        <!-- Document B -->
+        <div>
+          <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;">Document B</div>
+          <div id="compareZoneB" style="border:2px dashed var(--border);padding:24px 16px;text-align:center;cursor:pointer;transition:all 0.3s;min-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;" ondragover="event.preventDefault();this.style.borderColor='var(--accent-gold)'" ondragleave="this.style.borderColor='var(--border)'" ondrop="handleCompareDrop(event,'b')">
+            <div style="font-size:28px;">&#128196;</div>
+            <div style="font-size:12px;color:var(--text-secondary);">Drop file or click</div>
+            <button onclick="document.getElementById('compareFileB').click()" style="padding:5px 14px;background:transparent;border:1px solid var(--accent-gold);color:var(--accent-gold);font-family:'Inter',sans-serif;font-size:10px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Select</button>
+            <input type="file" id="compareFileB" accept=".pdf,.docx,.txt" style="display:none" onchange="handleCompareFileSelect(this,'b')">
+          </div>
+          <div id="compareFileInfoB" style="display:none;margin-top:8px;padding:8px 12px;background:var(--bg-secondary);border:1px solid var(--border);font-size:12px;color:var(--text-primary);display:none;align-items:center;gap:8px;">
+            <span>&#128206;</span>
+            <span id="compareFileNameB" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+            <button onclick="clearCompareFile('b')" style="background:transparent;border:none;color:var(--text-muted);cursor:pointer;font-size:16px;flex-shrink:0;">&#215;</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Compare Button -->
+      <button id="compareBtn" onclick="compareDocs()" style="width:100%;padding:14px;background:var(--accent-gold);color:var(--bg-primary);border:none;font-family:'Inter',sans-serif;font-size:11px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-weight:600;margin-bottom:24px;opacity:0.5;pointer-events:none;">
+        Compare Documents
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="margin-left:6px;vertical-align:middle;"><path d="M3 8H13M13 8L9 4M13 8L9 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+
+      <!-- Processing -->
+      <div id="compareProcessing" style="display:none;text-align:center;padding:40px 20px;">
+        <div style="font-size:36px;margin-bottom:16px;">&#9878;</div>
+        <div style="font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--text-primary);margin-bottom:8px;">Comparing documents...</div>
+        <div style="font-size:13px;color:var(--text-secondary);">LEX is analysing both documents side by side. This may take 30–60 seconds.</div>
+      </div>
+
+      <!-- Results -->
+      <div id="compareResults" style="display:none;">
+        <div id="compareVerdictBadge" style="padding:10px 16px;margin-bottom:16px;font-size:12px;letter-spacing:1px;text-transform:uppercase;font-weight:600;text-align:center;display:none;"></div>
+        <div id="compareOutput" style="background:var(--bg-secondary);border:1px solid var(--border);padding:24px;line-height:1.9;font-size:14px;color:var(--text-primary);white-space:pre-wrap;font-family:'Inter',sans-serif;min-height:200px;"></div>
+        <div style="display:flex;gap:10px;margin-top:16px;">
+          <button onclick="copyCompareResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-secondary);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Copy</button>
+          <button onclick="downloadCompareResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--accent-gold);color:var(--accent-gold);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Download Report</button>
+          <button onclick="clearCompareResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-muted);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Clear</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- CLAUSE LIBRARY PAGE -->
+  <div class="page" id="page-clause">
+    <div class="page-area">
+      <div class="page-label">AI Tools</div>
+      <h1 class="page-title">Clause <em>Library</em></h1>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:24px;line-height:1.7;">Search for any legal clause — LEX will explain it, provide standard text and variations ready to copy into your documents.</p>
+
+      <!-- Quick Category Buttons -->
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;">
+        <button onclick="setClauseQuery('Non-disclosure agreement (NDA) confidentiality clause')" class="clause-chip">NDA / Confidentiality</button>
+        <button onclick="setClauseQuery('Employment contract termination clause')" class="clause-chip">Termination</button>
+        <button onclick="setClauseQuery('Limitation of liability clause')" class="clause-chip">Liability Cap</button>
+        <button onclick="setClauseQuery('Intellectual property ownership clause')" class="clause-chip">IP Ownership</button>
+        <button onclick="setClauseQuery('Force majeure clause')" class="clause-chip">Force Majeure</button>
+        <button onclick="setClauseQuery('Lease agreement rent payment clause')" class="clause-chip">Rent / Lease</button>
+        <button onclick="setClauseQuery('Arbitration dispute resolution clause')" class="clause-chip">Arbitration</button>
+        <button onclick="setClauseQuery('Non-compete restraint of trade clause')" class="clause-chip">Non-Compete</button>
+      </div>
+
+      <!-- Search Input -->
+      <div style="display:flex;gap:10px;margin-bottom:20px;">
+        <input type="text" id="clauseQuery" class="form-input" placeholder="e.g. NDA confidentiality clause, penalty clause, indemnity..." style="flex:1;" onkeydown="if(event.key==='Enter')searchClause()">
+        <button onclick="searchClause()" style="padding:10px 20px;background:var(--accent-gold);color:var(--bg-primary);border:none;font-family:'Inter',sans-serif;font-size:11px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-weight:600;white-space:nowrap;">Search</button>
+      </div>
+
+      <!-- Processing -->
+      <div id="clauseProcessing" style="display:none;text-align:center;padding:40px 20px;">
+        <div style="font-size:36px;margin-bottom:16px;">&#128218;</div>
+        <div style="font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--text-primary);margin-bottom:8px;">Retrieving clause...</div>
+        <div style="font-size:13px;color:var(--text-secondary);">LEX is drafting the clause with variations and notes.</div>
+      </div>
+
+      <!-- Results -->
+      <div id="clauseResults" style="display:none;">
+        <div id="clauseOutput" style="background:var(--bg-secondary);border:1px solid var(--border);padding:24px;line-height:1.9;font-size:14px;color:var(--text-primary);white-space:pre-wrap;font-family:'Inter',sans-serif;min-height:200px;"></div>
+        <div style="display:flex;gap:10px;margin-top:16px;">
+          <button onclick="copyClauseResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-secondary);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Copy</button>
+          <button onclick="downloadClauseResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--accent-gold);color:var(--accent-gold);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Download</button>
+          <button onclick="clearClauseResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-muted);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Clear</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CASE OUTCOME PREDICTION PAGE -->
+  <div class="page" id="page-outcome">
+    <div class="page-area">
+      <div class="page-label">AI Tools</div>
+      <h1 class="page-title">Case Outcome <em>Prediction</em></h1>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;line-height:1.7;">Describe your legal situation and LEX will assess the likely outcome, key risks and recommended next steps.</p>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:24px;padding:10px;border:1px solid var(--border);background:var(--bg-secondary);">&#9888; This is an AI assessment for guidance only. It is not legal advice. Always consult a qualified lawyer before making legal decisions.</div>
+
+      <!-- Area of Law -->
+      <div class="form-group" style="margin-bottom:16px;">
+        <label class="form-label">Area of Law</label>
+        <select id="outcomeArea" class="form-input" style="background:var(--bg-secondary);">
+          <option value="General">General / Not Sure</option>
+          <option value="Employment">Employment Law</option>
+          <option value="Contract">Contract Dispute</option>
+          <option value="Criminal">Criminal Law</option>
+          <option value="Family">Family Law</option>
+          <option value="Property">Property / Real Estate</option>
+          <option value="Personal Injury">Personal Injury</option>
+          <option value="Debt">Debt / Financial</option>
+          <option value="Immigration">Immigration</option>
+          <option value="Intellectual Property">Intellectual Property</option>
+          <option value="Corporate">Corporate / Business</option>
+          <option value="Consumer">Consumer Rights</option>
+          <option value="Landlord-Tenant">Landlord-Tenant</option>
+        </select>
+      </div>
+
+      <!-- Case Facts -->
+      <div class="form-group" style="margin-bottom:16px;">
+        <label class="form-label">Describe Your Case</label>
+        <textarea id="outcomeFacts" class="form-input" placeholder="Describe what happened, who is involved, what you want to achieve, and any relevant dates or documents. The more detail you provide, the more accurate the assessment." style="min-height:160px;resize:vertical;line-height:1.7;"></textarea>
+      </div>
+
+      <button onclick="predictOutcome()" style="width:100%;padding:14px;background:var(--accent-gold);color:var(--bg-primary);border:none;font-family:'Inter',sans-serif;font-size:11px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-weight:600;margin-bottom:24px;">
+        Predict Outcome
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="margin-left:6px;vertical-align:middle;"><path d="M3 8H13M13 8L9 4M13 8L9 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+
+      <!-- Processing -->
+      <div id="outcomeProcessing" style="display:none;text-align:center;padding:40px 20px;">
+        <div style="font-size:36px;margin-bottom:16px;">&#9878;</div>
+        <div style="font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--text-primary);margin-bottom:8px;">Analysing your case...</div>
+        <div style="font-size:13px;color:var(--text-secondary);">LEX is assessing the legal landscape and likely outcomes.</div>
+      </div>
+
+      <!-- Results -->
+      <div id="outcomeResults" style="display:none;">
+        <div id="outcomeUrgencyBadge" style="padding:10px 16px;margin-bottom:16px;font-size:12px;letter-spacing:1px;text-transform:uppercase;font-weight:600;text-align:center;display:none;"></div>
+        <div id="outcomeOutput" style="background:var(--bg-secondary);border:1px solid var(--border);padding:24px;line-height:1.9;font-size:14px;color:var(--text-primary);white-space:pre-wrap;font-family:'Inter',sans-serif;min-height:200px;"></div>
+        <div style="display:flex;gap:10px;margin-top:16px;">
+          <button onclick="copyOutcomeResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-secondary);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Copy</button>
+          <button onclick="downloadOutcomeResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--accent-gold);color:var(--accent-gold);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Download Report</button>
+          <button onclick="clearOutcomeResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-muted);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Clear</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONTRACT REVIEW PAGE -->
+  <div class="page" id="page-contract">
+    <div class="page-area">
+      <div class="page-label">AI Tools</div>
+      <h1 class="page-title">Contract <em>Review</em></h1>
+
+      <!-- Mode Tabs -->
+      <div style="display:flex;gap:8px;margin-bottom:24px;">
+        <button id="tabReview" onclick="switchContractTab('review')" style="flex:1;padding:10px;background:var(--accent-gold);color:var(--bg-primary);border:none;font-family:'Inter',sans-serif;font-size:11px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-weight:600;">Contract Review</button>
+        <button id="tabRedline" onclick="switchContractTab('redline')" style="flex:1;padding:10px;background:transparent;color:var(--text-secondary);border:1px solid var(--border);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;">Redline &amp; Negotiate</button>
+      </div>
+
+      <!-- Upload Zone -->
+      <div id="contractUploadZone" style="border:2px dashed var(--border);padding:40px 24px;text-align:center;margin-bottom:20px;cursor:pointer;transition:all 0.3s;" ondragover="event.preventDefault();this.style.borderColor='var(--accent-gold)'" ondragleave="this.style.borderColor='var(--border)'" ondrop="handleContractDrop(event)">
+        <div style="font-size:36px;margin-bottom:12px;">&#128196;</div>
+        <div style="font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--text-primary);margin-bottom:6px;">Upload Your Contract</div>
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">Drag &amp; drop or click to select — PDF, Word (.docx) or TXT</div>
+        <button onclick="document.getElementById('contractFileInput').click()" style="padding:8px 20px;background:transparent;border:1px solid var(--accent-gold);color:var(--accent-gold);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;">Select File</button>
+        <input type="file" id="contractFileInput" accept=".pdf,.docx,.txt" style="display:none" onchange="handleContractFileSelect(this)">
+      </div>
+
+      <!-- Selected File Info -->
+      <div id="contractFileInfo" style="display:none;padding:12px 16px;background:var(--bg-secondary);border:1px solid var(--border);margin-bottom:16px;align-items:center;gap:12px;">
+        <span style="font-size:20px;">&#128206;</span>
+        <div style="flex:1;">
+          <div id="contractFileName" style="font-size:13px;color:var(--text-primary);font-weight:500;"></div>
+          <div id="contractFileSize" style="font-size:11px;color:var(--text-muted);"></div>
+        </div>
+        <button onclick="clearContractFile()" style="background:transparent;border:none;color:var(--text-muted);cursor:pointer;font-size:18px;">x</button>
+      </div>
+
+      <!-- Analyse Button -->
+      <button id="contractAnalyseBtn" onclick="analyseContract()" style="width:100%;padding:14px;background:var(--accent-gold);color:var(--bg-primary);border:none;font-family:'Inter',sans-serif;font-size:11px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-weight:600;margin-bottom:24px;opacity:0.5;pointer-events:none;">Analyse Contract</button>
+
+      <!-- Processing State -->
+      <div id="contractProcessing" style="display:none;text-align:center;padding:40px 20px;">
+        <div style="font-size:36px;margin-bottom:16px;">&#9878;</div>
+        <div style="font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--text-primary);margin-bottom:8px;" id="contractProcessingLabel">Analysing contract...</div>
+        <div style="font-size:13px;color:var(--text-secondary);">LEX is reviewing every clause. This may take 30-60 seconds.</div>
+      </div>
+
+      <!-- Results Area -->
+      <div id="contractResults" style="display:none;">
+        <div id="contractRiskBadge" style="padding:10px 16px;margin-bottom:16px;font-size:12px;letter-spacing:1px;text-transform:uppercase;font-weight:600;text-align:center;"></div>
+        <div id="contractOutput" style="background:var(--bg-secondary);border:1px solid var(--border);padding:24px;line-height:1.9;font-size:14px;color:var(--text-primary);white-space:pre-wrap;font-family:'Inter',sans-serif;min-height:200px;"></div>
+        <div style="display:flex;gap:10px;margin-top:16px;">
+          <button onclick="copyContractResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-secondary);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Copy</button>
+          <button onclick="downloadContractResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--accent-gold);color:var(--accent-gold);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Download Report</button>
+          <button onclick="clearContractResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-muted);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Clear</button>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -781,14 +1207,20 @@
 
 <!-- Upgrade Modal -->
 <div id="upgradeModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:2000;align-items:center;justify-content:center;">
-  <div style="background:var(--bg-card);border:1px solid var(--accent-gold);padding:40px;max-width:400px;width:90%;position:relative;text-align:center;">
+  <div style="background:var(--bg-card);border:1px solid var(--accent-gold);padding:40px;max-width:420px;width:90%;position:relative;text-align:center;">
     <button onclick="document.getElementById('upgradeModal').style.display='none'" style="position:absolute;top:14px;right:14px;background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;">×</button>
     <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="var(--accent-gold)" stroke-width="1.5" style="margin:0 auto 16px;display:block;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
     <div style="font-family:'Cormorant Garamond',serif;font-size:32px;margin-bottom:8px;color:var(--text-primary);">Go Premium</div>
-    <div style="font-size:14px;color:var(--text-secondary);line-height:1.7;margin-bottom:20px;">Unlimited questions, document drafting, contract review, lawyer connect, and full access to all LEX features.</div>
-    <div style="font-family:'Cormorant Garamond',serif;font-size:48px;color:var(--text-primary);margin-bottom:4px;"><sup style="font-size:24px;color:var(--text-secondary);">$</sup>4.99<span style="font-size:16px;color:var(--text-muted);font-weight:300;">/mo</span></div>
-    <button class="ask-btn" style="width:100%;justify-content:center;margin-top:20px;">Upgrade Now</button>
-    <div style="font-size:12px;color:var(--text-muted);margin-top:12px;">Cancel anytime · Secure payment</div>
+    <div style="font-size:14px;color:var(--text-secondary);line-height:1.7;margin-bottom:16px;">Unlimited questions, document drafting, contract review, lawyer connect, and full access to all LEX features.</div>
+    <div style="display:flex;gap:0;margin:0 auto 16px;border:1px solid var(--accent-gold);width:fit-content;">
+      <button id="indToggleMonthly" onclick="setIndBilling('monthly')" style="padding:8px 20px;background:var(--accent-gold);color:var(--bg-primary);border:none;font-size:11px;font-weight:600;letter-spacing:1px;cursor:pointer;transition:all 0.2s;">MONTHLY</button>
+      <button id="indToggleYearly" onclick="setIndBilling('yearly')" style="padding:8px 20px;background:transparent;color:var(--accent-gold);border:none;font-size:11px;font-weight:600;letter-spacing:1px;cursor:pointer;transition:all 0.2s;">YEARLY &nbsp;<span style="font-size:9px;opacity:0.8;">2 MONTHS FREE</span></button>
+    </div>
+    <div id="indUpgradePrice" style="font-family:'Cormorant Garamond',serif;font-size:48px;color:var(--text-primary);margin-bottom:4px;"><sup style="font-size:24px;color:var(--text-secondary);">$</sup>4.99<span style="font-size:16px;color:var(--text-muted);font-weight:300;">/mo</span></div>
+    <button class="ask-btn" id="indUpgradeBtn" onclick="initiateCheckout('individual')" style="width:100%;justify-content:center;margin-top:20px;">
+      <span id="indUpgradeText">Upgrade Now</span>
+    </button>
+    <div style="font-size:12px;color:var(--text-muted);margin-top:12px;">Cancel anytime · Secure payment via Lemon Squeezy</div>
   </div>
 </div>
 
@@ -966,7 +1398,6 @@
     // Update Firestore if available
     if (window._lexUid && window._db) {
       try {
-        const { updateDoc, doc } = await import('https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js');
         await updateDoc(doc(window._db, 'users', window._lexUid), { name, jurisdiction });
       } catch(e) {}
     }
@@ -985,9 +1416,7 @@
     if (!newPass || newPass.length < 6) { msg.style.color = '#e74c3c'; msg.textContent = '✗ Password must be at least 6 characters.'; return; }
     if (newPass !== confirmPass) { msg.style.color = '#e74c3c'; msg.textContent = '✗ Passwords do not match.'; return; }
     try {
-      const { getAuth, updatePassword } = await import('https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js');
-      const auth = getAuth();
-      await updatePassword(auth.currentUser, newPass);
+      await updatePassword(getAuth().currentUser, newPass);
       msg.style.color = '#27ae60'; msg.textContent = '✓ Password updated successfully.';
       document.getElementById('settingsNewPass').value = '';
       document.getElementById('settingsConfirmPass').value = '';
@@ -1014,10 +1443,8 @@
     if (!confirm('Last warning — all your data will be permanently deleted.')) return;
     try {
       if (window._lexUid && window._db) {
-        const { deleteDoc, doc } = await import('https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js');
         await deleteDoc(doc(window._db, 'users', window._lexUid));
       }
-      const { getAuth, deleteUser } = await import('https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js');
       await deleteUser(getAuth().currentUser);
       ['lexUser','lexRole','lexHistory','lexNotifs_individual','lexSettingsPrefs','lexCookieConsent'].forEach(k => localStorage.removeItem(k));
       window.location.href = 'index.html';
@@ -1038,7 +1465,7 @@
   document.querySelector('.upgrade-btn').textContent = `Upgrade — $4.99/mo`;
 
   // ── QUESTION QUOTA — midnight reset ──
-  const MAX_Q = isGuest ? 5 : isPremium ? Infinity : 30;
+  const MAX_Q = isGuest ? 3 : isPremium ? Infinity : 5;
 
   function getMidnight() {
     const now = new Date();
@@ -1071,7 +1498,6 @@
     return (isGuest ? 'Guest' : 'Free') + ' · ' + d.count + ' questions left today';
   }
 
-  document.getElementById('topbarCounter').textContent = getRemainingStr();
 
   // ── CHAT ENGINE ──
   const chatHistory = []; // [{role, content}]
@@ -1101,6 +1527,65 @@
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); askLex(); }
   }
 
+
+
+  // ── MEMORY-AWARE GREETING ──
+  async function initLexGreeting() {
+    await new Promise(r => setTimeout(r, 2500)); // wait for memory load
+    if (!window.lexMemory) return;
+    const memories = window.lexMemory.get();
+    if (!memories.length) return;
+
+    const user = JSON.parse(localStorage.getItem('lexUser') || '{}');
+    const firstName = (user.name || '').split(' ')[0];
+    const latest = memories[0];
+    const greetName = firstName ? `${firstName}` : 'there';
+
+    let contextLine = '';
+    if (latest) {
+      const typeLabels = {
+        question: 'we discussed a legal matter',
+        contract_review: 'you had a contract reviewed',
+        redline: 'we redlined a document',
+        clause: 'you searched the clause library',
+        outcome: 'we assessed a case outcome',
+        compare: 'we compared two documents'
+      };
+      contextLine = typeLabels[latest.type] || 'we had a session';
+    }
+
+    const welcomeEl = document.getElementById('lexWelcomeMsg');
+    if (welcomeEl && contextLine) {
+      welcomeEl.textContent = `Welcome back, ${greetName}. Last time ${contextLine}. I remember your history — feel free to pick up where you left off or ask something new.`;
+    }
+  }
+
+  initLexGreeting();
+  // Pre-fetch lawyer directory in background
+  setTimeout(() => initLawyerDirectory(), 3000);
+
+  // ── MEMORY HELPERS ──
+  async function saveMemory(type, contentToSummarise) {
+    if (!window._lexUid) return;
+    try {
+      const res = await fetch('/summarise-memory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, content: contentToSummarise })
+      });
+      const data = await res.json();
+      if (data.summary) {
+        await window.lexMemory.save(type, data.summary);
+      }
+    } catch(e) {
+      console.warn('Memory save failed silently:', e);
+    }
+  }
+
+  function getMemories() {
+    return window.lexMemory ? window.lexMemory.get() : [];
+  }
+
   async function askLex() {
     const d = getQData();
     if (d.count <= 0) {
@@ -1122,33 +1607,79 @@
     document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
 
     if (!isPremium) { d.count = Math.max(0, d.count - 1); saveQData(d); }
-    document.getElementById('topbarCounter').textContent = getRemainingStr();
-
+  
     try {
-      const res = await fetch('/ask', {
+      const res = await fetch('/ask-stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question, country, category, tier: isPremium ? 'premium' : 'free', history: chatHistory.slice(-6) })
+        body: JSON.stringify({ question, country, category, tier: isPremium ? 'premium' : 'free', history: chatHistory.slice(-6), memories: getMemories() })
       });
-      const data = await res.json();
+
       document.getElementById('chatTyping').classList.remove('visible');
       document.getElementById('askBtn').disabled = false;
 
-      if (data.error) {
-        if (!isPremium) { d.count = Math.min(MAX_Q, d.count + 1); saveQData(d); }
-        appendMessage('assistant', '⚠️ ' + data.error);
-      } else {
-        const answer = data.answer;
-        chatHistory.push({ role: 'assistant', content: answer });
-        const _cat = document.getElementById('categorySelect').value;
-        const actions = `
-          <button class="bubble-action" onclick="saveToHistory('${encodeURIComponent(question)}','${encodeURIComponent(answer)}','${country}','${_cat}')">Save</button>
-          <button class="bubble-action" onclick="navigator.clipboard.writeText(decodeURIComponent('${encodeURIComponent(answer)}'))">Copy</button>
-          <button class="bubble-action" onclick="downloadText(decodeURIComponent('${encodeURIComponent(answer)}'))">Download</button>`;
-        appendMessage('assistant', answer, actions);
-        // Auto-save every answer
-        saveToHistory(encodeURIComponent(question), encodeURIComponent(answer), country, _cat);
-        document.getElementById('topbarCounter').textContent = getRemainingStr();
+      if (!res.ok) throw new Error('Network error');
+
+      // Create streaming bubble
+      const msgId = 'stream-' + Date.now();
+      const messagesEl = document.getElementById('chatMessages');
+      const bubble = document.createElement('div');
+      bubble.className = 'message assistant';
+      bubble.innerHTML = `<div class="bubble assistant-bubble" id="${msgId}" style="white-space:pre-wrap;"></div>`;
+      messagesEl.appendChild(bubble);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let fullAnswer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const payload = JSON.parse(line.slice(6));
+            if (payload.error) {
+              document.getElementById(msgId).textContent = '⚠️ ' + payload.error;
+              if (!isPremium && !payload.limit_reached) { d.count = Math.min(MAX_Q, d.count + 1); saveQData(d); }
+              break;
+            }
+            if (payload.chunk) {
+              fullAnswer += payload.chunk;
+              document.getElementById(msgId).textContent = fullAnswer;
+              messagesEl.scrollTop = messagesEl.scrollHeight;
+            }
+            if (payload.done) {
+              // Add action buttons
+              const _cat = category;
+              const actionsEl = document.createElement('div');
+              actionsEl.className = 'bubble-actions';
+              actionsEl.innerHTML = `
+                <button class="bubble-action" onclick="saveToHistory('${encodeURIComponent(question)}','${encodeURIComponent(payload.answer)}','${country}','${_cat}')">Save</button>
+                <button class="bubble-action" onclick="navigator.clipboard.writeText(decodeURIComponent('${encodeURIComponent(payload.answer)}'))">Copy</button>
+                <button class="bubble-action" onclick="downloadText(decodeURIComponent('${encodeURIComponent(payload.answer)}'))">Download</button>`;
+              bubble.appendChild(actionsEl);
+              chatHistory.push({ role: 'assistant', content: payload.answer });
+              saveToHistory(encodeURIComponent(question), encodeURIComponent(payload.answer), country, _cat);
+                          // Show sources if available
+              if (payload.sources && payload.sources.length) {
+                const sourcesEl = document.createElement('div');
+                sourcesEl.style.cssText = 'margin-top:10px;padding:10px 14px;background:var(--bg-primary);border:1px solid var(--border);font-size:11px;';
+                sourcesEl.innerHTML = '<div style="letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;">Sources</div>' +
+                  payload.sources.map(s => `<div style="margin-bottom:6px;"><span style="background:var(--bg-secondary);padding:2px 6px;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--accent-gold);margin-right:6px;">${s.type}</span><a href="${s.url}" target="_blank" rel="noopener" style="color:var(--text-secondary);text-decoration:none;hover:color:var(--accent-gold);">${s.title}</a></div>`).join('');
+                bubble.appendChild(sourcesEl);
+              }
+              // Save memory silently
+              saveMemory('question', `Question: ${question}\n\nAnswer: ${payload.answer.slice(0, 1500)}`);
+            }
+          } catch(e) {}
+        }
       }
     } catch(e) {
       document.getElementById('chatTyping').classList.remove('visible');
@@ -1246,117 +1777,179 @@
 
   // ── LOCATION-BASED LAWYERS ──
   // Demo lawyer pool — in production this comes from backend/Firestore
-  const LAWYER_POOL = [
-    {name:'Adaeze Okonkwo',initials:'AO',spec:'Criminal Defense',location:'Ughelli, Delta State',country:'Nigeria',rating:4.9,winRate:94,cases:127,verified:'NBA/2018/0042',featured:true},
-    {name:'Chukwuemeka Eze',initials:'CE',spec:'Property Law',location:'Warri, Delta State',country:'Nigeria',rating:4.7,winRate:88,cases:89,verified:'NBA Certified',featured:false},
-    {name:'Blessing Obi',initials:'BO',spec:'Family Law',location:'Sapele, Delta State',country:'Nigeria',rating:4.8,winRate:91,cases:112,verified:'NBA Certified',featured:false},
-    {name:'James Mensah',initials:'JM',spec:'Corporate Law',location:'Accra',country:'Ghana',rating:4.7,winRate:88,cases:89,verified:'GBA Certified',featured:true},
-    {name:'Sarah Kimani',initials:'SK',spec:'Family Law',location:'Nairobi',country:'Kenya',rating:4.8,winRate:91,cases:203,verified:'LSK Member',featured:false},
-    {name:'Michael Osei',initials:'MO',spec:'Employment Law',location:'Kumasi',country:'Ghana',rating:4.6,winRate:85,cases:67,verified:'GBA Certified',featured:false},
-    {name:'Amaka Nwosu',initials:'AN',spec:'Civil Rights',location:'Asaba, Delta State',country:'Nigeria',rating:4.8,winRate:90,cases:145,verified:'NBA Certified',featured:false},
-    {name:'David Adeyemi',initials:'DA',spec:'Corporate Law',location:'Lagos',country:'Nigeria',rating:4.9,winRate:96,cases:310,verified:'NBA/2015/0088',featured:true},
-    {name:'Grace Mutua',initials:'GM',spec:'Immigration',location:'Nairobi',country:'Kenya',rating:4.5,winRate:82,cases:54,verified:'LSK Member',featured:false},
-  ];
+  // ── LAWYER DIRECTORY — FIRESTORE POWERED ──
+  let _allLawyers = [];       // raw Firestore docs
 
-  let userCity = '', userCountry = detectedCountry;
+  // Load lawyers from Firestore with real-time listener
+  async function initLawyerDirectory() {
+    if (!window._db) return;
 
-  function renderLawyerCard(l) {
-    const bookBtn = isPremium
-      ? `<button class="lawyer-btn" onclick="alert('Booking coming soon!')">Book Consultation</button>`
-      : `<div class="premium-lock" onclick="showUpgrade()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Premium required to contact · Tap to upgrade</div>`;
-    return `
-      <div class="lawyer-card">
-        <div class="lawyer-header">
-          <div class="lawyer-avatar">${l.initials}</div>
-          <div style="flex:1">
-            <div class="lawyer-name">${l.name}</div>
-            <div class="lawyer-spec">${l.spec} · ${l.location}</div>
-          </div>
-          ${l.featured ? '<span class="featured-tag">Featured</span>' : ''}
-        </div>
-        <div class="lawyer-verified">✓ Verified · ${l.verified}</div>
-        <div class="lawyer-stats">
-          <div class="lawyer-stat"><div class="lawyer-stat-num">${l.winRate}%</div><div class="lawyer-stat-label">Win Rate</div></div>
-          <div class="lawyer-stat"><div class="lawyer-stat-num">${l.cases}</div><div class="lawyer-stat-label">Cases</div></div>
-          <div class="lawyer-stat"><div class="lawyer-stat-num">${l.rating}</div><div class="lawyer-stat-label">Rating</div></div>
-        </div>
-        ${bookBtn}
-      </div>`;
+    const q = query(
+      collection(window._db, 'users'),
+      where('role', '==', 'lawyer')
+    );
+
+    try {
+      const snap = await getDocs(q);
+      _allLawyers = [];
+      snap.forEach(doc => {
+        const d = doc.data();
+        _allLawyers.push({ id: doc.id, ...d });
+      });
+      populateCountryFilter(_allLawyers);
+      renderLawyerDirectory(_allLawyers);
+    } catch(err) {
+      console.warn('Lawyer directory error:', err);
+      document.getElementById('lawyersLoading').innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">Unable to load lawyer directory. Please try again.</div>';
+    }
   }
 
-  function sortLawyers(lawyers) {
-    return lawyers.sort((a, b) => {
-      if (a.featured && !b.featured) return -1;
-      if (!a.featured && b.featured) return 1;
-      return b.rating - a.rating;
+  function populateCountryFilter(lawyers) {
+    const countries = [...new Set(lawyers.map(l => l.country).filter(Boolean))].sort();
+    const sel = document.getElementById('lawyerFilterCountry');
+    const current = sel.value;
+    sel.innerHTML = '<option value="">All Countries</option>' +
+      countries.map(c => `<option ${c === current ? 'selected' : ''}>${c}</option>`).join('');
+  }
+
+  function sortLawyerPool(lawyers) {
+    return [...lawyers].sort((a, b) => {
+      // 1. Boosted first
+      const aBoost = a.boostExpiry && a.boostExpiry.toDate ? a.boostExpiry.toDate() > new Date() : false;
+      const bBoost = b.boostExpiry && b.boostExpiry.toDate ? b.boostExpiry.toDate() > new Date() : false;
+      if (aBoost && !bBoost) return -1;
+      if (!aBoost && bBoost) return 1;
+      // 2. Verified next
+      if (a.verified && !b.verified) return -1;
+      if (!a.verified && b.verified) return 1;
+      // 3. Rating
+      return (b.avgRating || 0) - (a.avgRating || 0);
     });
   }
 
-  function loadLawyersNearMe() {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(pos => {
-        // In production: reverse geocode pos.coords to city/LGA
-        // For now use timezone-detected country
-        showLawyersByLocation(userCountry, '');
-      }, () => showLawyersByLocation(userCountry, ''));
-    } else {
-      showLawyersByLocation(userCountry, '');
-    }
+  function renderLawyerCard(l) {
+    const name = l.name || 'Unknown';
+    const initials = name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+    const spec = l.specialisation || l.spec || 'Legal Services';
+    const location = [l.city, l.country].filter(Boolean).join(', ') || l.country || 'Location not set';
+    const rating = l.avgRating ? l.avgRating.toFixed(1) : '—';
+    const ratingCount = l.ratingCount || 0;
+    const bio = l.bio ? `<div style="font-size:12px;color:var(--text-secondary);line-height:1.6;margin-bottom:14px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${l.bio}</div>` : '';
+    const isBoost = l.boostExpiry && l.boostExpiry.toDate ? l.boostExpiry.toDate() > new Date() : false;
+    const verifiedBadge = l.verified ? `<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(39,174,96,0.1);color:#27ae60;padding:2px 8px;font-size:10px;letter-spacing:1px;text-transform:uppercase;border:1px solid rgba(39,174,96,0.3);">&#10003; Verified</span>` : '';
+    const boostBadge = isBoost ? `<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(212,175,55,0.1);color:var(--accent-gold);padding:2px 8px;font-size:10px;letter-spacing:1px;text-transform:uppercase;border:1px solid rgba(212,175,55,0.3);">&#9651; Featured</span>` : '';
+    const stars = rating !== '—' ? '★'.repeat(Math.round(parseFloat(rating))) + '☆'.repeat(5 - Math.round(parseFloat(rating))) : '';
+
+    const connectBtn = isPremium
+      ? `<button class="lawyer-btn" onclick="showContactModal('${l.id}', '${name.replace(/'/g, "\'")}')">Contact Lawyer</button>`
+      : `<div class="premium-lock" onclick="showUpgrade()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Premium required to contact · Tap to upgrade</div>`;
+
+    return `
+      <div class="lawyer-card">
+        <div class="lawyer-header">
+          <div class="lawyer-avatar">${initials}</div>
+          <div style="flex:1;min-width:0;">
+            <div class="lawyer-name">${name}</div>
+            <div class="lawyer-spec">${spec} · ${location}</div>
+          </div>
+        </div>
+        ${(verifiedBadge || boostBadge) ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">${boostBadge}${verifiedBadge}</div>` : ''}
+        ${bio}
+        <div class="lawyer-stats">
+          <div class="lawyer-stat">
+            <div class="lawyer-stat-num" style="color:var(--accent-gold);font-size:14px;">${stars || rating}</div>
+            <div class="lawyer-stat-label">${ratingCount} review${ratingCount !== 1 ? 's' : ''}</div>
+          </div>
+          <div class="lawyer-stat">
+            <div class="lawyer-stat-num">${l.caseCount || '—'}</div>
+            <div class="lawyer-stat-label">Cases</div>
+          </div>
+          <div class="lawyer-stat">
+            <div class="lawyer-stat-num">${l.firm || '—'}</div>
+            <div class="lawyer-stat-label">Firm</div>
+          </div>
+        </div>
+        ${connectBtn}
+      </div>`;
   }
 
-  function showLawyersByLocation(country, city) {
+  function renderLawyerDirectory(lawyers) {
     const grid = document.getElementById('lawyersGrid');
-    let matches = LAWYER_POOL.filter(l => l.country === country);
+    const loading = document.getElementById('lawyersLoading');
+    const empty = document.getElementById('lawyersEmpty');
 
-    if (!matches.length) {
-      // expand to global
-      matches = LAWYER_POOL;
-      document.getElementById('lawyerLocationNote').innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg> No lawyers found nearby — showing all available lawyers`;
-    } else {
-      document.getElementById('lawyerLocationNote').innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg> Showing lawyers in <span>${country}</span>`;
+    loading.style.display = 'none';
+
+    if (!lawyers || !lawyers.length) {
+      grid.style.display = 'none';
+      empty.style.display = 'block';
+      return;
     }
 
-    grid.innerHTML = sortLawyers(matches).map(renderLawyerCard).join('');
+    empty.style.display = 'none';
+    grid.style.display = 'grid';
+    grid.innerHTML = sortLawyerPool(lawyers).map(renderLawyerCard).join('');
   }
 
-  function searchLawyers(scope) {
+  function filterLawyers() {
     const query = document.getElementById('lawyerSearchInput').value.trim().toLowerCase();
-    let pool = scope === 'anywhere' ? LAWYER_POOL : LAWYER_POOL.filter(l => l.country === userCountry);
+    const spec = document.getElementById('lawyerFilterSpec').value.toLowerCase();
+    const country = document.getElementById('lawyerFilterCountry').value.toLowerCase();
+    const userLocText = document.getElementById('lawyerLocationText');
+
+    let pool = _allLawyers;
 
     if (query) {
       pool = pool.filter(l =>
-        l.name.toLowerCase().includes(query) ||
-        l.spec.toLowerCase().includes(query) ||
-        l.location.toLowerCase().includes(query) ||
-        l.country.toLowerCase().includes(query)
+        (l.name || '').toLowerCase().includes(query) ||
+        (l.specialisation || '').toLowerCase().includes(query) ||
+        (l.city || '').toLowerCase().includes(query) ||
+        (l.country || '').toLowerCase().includes(query) ||
+        (l.bio || '').toLowerCase().includes(query)
       );
     }
+    if (spec) pool = pool.filter(l => (l.specialisation || '').toLowerCase().includes(spec));
+    if (country) pool = pool.filter(l => (l.country || '').toLowerCase() === country);
 
-    if (!pool.length) {
-      // Auto-expand to anywhere if no local results
-      pool = LAWYER_POOL.filter(l =>
-        l.name.toLowerCase().includes(query) ||
-        l.spec.toLowerCase().includes(query) ||
-        l.location.toLowerCase().includes(query) ||
-        l.country.toLowerCase().includes(query)
-      );
-      document.getElementById('lawyerLocationNote').innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg> No local results — showing global matches`;
+    // Auto-location filter on first load
+    const localCount = _allLawyers.filter(l => (l.country || '').toLowerCase() === (userCountry || '').toLowerCase()).length;
+    if (!query && !spec && !country && localCount > 0) {
+      pool = pool.filter(l => (l.country || '').toLowerCase() === (userCountry || '').toLowerCase());
+      userLocText.textContent = `Showing ${pool.length} lawyer${pool.length !== 1 ? 's' : ''} in ${userCountry}`;
+    } else {
+      userLocText.textContent = pool.length ? `Showing ${pool.length} lawyer${pool.length !== 1 ? 's' : ''}` : 'No lawyers found';
     }
 
-    document.getElementById('lawyersGrid').innerHTML = pool.length
-      ? sortLawyers(pool).map(renderLawyerCard).join('')
-      : '<div style="padding:40px;text-align:center;color:var(--text-muted);">No lawyers found matching your search.</div>';
+    renderLawyerDirectory(pool);
   }
 
-  // ── NAV ──
+  function loadAllLawyers() {
+    document.getElementById('lawyerSearchInput').value = '';
+    document.getElementById('lawyerFilterSpec').value = '';
+    document.getElementById('lawyerFilterCountry').value = '';
+    document.getElementById('lawyerLocationText').textContent = `Showing all ${_allLawyers.length} lawyer${_allLawyers.length !== 1 ? 's' : ''}`;
+    renderLawyerDirectory(_allLawyers);
+  }
+
+  let userCity = '', userCountry = detectedCountry;
+
+    // ── NAV ──
+  function gatedPage(page, navEl) {
+    if (!isPremium) {
+      showUpgrade();
+      return;
+    }
+    showPage(page, navEl);
+  }
+
   function showPage(page, navEl) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     document.getElementById('page-' + page).classList.add('active');
     if (navEl) navEl.classList.add('active');
-    const titles = { ask:'Ask LEX', history:'Case History', documents:'Documents', lawyers:'Find a Lawyer', mylawyers:'My Lawyers', chatroom:'Chat', settings:'Settings' };
+    const titles = { ask:'Ask LEX', history:'Case History', documents:'Documents', lawyers:'Find a Lawyer', mylawyers:'My Lawyers', chatroom:'Chat', settings:'Settings', contract:'Contract Review', clause:'Clause Library', outcome:'Case Outcome Prediction', compare:'Compare Documents', research:'Legal Research' };
     document.getElementById('topbarTitle').textContent = titles[page] || 'LEX';
-    if (page === 'lawyers') loadLawyersNearMe();
+    if (page === 'lawyers') { if (_allLawyers.length) filterLawyers(); else initLawyerDirectory(); }
     if (page === 'mylawyers') loadMyLawyers();
     if (page === 'documents') loadDocs();
     if (page === 'history') renderHistory();
@@ -1367,6 +1960,63 @@
   function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); document.getElementById('sidebarOverlay').classList.toggle('visible'); }
   function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('sidebarOverlay').classList.remove('visible'); }
   function showUpgrade() { document.getElementById('upgradeModal').style.display = 'flex'; }
+
+  // ── LEMON SQUEEZY PAYMENT ──
+  let indBilling = 'monthly';
+
+  function setIndBilling(type) {
+    indBilling = type;
+    const mBtn = document.getElementById('indToggleMonthly');
+    const yBtn = document.getElementById('indToggleYearly');
+    const priceEl = document.getElementById('indUpgradePrice');
+    if (type === 'monthly') {
+      mBtn.style.background = 'var(--accent-gold)'; mBtn.style.color = 'var(--bg-primary)';
+      yBtn.style.background = 'transparent'; yBtn.style.color = 'var(--accent-gold)';
+      priceEl.innerHTML = '<sup style="font-size:24px;color:var(--text-secondary);">$</sup>4.99<span style="font-size:16px;color:var(--text-muted);font-weight:300;">/mo</span>';
+    } else {
+      yBtn.style.background = 'var(--accent-gold)'; yBtn.style.color = 'var(--bg-primary)';
+      mBtn.style.background = 'transparent'; mBtn.style.color = 'var(--accent-gold)';
+      priceEl.innerHTML = '<sup style="font-size:24px;color:var(--text-secondary);">$</sup>49.90<span style="font-size:16px;color:var(--text-muted);font-weight:300;">/yr</span>';
+    }
+  }
+
+  async function initiateCheckout(type) {
+    const btn = document.getElementById('indUpgradeBtn');
+    const txt = document.getElementById('indUpgradeText');
+    if (!currentUser) { showToast('Please sign in to upgrade.', 'error'); return; }
+    txt.textContent = 'Loading...';
+    btn.disabled = true;
+    const variantKey = indBilling === 'yearly' ? 'premium_yearly' : 'premium_monthly';
+    try {
+      const res = await fetch('/create-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ variant_key: variantKey, email: currentUser.email || '', uid: currentUser.uid })
+      });
+      const data = await res.json();
+      if (data.checkout_url) {
+        window.location.href = data.checkout_url;
+      } else {
+        showToast(data.error || 'Could not start checkout. Please try again.', 'error');
+        txt.textContent = 'Upgrade Now'; btn.disabled = false;
+      }
+    } catch (e) {
+      showToast('Connection error. Please try again.', 'error');
+      txt.textContent = 'Upgrade Now'; btn.disabled = false;
+    }
+  }
+
+  // ── SUPPORT MODAL ──
+  function openSupport() {
+    document.getElementById('supportModal').style.display = 'flex';
+    const u = JSON.parse(localStorage.getItem('lexUser') || '{}');
+    if (u.name && window.smartsupp) {
+      try { smartsupp('name', u.name); if (u.email) smartsupp('email', u.email); } catch(e) {}
+    }
+  }
+  function closeSupport() {
+    document.getElementById('supportModal').style.display = 'none';
+  }
   function logout() { window.lexSignOut ? window.lexSignOut() : (localStorage.removeItem('lexUser'), localStorage.removeItem('lexRole'), window.location.href = 'auth.html'); }
 
   // ── CONNECTION + CHAT + RATING ──
@@ -1662,6 +2312,742 @@
   function acceptCookies() { localStorage.setItem('lexCookieConsent', 'all'); document.getElementById('cookieBanner').classList.remove('visible'); }
   function declineCookies() { localStorage.setItem('lexCookieConsent', 'essential'); document.getElementById('cookieBanner').classList.remove('visible'); }
   initCookieBanner();
+
+
+
+
+  // ── LEGAL RESEARCH ──
+  let researchResultText = '';
+  let researchSources = [];
+
+  function setResearchTopic(topic) {
+    document.getElementById('researchTopic').value = topic;
+    runResearch();
+  }
+
+  async function runResearch() {
+    const topic = document.getElementById('researchTopic').value.trim();
+    if (!topic) return;
+    const user = JSON.parse(localStorage.getItem('lexUser') || '{}');
+    const tier = user.plan || 'free';
+    const country = user.jurisdiction || 'Nigeria';
+
+    document.getElementById('researchProcessing').style.display = 'block';
+    document.getElementById('researchResults').style.display = 'none';
+    researchResultText = '';
+    researchSources = [];
+
+    try {
+      const response = await fetch('/research-stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic, country, tier, memories: getMemories() })
+      });
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      document.getElementById('researchProcessing').style.display = 'none';
+      document.getElementById('researchResults').style.display = 'block';
+      const output = document.getElementById('researchOutput');
+      output.textContent = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.chunk) {
+              researchResultText += data.chunk;
+              output.textContent = researchResultText;
+              output.scrollTop = output.scrollHeight;
+            }
+            if (data.error) {
+              output.textContent = 'Error: ' + data.error;
+            }
+            if (data.done) {
+              researchSources = data.sources || [];
+              renderResearchSources(researchSources);
+              addNotif('Legal research complete.');
+              saveMemory('question', `Research topic: ${topic}\n\n${researchResultText.slice(0, 1500)}`);
+            }
+          } catch(e) {}
+        }
+      }
+    } catch(e) {
+      document.getElementById('researchProcessing').style.display = 'none';
+      document.getElementById('researchResults').style.display = 'block';
+      document.getElementById('researchOutput').textContent = 'Connection error. Please try again.';
+    }
+  }
+
+  function renderResearchSources(sources) {
+    const panel = document.getElementById('researchSourcesPanel');
+    const list = document.getElementById('researchSourcesList');
+    if (!sources || !sources.length) { panel.style.display = 'none'; return; }
+    panel.style.display = 'block';
+    const typeColors = { 'case law': '#e74c3c', 'legislation': '#27ae60', 'regulation': '#2980b9', 'commentary': '#8e44ad', 'legal reference': '#7f8c8d' };
+    list.innerHTML = sources.map(s => `
+      <div style="display:flex;align-items:flex-start;gap:10px;padding:8px 12px;background:var(--bg-secondary);border:1px solid var(--border);">
+        <span style="background:${typeColors[s.type] || '#7f8c8d'};color:#fff;padding:2px 8px;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;font-weight:600;white-space:nowrap;margin-top:2px;">${s.type}</span>
+        <div style="flex:1;min-width:0;">
+          <a href="${s.url}" target="_blank" rel="noopener" style="font-size:12px;color:var(--accent-gold);text-decoration:none;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s.title}</a>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px;line-height:1.5;">${s.snippet}</div>
+        </div>
+      </div>`).join('');
+  }
+
+  function clearResearchResult() {
+    researchResultText = '';
+    researchSources = [];
+    document.getElementById('researchResults').style.display = 'none';
+    document.getElementById('researchOutput').textContent = '';
+    document.getElementById('researchSourcesPanel').style.display = 'none';
+    document.getElementById('researchSourcesList').innerHTML = '';
+  }
+
+  function copyResearchResult() {
+    if (!researchResultText) return;
+    navigator.clipboard.writeText(researchResultText).then(() => addNotif('Research report copied to clipboard.'));
+  }
+
+  function downloadResearchResult() {
+    if (!researchResultText) return;
+    const topic = document.getElementById('researchTopic').value.replace(/[^a-z0-9]/gi, '_').slice(0, 40);
+    const blob = new Blob([researchResultText], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'LEX_research_' + topic + '_' + new Date().toISOString().slice(0,10) + '.txt';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  // ── COMPARE DOCUMENTS ──
+  let compareFileA = null;
+  let compareFileB = null;
+  let compareResultText = '';
+
+  function handleCompareDrop(e, side) {
+    e.preventDefault();
+    document.getElementById('compareZone' + side.toUpperCase()).style.borderColor = 'var(--border)';
+    const file = e.dataTransfer.files[0];
+    if (file) setCompareFile(file, side);
+  }
+
+  function handleCompareFileSelect(input, side) {
+    if (input.files[0]) setCompareFile(input.files[0], side);
+  }
+
+  function setCompareFile(file, side) {
+    const ext = file.name.toLowerCase().split('.').pop();
+    if (!['pdf','docx','txt'].includes(ext)) { alert('Please upload a PDF, Word (.docx) or text file.'); return; }
+    const S = side.toUpperCase();
+    if (side === 'a') compareFileA = file; else compareFileB = file;
+    document.getElementById('compareFileName' + S).textContent = file.name;
+    document.getElementById('compareFileInfo' + S).style.display = 'flex';
+    updateCompareBtn();
+  }
+
+  function clearCompareFile(side) {
+    const S = side.toUpperCase();
+    if (side === 'a') { compareFileA = null; document.getElementById('compareFileA').value = ''; }
+    else { compareFileB = null; document.getElementById('compareFileB').value = ''; }
+    document.getElementById('compareFileInfo' + S).style.display = 'none';
+    updateCompareBtn();
+    clearCompareResult();
+  }
+
+  function updateCompareBtn() {
+    const btn = document.getElementById('compareBtn');
+    const ready = compareFileA && compareFileB;
+    btn.style.opacity = ready ? '1' : '0.5';
+    btn.style.pointerEvents = ready ? 'auto' : 'none';
+  }
+
+  function clearCompareResult() {
+    compareResultText = '';
+    document.getElementById('compareResults').style.display = 'none';
+    document.getElementById('compareOutput').textContent = '';
+    document.getElementById('compareVerdictBadge').style.display = 'none';
+  }
+
+  async function compareDocs() {
+    if (!compareFileA || !compareFileB) return;
+    const user = JSON.parse(localStorage.getItem('lexUser') || '{}');
+    const tier = user.plan || 'free';
+    const country = user.jurisdiction || 'Nigeria';
+
+    document.getElementById('compareProcessing').style.display = 'block';
+    document.getElementById('compareResults').style.display = 'none';
+    document.getElementById('compareBtn').disabled = true;
+    compareResultText = '';
+
+    const formData = new FormData();
+    formData.append('file_a', compareFileA);
+    formData.append('file_b', compareFileB);
+    formData.append('tier', tier);
+    formData.append('country', country);
+
+    try {
+      const response = await fetch('/compare-stream', { method: 'POST', body: formData });
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      document.getElementById('compareProcessing').style.display = 'none';
+      document.getElementById('compareResults').style.display = 'block';
+      const output = document.getElementById('compareOutput');
+      output.textContent = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.chunk) {
+              compareResultText += data.chunk;
+              output.textContent = compareResultText;
+              output.scrollTop = output.scrollHeight;
+            }
+            if (data.error) output.textContent = 'Error: ' + data.error;
+            if (data.done) {
+              setCompareVerdictBadge(compareResultText);
+              addNotif('Document comparison complete.');
+              const fnA = compareFileA ? compareFileA.name : 'Document A';
+              const fnB = compareFileB ? compareFileB.name : 'Document B';
+              saveMemory('compare', `Compared: ${fnA} vs ${fnB}\n\n${compareResultText.slice(0, 1500)}`);
+            }
+          } catch(e) {}
+        }
+      }
+    } catch(e) {
+      document.getElementById('compareProcessing').style.display = 'none';
+      document.getElementById('compareResults').style.display = 'block';
+      document.getElementById('compareOutput').textContent = 'Connection error. Please try again.';
+    } finally {
+      document.getElementById('compareBtn').disabled = false;
+    }
+  }
+
+  function setCompareVerdictBadge(text) {
+    const badge = document.getElementById('compareVerdictBadge');
+    const upper = text.toUpperCase();
+    let label, color, bg;
+    if (upper.includes('DOCUMENT A IS MORE FAVOURABLE') || upper.includes('DOCUMENT A IS MORE PROTECTIVE')) {
+      label = '&#9646; Document A is more favourable'; color = 'var(--bg-primary)'; bg = 'var(--accent-gold)';
+    } else if (upper.includes('DOCUMENT B IS MORE FAVOURABLE') || upper.includes('DOCUMENT B IS MORE PROTECTIVE')) {
+      label = '&#9646; Document B is more favourable'; color = 'var(--bg-primary)'; bg = 'var(--accent-gold)';
+    } else {
+      label = '&#9878; Comparison complete'; color = 'var(--text-primary)'; bg = 'var(--bg-secondary)';
+    }
+    badge.innerHTML = label;
+    badge.style.background = bg;
+    badge.style.color = color;
+    badge.style.display = 'block';
+  }
+
+  function copyCompareResult() {
+    if (!compareResultText) return;
+    navigator.clipboard.writeText(compareResultText).then(() => addNotif('Comparison report copied to clipboard.'));
+  }
+
+  function downloadCompareResult() {
+    if (!compareResultText) return;
+    const blob = new Blob([compareResultText], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'LEX_comparison_' + new Date().toISOString().slice(0,10) + '.txt';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  // ── CLAUSE LIBRARY ──
+  let clauseResultText = '';
+
+  function setClauseQuery(q) {
+    document.getElementById('clauseQuery').value = q;
+    searchClause();
+  }
+
+  async function searchClause() {
+    const query = document.getElementById('clauseQuery').value.trim();
+    if (!query) return;
+    const user = JSON.parse(localStorage.getItem('lexUser') || '{}');
+    const tier = user.plan || 'free';
+    const country = user.jurisdiction || 'Nigeria';
+
+    document.getElementById('clauseProcessing').style.display = 'block';
+    document.getElementById('clauseResults').style.display = 'none';
+    clauseResultText = '';
+
+    try {
+      const response = await fetch('/clause-stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, country, tier, memories: getMemories() })
+      });
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      document.getElementById('clauseProcessing').style.display = 'none';
+      document.getElementById('clauseResults').style.display = 'block';
+      const output = document.getElementById('clauseOutput');
+      output.textContent = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.chunk) {
+              clauseResultText += data.chunk;
+              output.textContent = clauseResultText;
+              output.scrollTop = output.scrollHeight;
+            }
+            if (data.error) output.textContent = 'Error: ' + data.error;
+            if (data.done) { addNotif('Clause retrieved successfully.'); saveMemory('clause', `Clause searched: ${query}\n\n${clauseResultText.slice(0, 1500)}`); }
+          } catch(e) {}
+        }
+      }
+    } catch(e) {
+      document.getElementById('clauseProcessing').style.display = 'none';
+      document.getElementById('clauseResults').style.display = 'block';
+      document.getElementById('clauseOutput').textContent = 'Connection error. Please try again.';
+    }
+  }
+
+  function clearClauseResult() {
+    clauseResultText = '';
+    document.getElementById('clauseResults').style.display = 'none';
+    document.getElementById('clauseOutput').textContent = '';
+  }
+
+  function copyClauseResult() {
+    if (!clauseResultText) return;
+    navigator.clipboard.writeText(clauseResultText).then(() => addNotif('Clause copied to clipboard.'));
+  }
+
+  function downloadClauseResult() {
+    if (!clauseResultText) return;
+    const query = document.getElementById('clauseQuery').value.replace(/[^a-z0-9]/gi, '_').slice(0, 40);
+    const blob = new Blob([clauseResultText], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'LEX_clause_' + query + '_' + new Date().toISOString().slice(0,10) + '.txt';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  // ── CASE OUTCOME PREDICTION ──
+  let outcomeResultText = '';
+
+  async function predictOutcome() {
+    const facts = document.getElementById('outcomeFacts').value.trim();
+    const area = document.getElementById('outcomeArea').value;
+    if (!facts || facts.length < 30) {
+      alert('Please provide more detail about your case for an accurate assessment.');
+      return;
+    }
+    const user = JSON.parse(localStorage.getItem('lexUser') || '{}');
+    const tier = user.plan || 'free';
+    const country = user.jurisdiction || 'Nigeria';
+
+    document.getElementById('outcomeProcessing').style.display = 'block';
+    document.getElementById('outcomeResults').style.display = 'none';
+    outcomeResultText = '';
+
+    try {
+      const response = await fetch('/outcome-stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ facts, area, country, tier, memories: getMemories() })
+      });
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      document.getElementById('outcomeProcessing').style.display = 'none';
+      document.getElementById('outcomeResults').style.display = 'block';
+      const output = document.getElementById('outcomeOutput');
+      output.textContent = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.chunk) {
+              outcomeResultText += data.chunk;
+              output.textContent = outcomeResultText;
+              output.scrollTop = output.scrollHeight;
+            }
+            if (data.error) output.textContent = 'Error: ' + data.error;
+            if (data.done) {
+              setUrgencyBadge(outcomeResultText);
+              addNotif('Case outcome assessment complete.');
+              saveMemory('outcome', `Area: ${area} | Country: ${country}\n\nFacts: ${facts.slice(0,500)}\n\nAssessment: ${outcomeResultText.slice(0,1500)}`);
+            }
+          } catch(e) {}
+        }
+      }
+    } catch(e) {
+      document.getElementById('outcomeProcessing').style.display = 'none';
+      document.getElementById('outcomeResults').style.display = 'block';
+      document.getElementById('outcomeOutput').textContent = 'Connection error. Please try again.';
+    }
+  }
+
+  function setUrgencyBadge(text) {
+    const badge = document.getElementById('outcomeUrgencyBadge');
+    const upper = text.toUpperCase();
+    let label, color, bg;
+    if (upper.includes('URGENCY FLAG') && upper.includes('URGENT')) {
+      label = '🔴 URGENT — Immediate action required'; color = '#fff'; bg = '#c0392b';
+    } else if (upper.includes('TIME SENSITIVE')) {
+      label = '🟡 TIME SENSITIVE — Act soon'; color = '#000'; bg = '#f39c12';
+    } else if (upper.includes('NO IMMEDIATE DEADLINE')) {
+      label = '🟢 NO IMMEDIATE DEADLINE'; color = '#fff'; bg = '#27ae60';
+    } else {
+      badge.style.display = 'none'; return;
+    }
+    badge.textContent = label;
+    badge.style.background = bg;
+    badge.style.color = color;
+    badge.style.display = 'block';
+  }
+
+  function clearOutcomeResult() {
+    outcomeResultText = '';
+    document.getElementById('outcomeResults').style.display = 'none';
+    document.getElementById('outcomeOutput').textContent = '';
+    document.getElementById('outcomeUrgencyBadge').style.display = 'none';
+  }
+
+  function copyOutcomeResult() {
+    if (!outcomeResultText) return;
+    navigator.clipboard.writeText(outcomeResultText).then(() => addNotif('Assessment copied to clipboard.'));
+  }
+
+  function downloadOutcomeResult() {
+    if (!outcomeResultText) return;
+    const blob = new Blob([outcomeResultText], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'LEX_outcome_assessment_' + new Date().toISOString().slice(0,10) + '.txt';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  // ── CONTRACT REVIEW & REDLINE ──
+  let contractFile = null;
+  let contractMode = 'review'; // 'review' or 'redline'
+  let contractResultText = '';
+
+  function switchContractTab(mode) {
+    contractMode = mode;
+    const isReview = mode === 'review';
+    const tabReview = document.getElementById('tabReview');
+    const tabRedline = document.getElementById('tabRedline');
+    if (tabReview) {
+      tabReview.style.background = isReview ? 'var(--accent-gold)' : 'transparent';
+      tabReview.style.color = isReview ? 'var(--bg-primary)' : 'var(--text-secondary)';
+      tabReview.style.border = isReview ? 'none' : '1px solid var(--border)';
+    }
+    if (tabRedline) {
+      tabRedline.style.background = !isReview ? 'var(--accent-gold)' : 'transparent';
+      tabRedline.style.color = !isReview ? 'var(--bg-primary)' : 'var(--text-secondary)';
+      tabRedline.style.border = !isReview ? 'none' : '1px solid var(--border)';
+    }
+    // Clear results when switching mode
+    clearContractResult();
+  }
+
+  function handleContractDrop(e) {
+    e.preventDefault();
+    document.getElementById('contractUploadZone').style.borderColor = 'var(--border)';
+    const file = e.dataTransfer.files[0];
+    if (file) setContractFile(file);
+  }
+
+  function handleContractFileSelect(input) {
+    if (input.files[0]) setContractFile(input.files[0]);
+  }
+
+  function setContractFile(file) {
+    const allowed = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'];
+    const ext = file.name.toLowerCase().split('.').pop();
+    if (!['pdf','docx','txt'].includes(ext)) {
+      alert('Please upload a PDF, Word (.docx) or text file.');
+      return;
+    }
+    contractFile = file;
+    const info = document.getElementById('contractFileInfo');
+    document.getElementById('contractFileName').textContent = file.name;
+    document.getElementById('contractFileSize').textContent = (file.size / 1024).toFixed(1) + ' KB';
+    info.style.display = 'flex';
+    const btn = document.getElementById('contractAnalyseBtn');
+    btn.style.opacity = '1';
+    btn.style.pointerEvents = 'auto';
+  }
+
+  function clearContractFile() {
+    contractFile = null;
+    document.getElementById('contractFileInfo').style.display = 'none';
+    document.getElementById('contractFileInput').value = '';
+    const btn = document.getElementById('contractAnalyseBtn');
+    btn.style.opacity = '0.5';
+    btn.style.pointerEvents = 'none';
+    clearContractResult();
+  }
+
+  function clearContractResult() {
+    contractResultText = '';
+    document.getElementById('contractResults').style.display = 'none';
+    document.getElementById('contractOutput').textContent = '';
+    document.getElementById('contractRiskBadge').textContent = '';
+  }
+
+  async function analyseContract() {
+    if (!contractFile) return;
+    const user = JSON.parse(localStorage.getItem('lexUser') || '{}');
+    const tier = user.plan || 'free';
+    const country = user.jurisdiction || 'Nigeria';
+    const endpoint = contractMode === 'redline' ? '/redline-stream' : '/review-stream';
+    const label = contractMode === 'redline' ? 'Redlining contract...' : 'Analysing contract...';
+
+    // Show processing
+    document.getElementById('contractProcessing').style.display = 'block';
+    document.getElementById('contractProcessingLabel').textContent = label;
+    document.getElementById('contractResults').style.display = 'none';
+    document.getElementById('contractAnalyseBtn').disabled = true;
+
+    const formData = new FormData();
+    formData.append('file', contractFile);
+    formData.append('tier', tier);
+    formData.append('country', country);
+
+    try {
+      const response = await fetch(endpoint, { method: 'POST', body: formData });
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      contractResultText = '';
+
+      document.getElementById('contractProcessing').style.display = 'none';
+      document.getElementById('contractResults').style.display = 'block';
+      const output = document.getElementById('contractOutput');
+      output.textContent = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.chunk) {
+              contractResultText += data.chunk;
+              output.textContent = contractResultText;
+              output.scrollTop = output.scrollHeight;
+            }
+            if (data.error) {
+              output.textContent = 'Error: ' + data.error;
+            }
+            if (data.done) {
+              setRiskBadge(contractResultText);
+              addNotif('Contract ' + (contractMode === 'redline' ? 'redline' : 'review') + ' complete.');
+              const memType = contractMode === 'redline' ? 'redline' : 'contract_review';
+              const fname = contractFile ? contractFile.name : 'document';
+              saveMemory(memType, `File: ${fname}\n\n${contractResultText.slice(0, 2000)}`);
+            }
+          } catch(e) {}
+        }
+      }
+    } catch(e) {
+      document.getElementById('contractProcessing').style.display = 'none';
+      document.getElementById('contractResults').style.display = 'block';
+      document.getElementById('contractOutput').textContent = 'Connection error. Please try again.';
+    } finally {
+      document.getElementById('contractAnalyseBtn').disabled = false;
+    }
+  }
+
+  function setRiskBadge(text) {
+    const badge = document.getElementById('contractRiskBadge');
+    const upper = text.toUpperCase();
+    let label, color, bg;
+    if (upper.includes('VERY HIGH') || upper.includes('OVERALL RISK RATING: VERY HIGH')) {
+      label = '⚠ OVERALL RISK: VERY HIGH'; color = '#fff'; bg = '#c0392b';
+    } else if (upper.includes('OVERALL RISK RATING: HIGH') || upper.includes('RISK RATING\nHIGH')) {
+      label = '⚠ OVERALL RISK: HIGH'; color = '#fff'; bg = '#e74c3c';
+    } else if (upper.includes('OVERALL RISK RATING: MEDIUM')) {
+      label = '◆ OVERALL RISK: MEDIUM'; color = '#000'; bg = '#f39c12';
+    } else if (upper.includes('OVERALL RISK RATING: LOW')) {
+      label = '✓ OVERALL RISK: LOW'; color = '#fff'; bg = '#27ae60';
+    } else {
+      label = '⚖ REVIEW COMPLETE'; color = 'var(--text-primary)'; bg = 'var(--bg-secondary)';
+    }
+    badge.textContent = label;
+    badge.style.background = bg;
+    badge.style.color = color;
+    badge.style.display = 'block';
+  }
+
+  function copyContractResult() {
+    if (!contractResultText) return;
+    navigator.clipboard.writeText(contractResultText).then(() => addNotif('Report copied to clipboard.'));
+  }
+
+  function downloadContractResult() {
+    if (!contractResultText) return;
+    const filename = contractFile ? contractFile.name.replace(/\.[^.]+$/, '') : 'contract';
+    const mode = contractMode === 'redline' ? 'redline' : 'review';
+    const blob = new Blob([contractResultText], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `LEX_${mode}_${filename}_${new Date().toISOString().slice(0,10)}.txt`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
 </script>
-</body>
-</html>
+
+<!-- SUPPORT MODAL -->
+<div id="supportModal" onclick="if(event.target===this)closeSupport()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);z-index:9999;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:var(--bg-secondary);border:1px solid var(--border);width:100%;max-width:440px;position:relative;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+    
+    <!-- Header -->
+    <div style="padding:24px 24px 0;display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+      <div>
+        <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px;">LEX</div>
+        <div style="font-family:'Cormorant Garamond',serif;font-size:24px;color:var(--text-primary);">Help & <em>Support</em></div>
+      </div>
+      <button onclick="closeSupport()" style="background:transparent;border:1px solid var(--border);color:var(--text-muted);width:32px;height:32px;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;">&#215;</button>
+    </div>
+
+    <div style="padding:0 24px 24px;display:flex;flex-direction:column;gap:12px;">
+
+      <!-- Option 1: Live Chat -->
+      <div style="border:1px solid var(--border);padding:16px;cursor:pointer;transition:all 0.2s;" onclick="openLiveChat()" onmouseover="this.style.borderColor='var(--accent-gold)'" onmouseout="this.style.borderColor='var(--border)'">
+        <div style="display:flex;align-items:center;gap:14px;">
+          <div style="width:40px;height:40px;background:var(--accent-gold);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--bg-primary)" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+          </div>
+          <div style="flex:1;">
+            <div style="font-size:13px;color:var(--text-primary);font-weight:600;margin-bottom:2px;">Live Chat</div>
+            <div style="font-size:11px;color:var(--text-secondary);">Chat with our support team in real time</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:5px;">
+            <div style="width:7px;height:7px;background:#27ae60;border-radius:50%;"></div>
+            <span style="font-size:10px;color:#27ae60;letter-spacing:1px;text-transform:uppercase;">Online</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Option 2: Email Support -->
+      <a href="/cdn-cgi/l/email-protection#73000603031c0107331f160b5e121a5d101c1e4c000611191610074e3f362b53200603031c01075321160206160007" style="text-decoration:none;" target="_blank">
+        <div style="border:1px solid var(--border);padding:16px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--accent-gold)'" onmouseout="this.style.borderColor='var(--border)'">
+          <div style="display:flex;align-items:center;gap:14px;">
+            <div style="width:40px;height:40px;background:var(--bg-primary);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-gold)" stroke-width="1.5"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            </div>
+            <div style="flex:1;">
+              <div style="font-size:13px;color:var(--text-primary);font-weight:600;margin-bottom:2px;">Email Support</div>
+              <div style="font-size:11px;color:var(--text-secondary);"><span class="__cf_email__" data-cfemail="becdcbceced1cccafed2dbc693dfd790ddd1d3">[email&#160;protected]</span> — response within 24hrs</div>
+            </div>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8H13M13 8L9 4M13 8L9 12" stroke="var(--text-muted)" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </div>
+        </div>
+      </a>
+
+      <!-- Option 3: Report an Issue -->
+      <a href="/cdn-cgi/l/email-protection#ccbfb9bcbca3beb88ca0a9b4e1ada5e2afa3a1f3bfb9aea6a9afb8f18eb9abec9ea9bca3beb8ec2e4c58ec808994eaaea3a8b5f19ca0a9adbfa9eca8a9bfafbea5aea9ecb8a4a9eca5bfbfb9a9ecb5a3b9eca9b4bca9bea5a9a2afa9a8f6e9fc8de9fc8dfde2ec9ba4adb8ecbba9bea9ecb5a3b9ecb8beb5a5a2abecb8a3eca8a3f3e9fc8de9fc8dfee2ec9ba4adb8eca4adbcbca9a2a9a8eca5a2bfb8a9ada8f3e9fc8de9fc8dffe2ec8da2b5eca9bebea3beeca1a9bfbfadaba9bff3" style="text-decoration:none;" target="_blank">
+        <div style="border:1px solid var(--border);padding:16px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--accent-gold)'" onmouseout="this.style.borderColor='var(--border)'">
+          <div style="display:flex;align-items:center;gap:14px;">
+            <div style="width:40px;height:40px;background:var(--bg-primary);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e74c3c" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            </div>
+            <div style="flex:1;">
+              <div style="font-size:13px;color:var(--text-primary);font-weight:600;margin-bottom:2px;">Report an Issue</div>
+              <div style="font-size:11px;color:var(--text-secondary);">Found a bug? Let us know and we'll fix it fast</div>
+            </div>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8H13M13 8L9 4M13 8L9 12" stroke="var(--text-muted)" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </div>
+        </div>
+      </a>
+
+      <!-- Option 4: FAQ -->
+      <div style="border:1px solid var(--border);padding:16px;">
+        <div style="display:flex;align-items:center;gap:14px;cursor:pointer;margin-bottom:0;" onclick="toggleFAQ(this)">
+          <div style="width:40px;height:40px;background:var(--bg-primary);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-gold)" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </div>
+          <div style="flex:1;">
+            <div style="font-size:13px;color:var(--text-primary);font-weight:600;margin-bottom:2px;">FAQ</div>
+            <div style="font-size:11px;color:var(--text-secondary);">Quick answers to common questions</div>
+          </div>
+          <svg class="faq-arrow" width="14" height="14" viewBox="0 0 16 16" fill="none" style="transition:transform 0.3s;flex-shrink:0;"><path d="M4 6l4 4 4-4" stroke="var(--text-muted)" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </div>
+        <div class="faq-body" style="display:none;margin-top:14px;display:flex;flex-direction:column;gap:0;">
+          <div class="faq-item" onclick="toggleFAQItem(this)">
+            <div class="faq-q">How do I upgrade to Premium?</div>
+            <div class="faq-a">Click the <strong>Upgrade</strong> button in the top bar or sidebar. Premium unlocks unlimited questions, document drafting and lawyer connect for $4.99/month.</div>
+          </div>
+          <div class="faq-item" onclick="toggleFAQItem(this)">
+            <div class="faq-q">My lawyer hasn't responded — what do I do?</div>
+            <div class="faq-a">Lawyers have 48 hours to accept or decline a request. If there's no response, you can withdraw the request and contact a different lawyer from the directory.</div>
+          </div>
+          <div class="faq-item" onclick="toggleFAQItem(this)">
+            <div class="faq-q">Is LEX's advice legally binding?</div>
+            <div class="faq-a">No. LEX provides legal information and guidance, not formal legal advice. For binding legal matters or court proceedings, always consult a qualified lawyer.</div>
+          </div>
+          <div class="faq-item" onclick="toggleFAQItem(this)">
+            <div class="faq-q">How do I cancel my subscription?</div>
+            <div class="faq-a">Go to Settings → Subscription → Cancel Plan. Your access continues until the end of the current billing period.</div>
+          </div>
+          <div class="faq-item" onclick="toggleFAQItem(this)">
+            <div class="faq-q">Is my data safe and private?</div>
+            <div class="faq-a">Yes. All data is encrypted and stored securely on Firebase. We never sell your personal data or share it with third parties. See our Privacy Policy for full details.</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
+
+<!-- SMARTSUPP LIVE CHAT -->
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script type="text/javascript">
+  try {
+    var _smartsupp = _smartsupp || {};
+    _smartsupp.key = '99d6caca759541ed4edb4f3443bf5969a35e7845';
+    _smartsupp.offsetX = 80;
+    window.smartsupp||(function(d) {
+      var s,c,o=smartsupp=function(){ o._.
