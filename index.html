@@ -1050,24 +1050,45 @@ function loadSmartsupp() {
   smartsuppLoading = true;
 
   return new Promise((resolve, reject) => {
-    var s,c,o=smartsupp=function(){ o._.push(arguments)};o._=[];
-    s=document.getElementsByTagName('script')[0];c=document.createElement('script');
-    c.type='text/javascript';c.charset='utf-8';c.async=true;
-    c.src='https://www.smartsuppchat.com/loader.js?';
+    // Initialize smartsupp global object first (required by their loader)
+    window.smartsupp = window.smartsupp || function() {
+      (window.smartsupp.q = window.smartsupp.q || []).push(arguments);
+    };
+    window.smartsupp.q = window.smartsupp.q || [];
+
+    var s = document.getElementsByTagName('script')[0];
+    var c = document.createElement('script');
+    c.type = 'text/javascript';
+    c.charset = 'utf-8';
+    c.async = true;
+    c.src = 'https://www.smartsuppchat.com/loader.js?';
+
     c.onload = function() {
       smartsuppLoaded = true;
       smartsuppLoading = false;
-      // Wait for Smartsupp to init
-      setTimeout(() => {
-        initChatEvents();
-        resolve();
-      }, 500);
+      // Wait for Smartsupp to fully initialize
+      var checkInterval = setInterval(function() {
+        if (typeof window.smartsupp === 'function' && window.smartsupp.api) {
+          clearInterval(checkInterval);
+          initChatEvents();
+          resolve();
+        }
+      }, 100);
+      // Timeout after 5 seconds
+      setTimeout(function() {
+        clearInterval(checkInterval);
+        if (!window.smartsupp.api) {
+          reject(new Error('Smartsupp failed to initialize'));
+        }
+      }, 5000);
     };
+
     c.onerror = function() {
       smartsuppLoading = false;
-      reject();
+      reject(new Error('Failed to load Smartsupp script'));
     };
-    s.parentNode.insertBefore(c,s);
+
+    s.parentNode.insertBefore(c, s);
   });
 }
 
