@@ -47,6 +47,11 @@
   .sidebar-footer { padding:14px 20px; border-top:1px solid var(--border); display:flex; gap:10px; align-items:center; }
   .sidebar-footer-btn { flex:1; padding:8px; background:transparent; border:1px solid var(--border); color:var(--text-muted); font-size:11px; cursor:pointer; transition:all 0.3s; }
   .sidebar-footer-btn:hover { border-color:var(--accent-gold); color:var(--accent-gold); }
+  .upgrade-cta { margin: 16px; padding: 16px; background: linear-gradient(135deg, rgba(201,168,108,0.12), rgba(201,168,108,0.04)); border: 1px solid rgba(201,168,108,0.25); }
+  .upgrade-title { font-family: 'Cormorant Garamond', serif; font-size: 16px; color: var(--text-primary); margin-bottom: 6px; }
+  .upgrade-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5; margin-bottom: 12px; }
+  .upgrade-btn { width: 100%; padding: 10px; background: var(--accent-gold); color: var(--bg-primary); border: none; font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; cursor: pointer; transition: all 0.3s; }
+  .upgrade-btn:hover { background: var(--accent-gold-light); }
   .theme-toggle { background:var(--bg-card); border:1px solid var(--border); border-radius:50px; padding:4px; display:flex; gap:2px; cursor:pointer; }
   .theme-btn { width:26px; height:26px; border:none; background:transparent; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; color:var(--text-secondary); transition:all 0.3s ease; font-size:11px; }
   .theme-btn.active { background:var(--accent-gold); color:var(--bg-primary); }
@@ -298,12 +303,20 @@
   .typing-dots span { width:5px; height:5px; background:var(--accent-gold); border-radius:50%; animation:bounce 1.4s infinite; }
   .typing-dots span:nth-child(2) { animation-delay:0.2s; }
   .typing-dots span:nth-child(3) { animation-delay:0.4s; }
+
+  .faq-item { border-top:1px solid var(--border);padding:12px 0;cursor:pointer; }
+  .faq-item:first-child { border-top:none;padding-top:0; }
+  .faq-q { font-size:12px;color:var(--text-primary);font-weight:600;letter-spacing:0.3px;padding-right:20px;position:relative;line-height:1.5; }
+  .faq-q::after { content:'＋';position:absolute;right:0;top:0;color:var(--text-muted);font-size:14px; }
+  .faq-item.open .faq-q::after { content:'－'; }
+  .faq-a { display:none;font-size:11px;color:var(--text-secondary);margin-top:8px;line-height:1.7; }
+  .faq-item.open .faq-a { display:block; }
 </style>
 <!-- Firebase SDK -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
-  import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
-  import { getFirestore, doc, getDoc, collection, query, where, orderBy, onSnapshot, addDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+  import { getAuth, onAuthStateChanged, signOut, updatePassword, deleteUser } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+  import { getFirestore, doc, getDoc, getDocs, collection, query, where, orderBy, onSnapshot, addDoc, updateDoc, serverTimestamp, deleteDoc } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
   import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-storage.js";
 
   const firebaseConfig = {
@@ -342,6 +355,39 @@
 
   window._db = db;
   window._storage = storage;
+
+  // ── MEMORY SYSTEM — FIRESTORE ──
+  window.lexMemory = {
+    load: async function() {
+      if (!window._lexUid || !db) return [];
+      try {
+        const q = query(
+          collection(db, 'memories', window._lexUid, 'entries'),
+          orderBy('createdAt', 'desc')
+        );
+        const snap = await getDocs(q);
+        const memories = [];
+        snap.forEach(doc => { if (memories.length < 10) memories.push(doc.data()); });
+        window._lexMemories = memories;
+        return memories;
+      } catch(e) { console.warn('LEX Memory load error:', e); return []; }
+    },
+    save: async function(type, summary) {
+      if (!window._lexUid || !db || !summary) return;
+      try {
+        await addDoc(collection(db, 'memories', window._lexUid, 'entries'), {
+          type, summary,
+          date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+          createdAt: serverTimestamp()
+        });
+        await window.lexMemory.load();
+      } catch(e) { console.warn('LEX Memory save error:', e); }
+    },
+    get: function() { return window._lexMemories || []; }
+  };
+
+  setTimeout(async () => { if (window._lexUid) await window.lexMemory.load(); }, 2000);
+
 
   window.fsLoadClients = function(lawyerUid, callback) {
     const q = query(collection(db, 'connections'), where('lawyerId', '==', lawyerUid));
@@ -397,9 +443,17 @@
   };
 
   window.fsDeleteDoc = async function(docId) {
-    const { deleteDoc, doc: fsDoc } = await import('https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js');
-    await deleteDoc(fsDoc(db, 'documents', docId));
+    await deleteDoc(doc(db, 'documents', docId));
   };
+</script>
+<script>
+  window.addEventListener('error', function(e) {
+    if (e.message === 'Script error.' || e.message === 'Uncaught Error: Script error.') {
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      return true;
+    }
+  }, true);
 </script>
 </head>
 
@@ -454,6 +508,31 @@
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
       Research History
     </a>
+    <a class="nav-item" onclick="gatedPage('contract', this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      Contract Review
+      <span class="nav-badge gold">AI</span>
+    </a>
+    <a class="nav-item" onclick="gatedPage('clause', this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6h16M4 10h16M4 14h10M4 18h7"/></svg>
+      Clause Library
+      <span class="nav-badge gold">AI</span>
+    </a>
+    <a class="nav-item" onclick="gatedPage('outcome', this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Case Outcome
+      <span class="nav-badge gold">AI</span>
+    </a>
+    <a class="nav-item" onclick="gatedPage('compare', this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="8" height="18" rx="1"/><rect x="13" y="3" width="8" height="18" rx="1"/></svg>
+      Compare Docs
+      <span class="nav-badge gold">AI</span>
+    </a>
+    <a class="nav-item" onclick="gatedPage('research', this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      Legal Research
+      <span class="nav-badge gold">AI</span>
+    </a>
 
     <div class="nav-section-label">Profile</div>
     <a class="nav-item" onclick="showPage('profile', this)">
@@ -470,11 +549,21 @@
     </a>
 
     <div class="nav-section-label">Account</div>
+    <a class="nav-item" onclick="openSupport()">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      Help & Support
+    </a>
     <a class="nav-item" onclick="logout()">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
       Sign Out
     </a>
   </nav>
+
+  <div class="upgrade-cta" id="lawyerUpgradeCta">
+    <div class="upgrade-title">Go Premium</div>
+    <div class="upgrade-desc">Unlimited AI tools, priority listings, verified badge & more.</div>
+    <button class="upgrade-btn" onclick="showUpgrade()">Upgrade — $24.99/mo</button>
+  </div>
 
   <div class="sidebar-footer">
     <button class="sidebar-footer-btn" onclick="window.location.href='index.html'">← Home</button>
@@ -631,6 +720,247 @@
     </div>
   </div>
 
+  <!-- LEGAL RESEARCH PAGE -->
+  <div class="page" id="page-research">
+    <div class="content-area">
+      <div class="page-label">AI Tools</div>
+      <h1 class="section-title">Legal <em>Research</em></h1>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:24px;line-height:1.7;">Search legislation, case law and legal precedents. LEX optimises your query and cites every source.</p>
+
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;">
+        <button onclick="setResearchTopic('Wrongful termination employee rights')" class="clause-chip">Wrongful Termination</button>
+        <button onclick="setResearchTopic('Landlord tenant eviction rights')" class="clause-chip">Eviction Rights</button>
+        <button onclick="setResearchTopic('Contract breach remedies damages')" class="clause-chip">Breach of Contract</button>
+        <button onclick="setResearchTopic('Intellectual property copyright infringement')" class="clause-chip">IP & Copyright</button>
+        <button onclick="setResearchTopic('Consumer protection unfair trade practices')" class="clause-chip">Consumer Rights</button>
+        <button onclick="setResearchTopic('Data protection privacy law GDPR')" class="clause-chip">Data Privacy</button>
+        <button onclick="setResearchTopic('Criminal law self defence justification')" class="clause-chip">Self-Defence</button>
+        <button onclick="setResearchTopic('Company law directors duties obligations')" class="clause-chip">Directors Duties</button>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-bottom:20px;">
+        <input type="text" id="researchTopic" class="lex-input" placeholder="e.g. wrongful dismissal, breach of contract, tenancy rights..." style="flex:1;" onkeydown="if(event.key='Enter')runResearch()">
+        <button onclick="runResearch()" style="padding:10px 20px;background:var(--gold);color:#0a0a0a;border:none;font-family:'Inter',sans-serif;font-size:11px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-weight:600;white-space:nowrap;">Research</button>
+      </div>
+
+      <div id="researchProcessing" style="display:none;text-align:center;padding:40px 20px;">
+        <div style="font-size:36px;margin-bottom:16px;">&#128269;</div>
+        <div style="font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--text-primary);margin-bottom:8px;">Searching legal databases...</div>
+        <div style="font-size:13px;color:var(--text-secondary);">LEX is searching legislation, case law and commentary. 15-30 seconds.</div>
+      </div>
+
+      <div id="researchResults" style="display:none;">
+        <div id="researchSourcesPanel" style="display:none;margin-bottom:16px;">
+          <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px;">Sources Found</div>
+          <div id="researchSourcesList" style="display:flex;flex-direction:column;gap:6px;"></div>
+        </div>
+        <div id="researchOutput" style="background:var(--surface);border:1px solid var(--border);padding:24px;line-height:1.9;font-size:14px;color:var(--text-primary);white-space:pre-wrap;font-family:'Inter',sans-serif;min-height:200px;"></div>
+        <div style="display:flex;gap:10px;margin-top:16px;">
+          <button onclick="copyResearchResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-secondary);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Copy</button>
+          <button onclick="downloadResearchResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--gold);color:var(--gold);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Download Report</button>
+          <button onclick="clearResearchResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-muted);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Clear</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COMPARE DOCUMENTS PAGE -->
+  <div class="page" id="page-compare">
+    <div class="content-area">
+      <div class="page-label">AI Tools</div>
+      <h1 class="section-title">Compare <em>Documents</em></h1>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:24px;line-height:1.7;">Upload two contracts or legal documents — LEX will compare them side by side, highlight conflicts, missing clauses and advise which is more favourable.</p>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+        <div>
+          <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;">Document A</div>
+          <div id="compareZoneA" style="border:2px dashed var(--border);padding:24px 16px;text-align:center;cursor:pointer;transition:all 0.3s;min-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;" ondragover="event.preventDefault();this.style.borderColor='var(--gold)'" ondragleave="this.style.borderColor='var(--border)'" ondrop="handleCompareDrop(event,'a')">
+            <div style="font-size:28px;">&#128196;</div>
+            <div style="font-size:12px;color:var(--text-secondary);">Drop file or click</div>
+            <button onclick="document.getElementById('compareFileA').click()" style="padding:5px 14px;background:transparent;border:1px solid var(--gold);color:var(--gold);font-family:'Inter',sans-serif;font-size:10px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Select</button>
+            <input type="file" id="compareFileA" accept=".pdf,.docx,.txt" style="display:none" onchange="handleCompareFileSelect(this,'a')">
+          </div>
+          <div id="compareFileInfoA" style="display:none;margin-top:8px;padding:8px 12px;background:var(--surface);border:1px solid var(--border);font-size:12px;color:var(--text-primary);align-items:center;gap:8px;">
+            <span>&#128206;</span><span id="compareFileNameA" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+            <button onclick="clearCompareFile('a')" style="background:transparent;border:none;color:var(--text-muted);cursor:pointer;font-size:16px;">&#215;</button>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;">Document B</div>
+          <div id="compareZoneB" style="border:2px dashed var(--border);padding:24px 16px;text-align:center;cursor:pointer;transition:all 0.3s;min-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;" ondragover="event.preventDefault();this.style.borderColor='var(--gold)'" ondragleave="this.style.borderColor='var(--border)'" ondrop="handleCompareDrop(event,'b')">
+            <div style="font-size:28px;">&#128196;</div>
+            <div style="font-size:12px;color:var(--text-secondary);">Drop file or click</div>
+            <button onclick="document.getElementById('compareFileB').click()" style="padding:5px 14px;background:transparent;border:1px solid var(--gold);color:var(--gold);font-family:'Inter',sans-serif;font-size:10px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Select</button>
+            <input type="file" id="compareFileB" accept=".pdf,.docx,.txt" style="display:none" onchange="handleCompareFileSelect(this,'b')">
+          </div>
+          <div id="compareFileInfoB" style="display:none;margin-top:8px;padding:8px 12px;background:var(--surface);border:1px solid var(--border);font-size:12px;color:var(--text-primary);align-items:center;gap:8px;">
+            <span>&#128206;</span><span id="compareFileNameB" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+            <button onclick="clearCompareFile('b')" style="background:transparent;border:none;color:var(--text-muted);cursor:pointer;font-size:16px;">&#215;</button>
+          </div>
+        </div>
+      </div>
+
+      <button id="compareBtn" onclick="compareDocs()" style="width:100%;padding:14px;background:var(--gold);color:#0a0a0a;border:none;font-family:'Inter',sans-serif;font-size:11px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-weight:600;margin-bottom:24px;opacity:0.5;pointer-events:none;">Compare Documents</button>
+
+      <div id="compareProcessing" style="display:none;text-align:center;padding:40px 20px;">
+        <div style="font-size:36px;margin-bottom:16px;">&#9878;</div>
+        <div style="font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--text-primary);margin-bottom:8px;">Comparing documents...</div>
+        <div style="font-size:13px;color:var(--text-secondary);">LEX is analysing both documents. This may take 30-60 seconds.</div>
+      </div>
+
+      <div id="compareResults" style="display:none;">
+        <div id="compareVerdictBadge" style="padding:10px 16px;margin-bottom:16px;font-size:12px;letter-spacing:1px;text-transform:uppercase;font-weight:600;text-align:center;display:none;"></div>
+        <div id="compareOutput" style="background:var(--surface);border:1px solid var(--border);padding:24px;line-height:1.9;font-size:14px;color:var(--text-primary);white-space:pre-wrap;font-family:'Inter',sans-serif;min-height:200px;"></div>
+        <div style="display:flex;gap:10px;margin-top:16px;">
+          <button onclick="copyCompareResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-secondary);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Copy</button>
+          <button onclick="downloadCompareResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--gold);color:var(--gold);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Download Report</button>
+          <button onclick="clearCompareResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-muted);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Clear</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CLAUSE LIBRARY PAGE -->
+  <div class="page" id="page-clause">
+    <div class="content-area">
+      <div class="page-label">AI Tools</div>
+      <h1 class="section-title">Clause <em>Library</em></h1>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:24px;line-height:1.7;">Search for any legal clause — get standard text, variations and negotiation notes ready to use.</p>
+
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;">
+        <button onclick="setClauseQuery('Non-disclosure agreement (NDA) confidentiality clause')" class="clause-chip">NDA / Confidentiality</button>
+        <button onclick="setClauseQuery('Employment contract termination clause')" class="clause-chip">Termination</button>
+        <button onclick="setClauseQuery('Limitation of liability clause')" class="clause-chip">Liability Cap</button>
+        <button onclick="setClauseQuery('Intellectual property ownership clause')" class="clause-chip">IP Ownership</button>
+        <button onclick="setClauseQuery('Force majeure clause')" class="clause-chip">Force Majeure</button>
+        <button onclick="setClauseQuery('Arbitration dispute resolution clause')" class="clause-chip">Arbitration</button>
+        <button onclick="setClauseQuery('Indemnification clause')" class="clause-chip">Indemnification</button>
+        <button onclick="setClauseQuery('Non-compete restraint of trade clause')" class="clause-chip">Non-Compete</button>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-bottom:20px;">
+        <input type="text" id="clauseQuery" class="lex-input" placeholder="e.g. penalty clause, warranty disclaimer, governing law..." style="flex:1;" onkeydown="if(event.key==='Enter')searchClause()">
+        <button onclick="searchClause()" style="padding:10px 20px;background:var(--gold);color:#0a0a0a;border:none;font-family:'Inter',sans-serif;font-size:11px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-weight:600;white-space:nowrap;">Search</button>
+      </div>
+
+      <div id="clauseProcessing" style="display:none;text-align:center;padding:40px 20px;">
+        <div style="font-size:36px;margin-bottom:16px;">&#128218;</div>
+        <div style="font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--text-primary);margin-bottom:8px;">Retrieving clause...</div>
+        <div style="font-size:13px;color:var(--text-secondary);">LEX is drafting the clause with variations and notes.</div>
+      </div>
+
+      <div id="clauseResults" style="display:none;">
+        <div id="clauseOutput" style="background:var(--surface);border:1px solid var(--border);padding:24px;line-height:1.9;font-size:14px;color:var(--text-primary);white-space:pre-wrap;font-family:'Inter',sans-serif;min-height:200px;"></div>
+        <div style="display:flex;gap:10px;margin-top:16px;">
+          <button onclick="copyClauseResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-secondary);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Copy</button>
+          <button onclick="downloadClauseResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--gold);color:var(--gold);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Download</button>
+          <button onclick="clearClauseResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-muted);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Clear</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CASE OUTCOME PREDICTION PAGE -->
+  <div class="page" id="page-outcome">
+    <div class="content-area">
+      <div class="page-label">AI Tools</div>
+      <h1 class="section-title">Case Outcome <em>Prediction</em></h1>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;line-height:1.7;">Assess case strength, likely outcomes and key legal risks before advising your client.</p>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:24px;padding:10px;border:1px solid var(--border);background:var(--surface);">&#9888; AI assessment for strategic planning only. Not a substitute for professional legal judgement.</div>
+
+      <div style="margin-bottom:16px;">
+        <label style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);display:block;margin-bottom:8px;">Area of Law</label>
+        <select id="outcomeArea" class="lex-input" style="background:var(--surface);">
+          <option value="General">General / Not Sure</option>
+          <option value="Employment">Employment Law</option>
+          <option value="Contract">Contract Dispute</option>
+          <option value="Criminal">Criminal Law</option>
+          <option value="Family">Family Law</option>
+          <option value="Property">Property / Real Estate</option>
+          <option value="Personal Injury">Personal Injury</option>
+          <option value="Debt">Debt / Financial</option>
+          <option value="Immigration">Immigration</option>
+          <option value="Intellectual Property">Intellectual Property</option>
+          <option value="Corporate">Corporate / Business</option>
+          <option value="Consumer">Consumer Rights</option>
+          <option value="Landlord-Tenant">Landlord-Tenant</option>
+        </select>
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <label style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);display:block;margin-bottom:8px;">Case Facts</label>
+        <textarea id="outcomeFacts" class="lex-input" placeholder="Describe the case facts, parties involved, key evidence, desired outcome and any relevant dates or deadlines." style="min-height:160px;resize:vertical;line-height:1.7;"></textarea>
+      </div>
+
+      <button onclick="predictOutcome()" style="width:100%;padding:14px;background:var(--gold);color:#0a0a0a;border:none;font-family:'Inter',sans-serif;font-size:11px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-weight:600;margin-bottom:24px;">Predict Outcome</button>
+
+      <div id="outcomeProcessing" style="display:none;text-align:center;padding:40px 20px;">
+        <div style="font-size:36px;margin-bottom:16px;">&#9878;</div>
+        <div style="font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--text-primary);margin-bottom:8px;">Analysing case...</div>
+        <div style="font-size:13px;color:var(--text-secondary);">LEX is assessing the legal landscape and likely outcomes.</div>
+      </div>
+
+      <div id="outcomeResults" style="display:none;">
+        <div id="outcomeUrgencyBadge" style="padding:10px 16px;margin-bottom:16px;font-size:12px;letter-spacing:1px;text-transform:uppercase;font-weight:600;text-align:center;display:none;"></div>
+        <div id="outcomeOutput" style="background:var(--surface);border:1px solid var(--border);padding:24px;line-height:1.9;font-size:14px;color:var(--text-primary);white-space:pre-wrap;font-family:'Inter',sans-serif;min-height:200px;"></div>
+        <div style="display:flex;gap:10px;margin-top:16px;">
+          <button onclick="copyOutcomeResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-secondary);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Copy</button>
+          <button onclick="downloadOutcomeResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--gold);color:var(--gold);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Download Report</button>
+          <button onclick="clearOutcomeResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-muted);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Clear</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONTRACT REVIEW PAGE -->
+  <div class="page" id="page-contract">
+    <div class="content-area">
+      <div class="page-label">AI Tools</div>
+      <h1 class="section-title">Contract <em>Review</em></h1>
+
+      <div style="display:flex;gap:8px;margin-bottom:24px;">
+        <button id="tabReview" onclick="switchContractTab('review')" style="flex:1;padding:10px;background:var(--gold);color:#0a0a0a;border:none;font-family:'Inter',sans-serif;font-size:11px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-weight:600;">Contract Review</button>
+        <button id="tabRedline" onclick="switchContractTab('redline')" style="flex:1;padding:10px;background:transparent;color:var(--text-secondary);border:1px solid var(--border);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;">Redline &amp; Negotiate</button>
+      </div>
+
+      <div id="contractUploadZone" style="border:2px dashed var(--border);padding:40px 24px;text-align:center;margin-bottom:20px;cursor:pointer;transition:all 0.3s;" ondragover="event.preventDefault();this.style.borderColor='var(--gold)'" ondragleave="this.style.borderColor='var(--border)'" ondrop="handleContractDrop(event)">
+        <div style="font-size:36px;margin-bottom:12px;">&#128196;</div>
+        <div style="font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--text-primary);margin-bottom:6px;">Upload Contract</div>
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">Drag &amp; drop or click — PDF, Word (.docx) or TXT</div>
+        <button onclick="document.getElementById('contractFileInput').click()" style="padding:8px 20px;background:transparent;border:1px solid var(--gold);color:var(--gold);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;">Select File</button>
+        <input type="file" id="contractFileInput" accept=".pdf,.docx,.txt" style="display:none" onchange="handleContractFileSelect(this)">
+      </div>
+
+      <div id="contractFileInfo" style="display:none;padding:12px 16px;background:var(--surface);border:1px solid var(--border);margin-bottom:16px;align-items:center;gap:12px;">
+        <span style="font-size:20px;">&#128206;</span>
+        <div style="flex:1;">
+          <div id="contractFileName" style="font-size:13px;color:var(--text-primary);font-weight:500;"></div>
+          <div id="contractFileSize" style="font-size:11px;color:var(--text-muted);"></div>
+        </div>
+        <button onclick="clearContractFile()" style="background:transparent;border:none;color:var(--text-muted);cursor:pointer;font-size:18px;">x</button>
+      </div>
+
+      <button id="contractAnalyseBtn" onclick="analyseContract()" style="width:100%;padding:14px;background:var(--gold);color:#0a0a0a;border:none;font-family:'Inter',sans-serif;font-size:11px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-weight:600;margin-bottom:24px;opacity:0.5;pointer-events:none;">Analyse Contract</button>
+
+      <div id="contractProcessing" style="display:none;text-align:center;padding:40px 20px;">
+        <div style="font-size:36px;margin-bottom:16px;">&#9878;</div>
+        <div style="font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--text-primary);margin-bottom:8px;" id="contractProcessingLabel">Analysing contract...</div>
+        <div style="font-size:13px;color:var(--text-secondary);">LEX is reviewing every clause. This may take 30-60 seconds.</div>
+      </div>
+
+      <div id="contractResults" style="display:none;">
+        <div id="contractRiskBadge" style="padding:10px 16px;margin-bottom:16px;font-size:12px;letter-spacing:1px;text-transform:uppercase;font-weight:600;text-align:center;"></div>
+        <div id="contractOutput" style="background:var(--surface);border:1px solid var(--border);padding:24px;line-height:1.9;font-size:14px;color:var(--text-primary);white-space:pre-wrap;font-family:'Inter',sans-serif;min-height:200px;"></div>
+        <div style="display:flex;gap:10px;margin-top:16px;">
+          <button onclick="copyContractResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-secondary);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Copy</button>
+          <button onclick="downloadContractResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--gold);color:var(--gold);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Download Report</button>
+          <button onclick="clearContractResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-muted);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Clear</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
   <!-- PROFILE -->
   <div class="page" id="page-profile">
     <div class="content-area">
@@ -713,19 +1043,20 @@
         Your public profile allows clients worldwide to find you, view your track record, and book consultations directly.
       </div>
       <div class="form-box">
-        <div class="form-group"><label class="form-label">Listing Title</label><input type="text" class="form-input" placeholder="e.g. Senior Criminal Defense Lawyer — Lagos"></div>
+        <div class="form-group"><label class="form-label">Listing Title</label><input type="text" id="mlTitle" class="form-input" placeholder="e.g. Senior Criminal Defense Lawyer — Lagos"></div>
         <div class="form-row">
-          <div class="form-group"><label class="form-label">Consultation Fee</label><input type="text" class="form-input" placeholder="e.g. $50 / 30 min"></div>
-          <div class="form-group"><label class="form-label">Response Time</label><input type="text" class="form-input" placeholder="e.g. Within 24 hours"></div>
+          <div class="form-group"><label class="form-label">Consultation Fee</label><input type="text" id="mlFee" class="form-input" placeholder="e.g. $50 / 30 min"></div>
+          <div class="form-group"><label class="form-label">Response Time</label><input type="text" id="mlResponse" class="form-input" placeholder="e.g. Within 24 hours"></div>
         </div>
-        <div class="form-group"><label class="form-label">Cases Won (display)</label><input type="number" class="form-input" placeholder="e.g. 94"></div>
+        <div class="form-group"><label class="form-label">Cases Won (display)</label><input type="number" id="mlCases" class="form-input" placeholder="e.g. 94"></div>
         <div class="form-group"><label class="form-label">Listing Status</label>
-          <select class="lex-select"><option>Active — Accepting clients</option><option>Paused — Not accepting</option></select>
+          <select id="mlStatus" class="lex-select"><option value="active">Active — Accepting clients</option><option value="paused">Paused — Not accepting</option></select>
         </div>
-        <button class="submit-btn" onclick="alert('Marketplace listing updated.')">
+        <button class="submit-btn" onclick="saveMarketplaceListing()">
           Save Listing
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8H13M13 8L9 4M13 8L9 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
         </button>
+        <div id="marketplaceSaveMsg" style="display:none;margin-top:12px;padding:10px 14px;background:rgba(39,174,96,0.1);border:1px solid rgba(39,174,96,0.3);font-size:12px;color:#27ae60;letter-spacing:1px;">✓ Listing updated successfully</div>
       </div>
     </div>
   </div>
@@ -832,8 +1163,11 @@
 
 <script>
   const user = JSON.parse(localStorage.getItem('lexUser') || '{"role":"lawyer","name":"Firm","loginTime":' + Date.now() + '}');
+  const isLawyerPremium = user.plan === 'premium' || user.plan === 'lawyer';
   document.getElementById('firmName').textContent = user.name || 'Your Firm';
   document.getElementById('firmAvatarInitial').textContent = (user.name || 'F')[0].toUpperCase();
+  // Hide upgrade CTA for premium lawyers
+  if (isLawyerPremium) { const cta = document.getElementById('lawyerUpgradeCta'); if (cta) cta.style.display = 'none'; }
 
   function applyTheme(theme) {
     document.documentElement.setAttribute('data-theme', theme);
@@ -884,7 +1218,8 @@
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     document.getElementById('page-' + page).classList.add('active');
     if (navEl) navEl.classList.add('active');
-    const titles = { overview:'Overview', leads:'Client Leads', clients:'My Clients', cases:'Case Manager', aitool:'LEX AI Tool', aihistory:'Research History', profile:'My Profile', documents:'Documents', marketplace:'Marketplace', chatroom:'Chat' };
+    if (page === 'marketplace') loadMarketplaceListing();
+    const titles = { overview:'Overview', leads:'Client Leads', clients:'My Clients', cases:'Case Manager', aitool:'LEX AI Tool', aihistory:'Research History', contract:'Contract Review', clause:'Clause Library', outcome:'Case Outcome Prediction', compare:'Compare Documents', research:'Legal Research', profile:'My Profile', documents:'Documents', marketplace:'Marketplace', chatroom:'Chat' };
     document.getElementById('topbarTitle').textContent = titles[page] || 'LEX';
     if (page === 'clients') loadClients();
     if (page === 'documents') loadDocs();
@@ -952,26 +1287,72 @@
     document.getElementById('aiChatMessages').scrollTop = document.getElementById('aiChatMessages').scrollHeight;
 
     try {
-      const res = await fetch('/ask', {
+      const res = await fetch('/ask-stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question, country, category, tier: 'business', history: aiHistory.slice(-6) })
+        body: JSON.stringify({ question, country, category, tier: 'business', history: aiHistory.slice(-6), memories: getMemories() })
       });
-      const data = await res.json();
+
       document.getElementById('aiChatTyping').classList.remove('visible');
       document.getElementById('aiBtn').disabled = false;
 
-      if (data.error) {
-        appendAIMessage('assistant', '⚠️ ' + data.error);
-      } else {
-        const answer = data.answer;
-        aiHistory.push({ role: 'assistant', content: answer });
-        const actions = `
-          <button class="bubble-action" onclick="navigator.clipboard.writeText(decodeURIComponent('${encodeURIComponent(answer)}'))">Copy</button>
-          <button class="bubble-action" onclick="downloadAI(decodeURIComponent('${encodeURIComponent(answer)}'))">Download</button>`;
-        appendAIMessage('assistant', answer, actions);
-        // Auto-save to research history
-        saveAIHistory(question, answer, country, category);
+      if (!res.ok) throw new Error('Network error');
+
+      // Create streaming bubble
+      const msgId = 'aistream-' + Date.now();
+      const wrap = document.getElementById('aiChatMessages');
+      const bubble = document.createElement('div');
+      bubble.className = 'chat-bubble assistant';
+      bubble.innerHTML = `<div class="bubble-label">LEX</div><div class="bubble-content assistant" id="${msgId}" style="white-space:pre-wrap;"></div>`;
+      wrap.appendChild(bubble);
+      wrap.scrollTop = wrap.scrollHeight;
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let fullAnswer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const payload = JSON.parse(line.slice(6));
+            if (payload.error) {
+              document.getElementById(msgId).textContent = '⚠️ ' + payload.error;
+              break;
+            }
+            if (payload.chunk) {
+              fullAnswer += payload.chunk;
+              document.getElementById(msgId).textContent = fullAnswer;
+              wrap.scrollTop = wrap.scrollHeight;
+            }
+            if (payload.done) {
+              const actionsEl = document.createElement('div');
+              actionsEl.className = 'bubble-actions';
+              actionsEl.innerHTML = `
+                <button class="bubble-action" onclick="navigator.clipboard.writeText(decodeURIComponent('${encodeURIComponent(payload.answer)}'))">Copy</button>
+                <button class="bubble-action" onclick="downloadAI(decodeURIComponent('${encodeURIComponent(payload.answer)}'))">Download</button>`;
+              bubble.appendChild(actionsEl);
+              aiHistory.push({ role: 'assistant', content: payload.answer });
+              saveAIHistory(question, payload.answer, country, category);
+              saveMemory('question', `Question: ${question}\n\nAnswer: ${payload.answer.slice(0, 1500)}`);
+              if (payload.sources && payload.sources.length) {
+                const sourcesEl = document.createElement('div');
+                sourcesEl.style.cssText = 'margin-top:10px;padding:10px 14px;background:var(--bg-dark);border:1px solid var(--border);font-size:11px;';
+                const typeColors = { "case law":"#e74c3c","legislation":"#27ae60","regulation":"#2980b9","commentary":"#8e44ad","legal reference":"#7f8c8d"};
+                sourcesEl.innerHTML = "<div style=\"letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;\">Sources</div>" +
+                  payload.sources.map(s => `<div style="margin-bottom:6px;"><span style="background:${typeColors[s.type]||"#7f8c8d"};color:#fff;padding:2px 6px;font-size:9px;letter-spacing:1px;text-transform:uppercase;font-weight:600;margin-right:6px;">${s.type}</span><a href="${s.url}" target="_blank" rel="noopener" style="color:var(--gold);text-decoration:none;">${s.title}</a></div>`).join("");
+                bubble.appendChild(sourcesEl);
+              }
+            }
+          } catch(e) {}
+        }
       }
     } catch(e) {
       document.getElementById('aiChatTyping').classList.remove('visible');
@@ -984,6 +1365,16 @@
     const b = new Blob([text], {type:'text/plain'});
     const a = document.createElement('a'); a.href = URL.createObjectURL(b);
     a.download = 'lex-business-analysis.txt'; a.click();
+  }
+
+  function showUpgrade() {
+    const modal = document.getElementById('upgradeModal');
+    if (modal) { modal.style.display = 'flex'; }
+  }
+
+  function gatedPage(page, navEl) {
+    if (!isLawyerPremium) { showUpgrade(); return; }
+    showPage(page, navEl);
   }
 
   function logout() { window.lexSignOut ? window.lexSignOut() : (localStorage.removeItem('lexUser'), localStorage.removeItem('lexRole'), window.location.href = 'auth.html'); }
@@ -1162,7 +1553,6 @@
     localStorage.setItem('lexUser', JSON.stringify(stored));
     if (window._lexUid && window._db) {
       try {
-        const { updateDoc, doc } = await import('https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js');
         await updateDoc(doc(window._db, 'users', window._lexUid), { name: fullName, firm: prefs.firm, specialisation: prefs.spec, country: prefs.country, barNumber: prefs.bar, bio: prefs.bio });
       } catch(e) {}
     }
@@ -1179,7 +1569,6 @@
     if (!newPass || newPass.length < 6) { msg.style.color = '#e74c3c'; msg.textContent = '✗ Password must be at least 6 characters.'; return; }
     if (newPass !== confirmPass) { msg.style.color = '#e74c3c'; msg.textContent = '✗ Passwords do not match.'; return; }
     try {
-      const { getAuth, updatePassword } = await import('https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js');
       await updatePassword(getAuth().currentUser, newPass);
       msg.style.color = '#27ae60'; msg.textContent = '✓ Password updated successfully.';
       document.getElementById('lwNewPass').value = '';
@@ -1207,10 +1596,8 @@
     if (!confirm('Last warning — all your data will be permanently deleted.')) return;
     try {
       if (window._lexUid && window._db) {
-        const { deleteDoc, doc } = await import('https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js');
         await deleteDoc(doc(window._db, 'users', window._lexUid));
       }
-      const { getAuth, deleteUser } = await import('https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js');
       await deleteUser(getAuth().currentUser);
       ['lexUser','lexRole','lexAIHistory','lexNotifs_lawyer','lexLawyerPrefs','lexCookieConsent'].forEach(k => localStorage.removeItem(k));
       window.location.href = 'index.html';
@@ -1422,6 +1809,616 @@
   function acceptCookies() { localStorage.setItem('lexCookieConsent', 'all'); document.getElementById('cookieBanner').classList.remove('visible'); }
   function declineCookies() { localStorage.setItem('lexCookieConsent', 'essential'); document.getElementById('cookieBanner').classList.remove('visible'); }
   initCookieBanner();
+
+
+
+
+  // ── MEMORY HELPERS ──
+  async function saveMemory(type, contentToSummarise) {
+    if (!window._lexUid) return;
+    try {
+      const res = await fetch('/summarise-memory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, content: contentToSummarise })
+      });
+      const data = await res.json();
+      if (data.summary) await window.lexMemory.save(type, data.summary);
+    } catch(e) { console.warn('Memory save failed silently:', e); }
+  }
+
+  function getMemories() { return window.lexMemory ? window.lexMemory.get() : []; }
+
+
+
+  // ── MARKETPLACE LISTING ──
+  async function loadMarketplaceListing() {
+    if (!window._lexUid || !window._db) return;
+    try {
+      const snap = await getDoc(doc(window._db, 'users', window._lexUid));
+      if (snap.exists()) {
+        const d = snap.data();
+        if (d.listingTitle) document.getElementById('mlTitle').value = d.listingTitle;
+        if (d.consultFee) document.getElementById('mlFee').value = d.consultFee;
+        if (d.responseTime) document.getElementById('mlResponse').value = d.responseTime;
+        if (d.caseCount) document.getElementById('mlCases').value = d.caseCount;
+        if (d.listingStatus) document.getElementById('mlStatus').value = d.listingStatus;
+      }
+    } catch(e) { console.warn('Load listing error:', e); }
+  }
+
+  async function saveMarketplaceListing() {
+    if (!window._lexUid || !window._db) return;
+    const btn = document.querySelector('.submit-btn');
+    const msg = document.getElementById('marketplaceSaveMsg');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+    try {
+      await updateDoc(doc(window._db, 'users', window._lexUid), {
+        listingTitle: document.getElementById('mlTitle').value.trim(),
+        consultFee: document.getElementById('mlFee').value.trim(),
+        responseTime: document.getElementById('mlResponse').value.trim(),
+        caseCount: parseInt(document.getElementById('mlCases').value) || 0,
+        listingStatus: document.getElementById('mlStatus').value,
+      });
+      msg.style.display = 'block';
+      setTimeout(() => msg.style.display = 'none', 3000);
+    } catch(e) {
+      alert('Save failed: ' + e.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = 'Save Listing <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8H13M13 8L9 4M13 8L9 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+    }
+  }
+
+  // ── LEGAL RESEARCH ──
+  let researchResultText = '';
+  let researchSources = [];
+
+  function setResearchTopic(topic) {
+    document.getElementById('researchTopic').value = topic;
+    runResearch();
+  }
+
+  async function runResearch() {
+    const topic = document.getElementById('researchTopic').value.trim();
+    if (!topic) return;
+    const user = JSON.parse(localStorage.getItem('lexUser') || '{}');
+    const country = user.jurisdiction || 'Nigeria';
+
+    document.getElementById('researchProcessing').style.display = 'block';
+    document.getElementById('researchResults').style.display = 'none';
+    researchResultText = '';
+    researchSources = [];
+
+    try {
+      const response = await fetch('/research-stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic, country, tier: 'business', memories: getMemories() })
+      });
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      document.getElementById('researchProcessing').style.display = 'none';
+      document.getElementById('researchResults').style.display = 'block';
+      const output = document.getElementById('researchOutput');
+      output.textContent = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.chunk) { researchResultText += data.chunk; output.textContent = researchResultText; output.scrollTop = output.scrollHeight; }
+            if (data.error) output.textContent = 'Error: ' + data.error;
+            if (data.done) {
+              researchSources = data.sources || [];
+              renderResearchSources(researchSources);
+              addNotif('Legal research complete.');
+              saveMemory('question', `Research: ${topic}\n\n${researchResultText.slice(0, 1500)}`);
+            }
+          } catch(e) {}
+        }
+      }
+    } catch(e) {
+      document.getElementById('researchProcessing').style.display = 'none';
+      document.getElementById('researchResults').style.display = 'block';
+      document.getElementById('researchOutput').textContent = 'Connection error. Please try again.';
+    }
+  }
+
+  function renderResearchSources(sources) {
+    const panel = document.getElementById('researchSourcesPanel');
+    const list = document.getElementById('researchSourcesList');
+    if (!sources || !sources.length) { panel.style.display = 'none'; return; }
+    panel.style.display = 'block';
+    const typeColors = { 'case law': '#e74c3c', 'legislation': '#27ae60', 'regulation': '#2980b9', 'commentary': '#8e44ad', 'legal reference': '#7f8c8d' };
+    list.innerHTML = sources.map(s => `
+      <div style="display:flex;align-items:flex-start;gap:10px;padding:8px 12px;background:var(--bg-dark);border:1px solid var(--border);">
+        <span style="background:${typeColors[s.type] || '#7f8c8d'};color:#fff;padding:2px 8px;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;font-weight:600;white-space:nowrap;margin-top:2px;">${s.type}</span>
+        <div style="flex:1;min-width:0;">
+          <a href="${s.url}" target="_blank" rel="noopener" style="font-size:12px;color:var(--gold);text-decoration:none;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s.title}</a>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px;line-height:1.5;">${s.snippet}</div>
+        </div>
+      </div>`).join('');
+  }
+
+  function clearResearchResult() {
+    researchResultText = ''; researchSources = [];
+    document.getElementById('researchResults').style.display = 'none';
+    document.getElementById('researchOutput').textContent = '';
+    document.getElementById('researchSourcesPanel').style.display = 'none';
+    document.getElementById('researchSourcesList').innerHTML = '';
+  }
+
+  function copyResearchResult() { if (!researchResultText) return; navigator.clipboard.writeText(researchResultText).then(() => addNotif('Research report copied.')); }
+  function downloadResearchResult() {
+    if (!researchResultText) return;
+    const topic = document.getElementById('researchTopic').value.replace(/[^a-z0-9]/gi, '_').slice(0, 40);
+    const blob = new Blob([researchResultText], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'LEX_research_' + topic + '_' + new Date().toISOString().slice(0,10) + '.txt';
+    a.click(); URL.revokeObjectURL(a.href);
+  }
+
+  // ── COMPARE DOCUMENTS ──
+  let compareFileA = null;
+  let compareFileB = null;
+  let compareResultText = '';
+
+  function handleCompareDrop(e, side) {
+    e.preventDefault();
+    document.getElementById('compareZone' + side.toUpperCase()).style.borderColor = 'var(--border)';
+    const file = e.dataTransfer.files[0];
+    if (file) setCompareFile(file, side);
+  }
+
+  function handleCompareFileSelect(input, side) {
+    if (input.files[0]) setCompareFile(input.files[0], side);
+  }
+
+  function setCompareFile(file, side) {
+    const ext = file.name.toLowerCase().split('.').pop();
+    if (!['pdf','docx','txt'].includes(ext)) { alert('Please upload a PDF, Word (.docx) or text file.'); return; }
+    const S = side.toUpperCase();
+    if (side === 'a') compareFileA = file; else compareFileB = file;
+    document.getElementById('compareFileName' + S).textContent = file.name;
+    document.getElementById('compareFileInfo' + S).style.display = 'flex';
+    updateCompareBtn();
+  }
+
+  function clearCompareFile(side) {
+    const S = side.toUpperCase();
+    if (side === 'a') { compareFileA = null; document.getElementById('compareFileA').value = ''; }
+    else { compareFileB = null; document.getElementById('compareFileB').value = ''; }
+    document.getElementById('compareFileInfo' + S).style.display = 'none';
+    updateCompareBtn();
+    clearCompareResult();
+  }
+
+  function updateCompareBtn() {
+    const btn = document.getElementById('compareBtn');
+    const ready = compareFileA && compareFileB;
+    btn.style.opacity = ready ? '1' : '0.5';
+    btn.style.pointerEvents = ready ? 'auto' : 'none';
+  }
+
+  function clearCompareResult() {
+    compareResultText = '';
+    document.getElementById('compareResults').style.display = 'none';
+    document.getElementById('compareOutput').textContent = '';
+    document.getElementById('compareVerdictBadge').style.display = 'none';
+  }
+
+  async function compareDocs() {
+    if (!compareFileA || !compareFileB) return;
+    const user = JSON.parse(localStorage.getItem('lexUser') || '{}');
+    const country = user.jurisdiction || 'Nigeria';
+
+    document.getElementById('compareProcessing').style.display = 'block';
+    document.getElementById('compareResults').style.display = 'none';
+    document.getElementById('compareBtn').disabled = true;
+    compareResultText = '';
+
+    const formData = new FormData();
+    formData.append('file_a', compareFileA);
+    formData.append('file_b', compareFileB);
+    formData.append('tier', 'business');
+    formData.append('country', country);
+    formData.append('memories', JSON.stringify(getMemories()));
+
+    try {
+      const response = await fetch('/compare-stream', { method: 'POST', body: formData });
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      document.getElementById('compareProcessing').style.display = 'none';
+      document.getElementById('compareResults').style.display = 'block';
+      const output = document.getElementById('compareOutput');
+      output.textContent = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.chunk) { compareResultText += data.chunk; output.textContent = compareResultText; output.scrollTop = output.scrollHeight; }
+            if (data.error) output.textContent = 'Error: ' + data.error;
+            if (data.done) {
+              setCompareVerdictBadge(compareResultText);
+              addNotif('Document comparison complete.');
+              const fnA = compareFileA ? compareFileA.name : 'Document A';
+              const fnB = compareFileB ? compareFileB.name : 'Document B';
+              saveMemory('compare', `Compared: ${fnA} vs ${fnB}\n\n${compareResultText.slice(0, 1500)}`);
+            }
+          } catch(e) {}
+        }
+      }
+    } catch(e) {
+      document.getElementById('compareProcessing').style.display = 'none';
+      document.getElementById('compareResults').style.display = 'block';
+      document.getElementById('compareOutput').textContent = 'Connection error. Please try again.';
+    } finally {
+      document.getElementById('compareBtn').disabled = false;
+    }
+  }
+
+  function setCompareVerdictBadge(text) {
+    const badge = document.getElementById('compareVerdictBadge');
+    const upper = text.toUpperCase();
+    let label, bg, color;
+    if (upper.includes('DOCUMENT A IS MORE FAVOURABLE') || upper.includes('DOCUMENT A IS MORE PROTECTIVE')) {
+      label = 'Document A is more favourable'; bg = 'var(--gold)'; color = '#0a0a0a';
+    } else if (upper.includes('DOCUMENT B IS MORE FAVOURABLE') || upper.includes('DOCUMENT B IS MORE PROTECTIVE')) {
+      label = 'Document B is more favourable'; bg = 'var(--gold)'; color = '#0a0a0a';
+    } else {
+      label = 'Comparison complete'; bg = 'var(--surface)'; color = 'var(--text-primary)';
+    }
+    badge.textContent = label; badge.style.background = bg; badge.style.color = color; badge.style.display = 'block';
+  }
+
+  function copyCompareResult() { if (!compareResultText) return; navigator.clipboard.writeText(compareResultText).then(() => addNotif('Comparison report copied.')); }
+  function downloadCompareResult() {
+    if (!compareResultText) return;
+    const blob = new Blob([compareResultText], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'LEX_comparison_' + new Date().toISOString().slice(0,10) + '.txt';
+    a.click(); URL.revokeObjectURL(a.href);
+  }
+
+  // ── CLAUSE LIBRARY ──
+  let clauseResultText = '';
+
+  function setClauseQuery(q) {
+    document.getElementById('clauseQuery').value = q;
+    searchClause();
+  }
+
+  async function searchClause() {
+    const query = document.getElementById('clauseQuery').value.trim();
+    if (!query) return;
+    const user = JSON.parse(localStorage.getItem('lexUser') || '{}');
+    const country = user.jurisdiction || 'Nigeria';
+
+    document.getElementById('clauseProcessing').style.display = 'block';
+    document.getElementById('clauseResults').style.display = 'none';
+    clauseResultText = '';
+
+    try {
+      const response = await fetch('/clause-stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, country, tier: 'business', memories: getMemories() })
+      });
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      document.getElementById('clauseProcessing').style.display = 'none';
+      document.getElementById('clauseResults').style.display = 'block';
+      const output = document.getElementById('clauseOutput');
+      output.textContent = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.chunk) { clauseResultText += data.chunk; output.textContent = clauseResultText; output.scrollTop = output.scrollHeight; }
+            if (data.error) output.textContent = 'Error: ' + data.error;
+            if (data.done) { addNotif('Clause retrieved.'); saveMemory('clause', `Clause: ${query}\n\n${clauseResultText.slice(0, 1500)}`); }
+          } catch(e) {}
+        }
+      }
+    } catch(e) {
+      document.getElementById('clauseProcessing').style.display = 'none';
+      document.getElementById('clauseResults').style.display = 'block';
+      document.getElementById('clauseOutput').textContent = 'Connection error. Please try again.';
+    }
+  }
+
+  function clearClauseResult() { clauseResultText = ''; document.getElementById('clauseResults').style.display = 'none'; document.getElementById('clauseOutput').textContent = ''; }
+  function copyClauseResult() { if (!clauseResultText) return; navigator.clipboard.writeText(clauseResultText).then(() => addNotif('Clause copied.')); }
+  function downloadClauseResult() {
+    if (!clauseResultText) return;
+    const query = document.getElementById('clauseQuery').value.replace(/[^a-z0-9]/gi, '_').slice(0, 40);
+    const blob = new Blob([clauseResultText], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'LEX_clause_' + query + '_' + new Date().toISOString().slice(0,10) + '.txt';
+    a.click(); URL.revokeObjectURL(a.href);
+  }
+
+  // ── CASE OUTCOME PREDICTION ──
+  let outcomeResultText = '';
+
+  async function predictOutcome() {
+    const facts = document.getElementById('outcomeFacts').value.trim();
+    const area = document.getElementById('outcomeArea').value;
+    if (!facts || facts.length < 30) { alert('Please provide more case detail for an accurate assessment.'); return; }
+    const user = JSON.parse(localStorage.getItem('lexUser') || '{}');
+    const country = user.jurisdiction || 'Nigeria';
+
+    document.getElementById('outcomeProcessing').style.display = 'block';
+    document.getElementById('outcomeResults').style.display = 'none';
+    outcomeResultText = '';
+
+    try {
+      const response = await fetch('/outcome-stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ facts, area, country, tier: 'business', memories: getMemories() })
+      });
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      document.getElementById('outcomeProcessing').style.display = 'none';
+      document.getElementById('outcomeResults').style.display = 'block';
+      const output = document.getElementById('outcomeOutput');
+      output.textContent = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.chunk) { outcomeResultText += data.chunk; output.textContent = outcomeResultText; output.scrollTop = output.scrollHeight; }
+            if (data.error) output.textContent = 'Error: ' + data.error;
+            if (data.done) {
+              setUrgencyBadge(outcomeResultText);
+              addNotif('Case outcome assessment complete.');
+              saveMemory('outcome', `Area: ${area} | Country: ${country}\n\nFacts: ${facts.slice(0,500)}\n\nAssessment: ${outcomeResultText.slice(0,1500)}`);
+            }
+          } catch(e) {}
+        }
+      }
+    } catch(e) {
+      document.getElementById('outcomeProcessing').style.display = 'none';
+      document.getElementById('outcomeResults').style.display = 'block';
+      document.getElementById('outcomeOutput').textContent = 'Connection error. Please try again.';
+    }
+  }
+
+  function setUrgencyBadge(text) {
+    const badge = document.getElementById('outcomeUrgencyBadge');
+    const upper = text.toUpperCase();
+    let label, color, bg;
+    if (upper.includes('URGENCY FLAG') && upper.includes('URGENT')) { label = 'URGENT — Immediate action required'; color = '#fff'; bg = '#c0392b'; }
+    else if (upper.includes('TIME SENSITIVE')) { label = 'TIME SENSITIVE — Act soon'; color = '#000'; bg = '#f39c12'; }
+    else if (upper.includes('NO IMMEDIATE DEADLINE')) { label = 'NO IMMEDIATE DEADLINE'; color = '#fff'; bg = '#27ae60'; }
+    else { badge.style.display = 'none'; return; }
+    badge.textContent = label; badge.style.background = bg; badge.style.color = color; badge.style.display = 'block';
+  }
+
+  function clearOutcomeResult() { outcomeResultText = ''; document.getElementById('outcomeResults').style.display = 'none'; document.getElementById('outcomeOutput').textContent = ''; document.getElementById('outcomeUrgencyBadge').style.display = 'none'; }
+  function copyOutcomeResult() { if (!outcomeResultText) return; navigator.clipboard.writeText(outcomeResultText).then(() => addNotif('Assessment copied.')); }
+  function downloadOutcomeResult() {
+    if (!outcomeResultText) return;
+    const blob = new Blob([outcomeResultText], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'LEX_outcome_' + new Date().toISOString().slice(0,10) + '.txt';
+    a.click(); URL.revokeObjectURL(a.href);
+  }
+
+  // ── CONTRACT REVIEW & REDLINE ──
+  let contractFile = null;
+  let contractMode = 'review';
+  let contractResultText = '';
+
+  function switchContractTab(mode) {
+    contractMode = mode;
+    const isReview = mode === 'review';
+    const gold = 'var(--gold)';
+    const tabReview = document.getElementById('tabReview');
+    const tabRedline = document.getElementById('tabRedline');
+    if (tabReview) {
+      tabReview.style.background = isReview ? gold : 'transparent';
+      tabReview.style.color = isReview ? '#0a0a0a' : 'var(--text-secondary)';
+      tabReview.style.border = isReview ? 'none' : '1px solid var(--border)';
+    }
+    if (tabRedline) {
+      tabRedline.style.background = !isReview ? gold : 'transparent';
+      tabRedline.style.color = !isReview ? '#0a0a0a' : 'var(--text-secondary)';
+      tabRedline.style.border = !isReview ? 'none' : '1px solid var(--border)';
+    }
+    clearContractResult();
+  }
+
+  function handleContractDrop(e) {
+    e.preventDefault();
+    document.getElementById('contractUploadZone').style.borderColor = 'var(--border)';
+    const file = e.dataTransfer.files[0];
+    if (file) setContractFile(file);
+  }
+
+  function handleContractFileSelect(input) {
+    if (input.files[0]) setContractFile(input.files[0]);
+  }
+
+  function setContractFile(file) {
+    const ext = file.name.toLowerCase().split('.').pop();
+    if (!['pdf','docx','txt'].includes(ext)) {
+      alert('Please upload a PDF, Word (.docx) or text file.');
+      return;
+    }
+    contractFile = file;
+    const info = document.getElementById('contractFileInfo');
+    document.getElementById('contractFileName').textContent = file.name;
+    document.getElementById('contractFileSize').textContent = (file.size / 1024).toFixed(1) + ' KB';
+    info.style.display = 'flex';
+    const btn = document.getElementById('contractAnalyseBtn');
+    btn.style.opacity = '1';
+    btn.style.pointerEvents = 'auto';
+  }
+
+  function clearContractFile() {
+    contractFile = null;
+    document.getElementById('contractFileInfo').style.display = 'none';
+    document.getElementById('contractFileInput').value = '';
+    const btn = document.getElementById('contractAnalyseBtn');
+    btn.style.opacity = '0.5';
+    btn.style.pointerEvents = 'none';
+    clearContractResult();
+  }
+
+  function clearContractResult() {
+    contractResultText = '';
+    document.getElementById('contractResults').style.display = 'none';
+    document.getElementById('contractOutput').textContent = '';
+    document.getElementById('contractRiskBadge').textContent = '';
+  }
+
+  async function analyseContract() {
+    if (!contractFile) return;
+    const user = JSON.parse(localStorage.getItem('lexUser') || '{}');
+    const country = user.jurisdiction || 'Nigeria';
+    const endpoint = contractMode === 'redline' ? '/redline-stream' : '/review-stream';
+    const label = contractMode === 'redline' ? 'Redlining contract...' : 'Analysing contract...';
+
+    document.getElementById('contractProcessing').style.display = 'block';
+    document.getElementById('contractProcessingLabel').textContent = label;
+    document.getElementById('contractResults').style.display = 'none';
+    document.getElementById('contractAnalyseBtn').disabled = true;
+
+    const formData = new FormData();
+    formData.append('file', contractFile);
+    formData.append('tier', 'business');
+    formData.append('country', country);
+    formData.append('memories', JSON.stringify(getMemories()));
+
+    try {
+      const response = await fetch(endpoint, { method: 'POST', body: formData });
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      contractResultText = '';
+
+      document.getElementById('contractProcessing').style.display = 'none';
+      document.getElementById('contractResults').style.display = 'block';
+      const output = document.getElementById('contractOutput');
+      output.textContent = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.chunk) {
+              contractResultText += data.chunk;
+              output.textContent = contractResultText;
+              output.scrollTop = output.scrollHeight;
+            }
+            if (data.error) output.textContent = 'Error: ' + data.error;
+            if (data.done) {
+              setRiskBadge(contractResultText);
+              addNotif('Contract ' + (contractMode === 'redline' ? 'redline' : 'review') + ' complete.');
+              const memType = contractMode === 'redline' ? 'redline' : 'contract_review';
+              const fname = contractFile ? contractFile.name : 'document';
+              saveMemory(memType, `File: ${fname}\n\n${contractResultText.slice(0, 2000)}`);
+            }
+          } catch(e) {}
+        }
+      }
+    } catch(e) {
+      document.getElementById('contractProcessing').style.display = 'none';
+      document.getElementById('contractResults').style.display = 'block';
+      document.getElementById('contractOutput').textContent = 'Connection error. Please try again.';
+    } finally {
+      document.getElementById('contractAnalyseBtn').disabled = false;
+    }
+  }
+
+  function setRiskBadge(text) {
+    const badge = document.getElementById('contractRiskBadge');
+    const upper = text.toUpperCase();
+    let label, color, bg;
+    if (upper.includes('VERY HIGH')) {
+      label = 'OVERALL RISK: VERY HIGH'; color = '#fff'; bg = '#c0392b';
+    } else if (upper.includes('OVERALL RISK RATING: HIGH')) {
+      label = 'OVERALL RISK: HIGH'; color = '#fff'; bg = '#e74c3c';
+    } else if (upper.includes('OVERALL RISK RATING: MEDIUM')) {
+      label = 'OVERALL RISK: MEDIUM'; color = '#000'; bg = '#f39c12';
+    } else if (upper.includes('OVERALL RISK RATING: LOW')) {
+      label = 'OVERALL RISK: LOW'; color = '#fff'; bg = '#27ae60';
+    } else {
+      label = 'REVIEW COMPLETE'; color = 'var(--text-primary)'; bg = 'var(--surface)';
+    }
+    badge.textContent = label;
+    badge.style.background = bg;
+    badge.style.color = color;
+    badge.style.display = 'block';
+  }
+
+  function copyContractResult() {
+    if (!contractResultText) return;
+    navigator.clipboard.writeText(contractResultText).then(() => addNotif('Report copied to clipboard.'));
+  }
+
+  function downloadContractResult() {
+    if (!contractResultText) return;
+    const filename = contractFile ? contractFile.name.replace(/\.[^.]+$/, '') : 'contract';
+    const mode = contractMode === 'redline' ? 'redline' : 'review';
+    const blob = new Blob([contractResultText], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'LEX_' + mode + '_' + filename + '_' + new Date().toISOString().slice(0,10) + '.txt';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
 </script>
 
 <!-- Cookie Banner -->
@@ -1433,5 +2430,324 @@
   </div>
 </div>
 
+
+<!-- SUPPORT MODAL -->
+<div id="supportModal" onclick="if(event.target===this)closeSupport()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);z-index:9999;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:var(--surface);border:1px solid var(--border);width:100%;max-width:440px;position:relative;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+    
+    <div style="padding:24px 24px 0;display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+      <div>
+        <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px;">LEX</div>
+        <div style="font-family:'Cormorant Garamond',serif;font-size:24px;color:var(--text-primary);">Help & <em>Support</em></div>
+      </div>
+      <button onclick="closeSupport()" style="background:transparent;border:1px solid var(--border);color:var(--text-muted);width:32px;height:32px;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;">&#215;</button>
+    </div>
+
+    <div style="padding:0 24px 24px;display:flex;flex-direction:column;gap:12px;">
+
+      <!-- Live Chat -->
+      <div style="border:1px solid var(--border);padding:16px;cursor:pointer;transition:all 0.2s;" onclick="openLiveChat()" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--border)'">
+        <div style="display:flex;align-items:center;gap:14px;">
+          <div style="width:40px;height:40px;background:var(--gold);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0a0a0a" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+          </div>
+          <div style="flex:1;">
+            <div style="font-size:13px;color:var(--text-primary);font-weight:600;margin-bottom:2px;">Live Chat</div>
+            <div style="font-size:11px;color:var(--text-secondary);">Chat with our support team in real time</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:5px;">
+            <div style="width:7px;height:7px;background:#27ae60;border-radius:50%;"></div>
+            <span style="font-size:10px;color:#27ae60;letter-spacing:1px;text-transform:uppercase;">Online</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Email -->
+      <a href="/cdn-cgi/l/email-protection#bdcec8cdcdd2cfc9fdd1d8c590dcd493ded2d082cec8dfd7d8dec980f1f8e59deec8cdcdd2cfc99defd8ccc8d8cec9" style="text-decoration:none;" target="_blank">
+        <div style="border:1px solid var(--border);padding:16px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--border)'">
+          <div style="display:flex;align-items:center;gap:14px;">
+            <div style="width:40px;height:40px;background:transparent;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.5"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            </div>
+            <div style="flex:1;">
+              <div style="font-size:13px;color:var(--text-primary);font-weight:600;margin-bottom:2px;">Email Support</div>
+              <div style="font-size:11px;color:var(--text-secondary);"><span class="__cf_email__" data-cfemail="1e6d6b6e6e716c6a5e727b66337f77307d7173">[email&#160;protected]</span> — response within 24hrs</div>
+            </div>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8H13M13 8L9 4M13 8L9 12" stroke="var(--text-muted)" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </div>
+        </div>
+      </a>
+
+      <!-- Report Issue -->
+      <a href="/cdn-cgi/l/email-protection#6e1d1b1e1e011c1a2e020b16430f07400d0103511d1b0c040b0d1a532c1b094e3c0b1e011c1a4e8ceefa4e222b36480c010a17533e020b0f1d0b4e0a0b1d0d1c070c0b4e1a060b4e071d1d1b0b544b5e2f4b5e2f5f404e39060f1a4e190b1c0b4e17011b4e1a1c170700094e1a014e0a01514b5e2f4b5e2f5c404e39060f1a4e060f1e1e0b000b0a4e07001d1a0b0f0a514b5e2f4b5e2f5d404e2f00174e0b1c1c011c4e030b1d1d0f090b1d51" style="text-decoration:none;" target="_blank">
+        <div style="border:1px solid var(--border);padding:16px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--border)'">
+          <div style="display:flex;align-items:center;gap:14px;">
+            <div style="width:40px;height:40px;background:transparent;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e74c3c" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            </div>
+            <div style="flex:1;">
+              <div style="font-size:13px;color:var(--text-primary);font-weight:600;margin-bottom:2px;">Report an Issue</div>
+              <div style="font-size:11px;color:var(--text-secondary);">Found a bug? Let us know and we'll fix it fast</div>
+            </div>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8H13M13 8L9 4M13 8L9 12" stroke="var(--text-muted)" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </div>
+        </div>
+      </a>
+
+      <!-- FAQ -->
+      <div style="border:1px solid var(--border);padding:16px;">
+        <div style="display:flex;align-items:center;gap:14px;cursor:pointer;" onclick="toggleFAQ(this)">
+          <div style="width:40px;height:40px;background:transparent;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </div>
+          <div style="flex:1;">
+            <div style="font-size:13px;color:var(--text-primary);font-weight:600;margin-bottom:2px;">FAQ</div>
+            <div style="font-size:11px;color:var(--text-secondary);">Quick answers to common questions</div>
+          </div>
+          <svg class="faq-arrow" width="14" height="14" viewBox="0 0 16 16" fill="none" style="transition:transform 0.3s;flex-shrink:0;"><path d="M4 6l4 4 4-4" stroke="var(--text-muted)" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </div>
+        <div class="faq-body" style="display:none;flex-direction:column;gap:0;margin-top:14px;">
+          <div class="faq-item" onclick="toggleFAQItem(this)">
+            <div class="faq-q">How do I get my Verified Badge?</div>
+            <div class="faq-a">Go to your profile and click <strong>Get Verified</strong>. Upload your bar certificate or practicing licence. Our team reviews it within 48 hours.</div>
+          </div>
+          <div class="faq-item" onclick="toggleFAQItem(this)">
+            <div class="faq-q">How do Profile Boosts work?</div>
+            <div class="faq-a">A boost pushes your profile to the top of search results for the duration you choose. 7-day boost is $4.99, 30-day is $12.99. Boosted profiles appear before non-boosted ones.</div>
+          </div>
+          <div class="faq-item" onclick="toggleFAQItem(this)">
+            <div class="faq-q">How do I receive client messages?</div>
+            <div class="faq-a">When a client sends you a connection request, you'll see it in <strong>Client Leads</strong>. Accept to unlock the chat. You can also message directly from the Chat section.</div>
+          </div>
+          <div class="faq-item" onclick="toggleFAQItem(this)">
+            <div class="faq-q">How do I cancel my subscription?</div>
+            <div class="faq-a">Go to Settings → Subscription → Cancel Plan. Your access continues until the end of the current billing period.</div>
+          </div>
+          <div class="faq-item" onclick="toggleFAQItem(this)">
+            <div class="faq-q">Is my clients' data protected?</div>
+            <div class="faq-a">Yes. All data is encrypted and stored securely. Client conversations and documents are only visible to you and the client. We comply with applicable data protection laws.</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
+
+<!-- SMARTSUPP -->
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script type="text/javascript">
+  var _smartsupp = _smartsupp || {};
+  _smartsupp.key = '99d6caca759541ed4edb4f3443bf5969a35e7845';
+  _smartsupp.offsetX = 80;
+  window.smartsupp||(function(d) {
+    var s,c,o=smartsupp=function(){ o._.push(arguments)};o._=[];
+    s=d.getElementsByTagName('script')[0];c=d.createElement('script');
+    c.type='text/javascript';c.charset='utf-8';c.async=true;
+    c.src='https://www.smartsuppchat.com/loader.js?';s.parentNode.insertBefore(c,s);
+  })(document);
+  document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(() => { if (window.smartsupp) smartsupp('chat:hide'); }, 3000);
+  });
+
+  // ── SUPPORT MODAL ──
+  function openSupport() {
+    document.getElementById('supportModal').style.display = 'flex';
+    const user = JSON.parse(localStorage.getItem('lexUser') || '{}');
+    if (user.name && window.smartsupp) {
+      smartsupp('name', user.name);
+      if (user.email) smartsupp('email', user.email);
+    }
+  }
+
+  function closeSupport() {
+    document.getElementById('supportModal').style.display = 'none';
+  }
+
+  document.getElementById('supportModal').addEventListener('click', function(e) {
+    if (e.target === this) closeSupport();
+  });
+
+  function openLiveChat() {
+    closeSupport();
+    if (window.smartsupp) {
+      smartsupp('chat:show');
+      smartsupp('chat:open');
+      smartsupp('on', 'chat:close', function() { smartsupp('chat:hide'); });
+    }
+  }
+
+  function toggleFAQ(header) {
+    const body = header.parentElement.querySelector('.faq-body');
+    const arrow = header.querySelector('.faq-arrow');
+    const isOpen = body.style.display === 'flex';
+    body.style.display = isOpen ? 'none' : 'flex';
+    if (arrow) arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+  }
+
+  function toggleFAQItem(item) { item.classList.toggle('open'); }
+
+  document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeSupport(); });
+
+</script>
+<!-- Upgrade Modal -->
+<div id="upgradeModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);z-index:2000;align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border:1px solid var(--accent-gold);padding:40px;max-width:400px;width:90%;position:relative;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+    <button onclick="document.getElementById('upgradeModal').style.display='none'" style="position:absolute;top:14px;right:14px;background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;">×</button>
+    <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="var(--accent-gold)" stroke-width="1.5" style="margin:0 auto 16px;display:block;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    <div style="font-family:'Cormorant Garamond',serif;font-size:32px;margin-bottom:8px;color:var(--text-primary);">Go Premium</div>
+    <div style="font-size:14px;color:var(--text-secondary);line-height:1.7;margin-bottom:20px;">Unlimited AI tools, priority lawyer listings, verified badge, profile boosts, and full access to all LEX Business features.</div>
+    <div style="font-family:'Cormorant Garamond',serif;font-size:48px;color:var(--text-primary);margin-bottom:4px;"><sup style="font-size:24px;color:var(--text-secondary);">$</sup>24.99<span style="font-size:16px;color:var(--text-muted);font-weight:300;">/mo</span></div>
+    <div style="display:flex;gap:0;margin:0 auto 16px;border:1px solid var(--accent-gold);width:fit-content;">
+      <button id="lwToggleMonthly" onclick="setLwBilling('monthly')" style="padding:8px 20px;background:var(--accent-gold);color:var(--bg-primary);border:none;font-size:11px;font-weight:600;letter-spacing:1px;cursor:pointer;transition:all 0.2s;">MONTHLY</button>
+      <button id="lwToggleYearly" onclick="setLwBilling('yearly')" style="padding:8px 20px;background:transparent;color:var(--accent-gold);border:none;font-size:11px;font-weight:600;letter-spacing:1px;cursor:pointer;transition:all 0.2s;">YEARLY &nbsp;<span style="font-size:9px;opacity:0.8;">2 MONTHS FREE</span></button>
+    </div>
+    <div id="lwUpgradePrice" style="font-family:'Cormorant Garamond',serif;font-size:48px;color:var(--text-primary);margin-bottom:4px;"><sup style="font-size:24px;color:var(--text-secondary);">$</sup>24.99<span style="font-size:16px;color:var(--text-muted);font-weight:300;">/mo</span></div>
+    <button class="ask-btn" id="lwUpgradeBtn" onclick="initiateLawyerCheckout()" style="width:100%;justify-content:center;margin-top:20px;">
+      <span id="lwUpgradeText">Upgrade Now</span>
+    </button>
+    <div style="font-size:12px;color:var(--text-muted);margin-top:12px;">Cancel anytime · Secure payment via Lemon Squeezy</div>
+  </div>
+</div>
+
+<!-- Badge Purchase Modal -->
+<div id="badgeModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);backdrop-filter:blur(4px);z-index:2000;align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border:1px solid #27ae60;padding:40px;max-width:380px;width:90%;position:relative;text-align:center;">
+    <button onclick="document.getElementById('badgeModal').style.display='none'" style="position:absolute;top:14px;right:14px;background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;">×</button>
+    <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#27ae60" stroke-width="1.5" style="margin:0 auto 16px;display:block;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+    <div style="font-family:'Cormorant Garamond',serif;font-size:28px;margin-bottom:8px;color:var(--text-primary);">Verified Badge</div>
+    <div style="font-size:14px;color:var(--text-secondary);line-height:1.7;margin-bottom:16px;">One-time verification. Show clients your credentials have been reviewed and approved by LEX.</div>
+    <div style="font-family:'Cormorant Garamond',serif;font-size:48px;color:var(--text-primary);margin-bottom:16px;"><sup style="font-size:24px;color:var(--text-secondary);">$</sup>19.99<span style="font-size:16px;color:var(--text-muted);font-weight:300;"> one-time</span></div>
+    <button class="ask-btn" id="badgePurchaseBtn" onclick="initiateBadgeCheckout()" style="width:100%;justify-content:center;">
+      <span id="badgePurchaseText">Purchase Badge</span>
+    </button>
+    <div style="font-size:12px;color:var(--text-muted);margin-top:12px;">One-time payment · No recurring charges</div>
+  </div>
+</div>
+
+<!-- Boost Purchase Modal -->
+<div id="boostModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);backdrop-filter:blur(4px);z-index:2000;align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border:1px solid var(--accent-gold);padding:40px;max-width:380px;width:90%;position:relative;text-align:center;">
+    <button onclick="document.getElementById('boostModal').style.display='none'" style="position:absolute;top:14px;right:14px;background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;">×</button>
+    <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="var(--accent-gold)" stroke-width="1.5" style="margin:0 auto 16px;display:block;"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+    <div style="font-family:'Cormorant Garamond',serif;font-size:28px;margin-bottom:8px;color:var(--text-primary);">Profile Boost</div>
+    <div style="font-size:14px;color:var(--text-secondary);line-height:1.7;margin-bottom:16px;">Push your profile to the top of search results and get more client connections.</div>
+    <div style="display:flex;gap:12px;margin:0 auto 20px;justify-content:center;">
+      <div onclick="selectBoost('boost_7day')" id="boost7Card" style="border:2px solid var(--accent-gold);padding:16px 20px;cursor:pointer;flex:1;transition:all 0.2s;">
+        <div style="font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--text-primary);">$4.99</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">7 DAYS</div>
+      </div>
+      <div onclick="selectBoost('boost_30day')" id="boost30Card" style="border:1px solid var(--border);padding:16px 20px;cursor:pointer;flex:1;transition:all 0.2s;">
+        <div style="font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--text-primary);">$12.99</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">30 DAYS</div>
+      </div>
+    </div>
+    <button class="ask-btn" id="boostPurchaseBtn" onclick="initiateBoostCheckout()" style="width:100%;justify-content:center;">
+      <span id="boostPurchaseText">Boost Now — $4.99</span>
+    </button>
+    <div style="font-size:12px;color:var(--text-muted);margin-top:12px;">One-time payment · Starts immediately</div>
+  </div>
+</div>
+
+<script>
+  // ── LEMON SQUEEZY PAYMENT FUNCTIONS ──
+  let lwBilling = 'monthly';
+  let selectedBoost = 'boost_7day';
+
+  function setLwBilling(type) {
+    lwBilling = type;
+    const mBtn = document.getElementById('lwToggleMonthly');
+    const yBtn = document.getElementById('lwToggleYearly');
+    const priceEl = document.getElementById('lwUpgradePrice');
+    if (type === 'monthly') {
+      mBtn.style.background = 'var(--accent-gold)'; mBtn.style.color = 'var(--bg-primary)';
+      yBtn.style.background = 'transparent'; yBtn.style.color = 'var(--accent-gold)';
+      priceEl.innerHTML = '<sup style="font-size:24px;color:var(--text-secondary);">$</sup>24.99<span style="font-size:16px;color:var(--text-muted);font-weight:300;">/mo</span>';
+    } else {
+      yBtn.style.background = 'var(--accent-gold)'; yBtn.style.color = 'var(--bg-primary)';
+      mBtn.style.background = 'transparent'; mBtn.style.color = 'var(--accent-gold)';
+      priceEl.innerHTML = '<sup style="font-size:24px;color:var(--text-secondary);">$</sup>249.90<span style="font-size:16px;color:var(--text-muted);font-weight:300;">/yr</span>';
+    }
+  }
+
+  async function initiateLawyerCheckout() {
+    const btn = document.getElementById('lwUpgradeBtn');
+    const txt = document.getElementById('lwUpgradeText');
+    if (!currentUser) { showToast('Please sign in to upgrade.', 'error'); return; }
+    txt.textContent = 'Loading...'; btn.disabled = true;
+    const variantKey = lwBilling === 'yearly' ? 'lawyer_yearly' : 'lawyer_monthly';
+    try {
+      const res = await fetch('/create-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ variant_key: variantKey, email: currentUser.email || '', uid: currentUser.uid })
+      });
+      const data = await res.json();
+      if (data.checkout_url) {
+        window.location.href = data.checkout_url;
+      } else {
+        showToast(data.error || 'Could not start checkout.', 'error');
+        txt.textContent = 'Upgrade Now'; btn.disabled = false;
+      }
+    } catch(e) {
+      showToast('Connection error. Please try again.', 'error');
+      txt.textContent = 'Upgrade Now'; btn.disabled = false;
+    }
+  }
+
+  function showBadgeModal() { document.getElementById('badgeModal').style.display = 'flex'; }
+  function showBoostModal() { document.getElementById('boostModal').style.display = 'flex'; }
+
+  function selectBoost(type) {
+    selectedBoost = type;
+    const c7 = document.getElementById('boost7Card');
+    const c30 = document.getElementById('boost30Card');
+    const txt = document.getElementById('boostPurchaseText');
+    if (type === 'boost_7day') {
+      c7.style.border = '2px solid var(--accent-gold)';
+      c30.style.border = '1px solid var(--border)';
+      txt.textContent = 'Boost Now — $4.99';
+    } else {
+      c30.style.border = '2px solid var(--accent-gold)';
+      c7.style.border = '1px solid var(--border)';
+      txt.textContent = 'Boost Now — $12.99';
+    }
+  }
+
+  async function initiateBadgeCheckout() {
+    const btn = document.getElementById('badgePurchaseBtn');
+    const txt = document.getElementById('badgePurchaseText');
+    if (!currentUser) { showToast('Please sign in.', 'error'); return; }
+    txt.textContent = 'Loading...'; btn.disabled = true;
+    try {
+      const res = await fetch('/create-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ variant_key: 'verified_badge', email: currentUser.email || '', uid: currentUser.uid })
+      });
+      const data = await res.json();
+      if (data.checkout_url) { window.location.href = data.checkout_url; }
+      else { showToast(data.error || 'Could not start checkout.', 'error'); txt.textContent = 'Purchase Badge'; btn.disabled = false; }
+    } catch(e) { showToast('Connection error.', 'error'); txt.textContent = 'Purchase Badge'; btn.disabled = false; }
+  }
+
+  async function initiateBoostCheckout() {
+    const btn = document.getElementById('boostPurchaseBtn');
+    const txt = document.getElementById('boostPurchaseText');
+    if (!currentUser) { showToast('Please sign in.', 'error'); return; }
+    txt.textContent = 'Loading...'; btn.disabled = true;
+    try {
+      const res = await fetch('/create-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ variant_key: selectedBoost, email: currentUser.email || '', uid: currentUser.uid })
+      });
+      const data = await res.json();
+      if (data.checkout_url) { window.location.href = data.checkout_url; }
+      else { showToast(data.error || 'Could not start checkout.', 'error'); txt.textContent = selectedBoost === 'boost_7day' ? 'Boost Now — $4.99' : 'Boost Now — $12.99'; btn.disabled = false; }
+    } catch(e) { showToast('Connection error.', 'error'); btn.disabled = false; }
+  }
+</script>
 </body>
 </html>
