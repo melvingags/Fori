@@ -104,7 +104,7 @@ color: var(--text-secondary); transition: all 0.3s ease; font-size: 14px;
   height: 18px;
 }
 
-/* Smartsupp widget - ensure it's above everything when open */
+/* Smartsupp widget - hidden by default, shown when opened */
 #smartsupp-widget-container,
 #smartsupp-widget-container iframe,
 .smartsupp-widget-container,
@@ -116,6 +116,14 @@ color: var(--text-secondary); transition: all 0.3s ease; font-size: 14px;
   right: 0 !important;
   top: auto !important;
   left: auto !important;
+  display: none !important; /* Hidden by default */
+}
+
+/* Show when Smartsupp is active */
+#smartsupp-widget-container.smartsupp--active,
+#smartsupp-widget-container[data-state="opened"],
+.smartsupp-widget-container--opened {
+  display: block !important;
 }
 
 /* Cookie Consent Banner */
@@ -208,12 +216,10 @@ color: var(--text-secondary); transition: all 0.3s ease; font-size: 14px;
 }
 
 /* Adjust fixed elements when cookie banner is visible */
-body.cookie-visible .chat-trigger-btn {
-  bottom: 180px;
-}
 body.cookie-visible .theme-toggle {
   bottom: 140px;
 }
+/* Chat button stays fixed at bottom: 90px regardless of cookie banner */
 
 /* Fix hero background for better visibility in both modes */
 .hero-background {
@@ -1025,22 +1031,45 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // ── CHAT FUNCTIONALITY ──
-// Load Smartsupp immediately (not waiting for cookies for functionality)
+// Load Smartsupp on-demand (NOT immediately)
 var _smartsupp = _smartsupp || {};
 _smartsupp.key = '99d6caca759541ed4edb4f3443bf5969a35e7845';
 _smartsupp.offsetY = 20;
 _smartsupp.offsetX = 20;
 _smartsupp.position = 'bottom-right';
-_smartsupp.hideWidget = true; // Hide default widget, we use custom button
-_smartsupp.zIndex = 2147483647; // Max z-index to stay on top
+_smartsupp.hideWidget = true; // Hide default widget
+_smartsupp.zIndex = 2147483647; // Max z-index
 
-window.smartsupp||(function(d) {
-  var s,c,o=smartsupp=function(){ o._.push(arguments)};o._=[];
-  s=d.getElementsByTagName('script')[0];c=d.createElement('script');
-  c.type='text/javascript';c.charset='utf-8';c.async=true;
-  c.src='https://www.smartsuppchat.com/loader.js?';
-  s.parentNode.insertBefore(c,s);
-})(document);
+// Don't auto-load script - load on first chat open
+let smartsuppLoaded = false;
+let smartsuppLoading = false;
+let pendingMessages = 0;
+
+function loadSmartsupp() {
+  if (smartsuppLoaded || smartsuppLoading) return Promise.resolve();
+  smartsuppLoading = true;
+
+  return new Promise((resolve, reject) => {
+    var s,c,o=smartsupp=function(){ o._.push(arguments)};o._=[];
+    s=document.getElementsByTagName('script')[0];c=document.createElement('script');
+    c.type='text/javascript';c.charset='utf-8';c.async=true;
+    c.src='https://www.smartsuppchat.com/loader.js?';
+    c.onload = function() {
+      smartsuppLoaded = true;
+      smartsuppLoading = false;
+      // Wait for Smartsupp to init
+      setTimeout(() => {
+        initChatEvents();
+        resolve();
+      }, 500);
+    };
+    c.onerror = function() {
+      smartsuppLoading = false;
+      reject();
+    };
+    s.parentNode.insertBefore(c,s);
+  });
+}
 
 function openChat() {
   if (typeof smartsupp !== 'undefined' && smartsupp) {
