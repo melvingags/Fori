@@ -1063,32 +1063,58 @@ function waitForSmartsupp(cb) {
 
 // Call this when user clicks your chat button (bottom right)
 function openLexChat() {
+  // Hide button immediately for visual feedback
+  var btn = document.getElementById('chatTrigger');
+  if (btn) btn.classList.add('hidden');
+
+  // Hide theme toggle
+  var toggle = document.querySelector('.theme-toggle');
+  if (toggle) toggle.style.opacity = '0';
+
+  // Open Smartsupp when ready
   waitForSmartsupp(() => {
-    smartsupp('chat:show');
-    smartsupp('chat:open');
-    document.getElementById('chatTrigger').classList.add('hidden');
-    document.querySelector('.theme-toggle').style.opacity = '0';
+    try {
+      smartsupp('chat:show');
+      smartsupp('chat:open');
+    } catch(e) {
+      console.error('Smartsupp error:', e);
+      // Show button again if failed
+      if (btn) btn.classList.remove('hidden');
+      if (toggle) toggle.style.opacity = '1';
+    }
   });
 }
 
-// Call this when user clicks the collapse arrow (↓) inside chat box
 function closeLexChat() {
   waitForSmartsupp(() => {
-    smartsupp('chat:close');
-    smartsupp('chat:hide');
-    document.getElementById('chatTrigger').classList.remove('hidden');
-    document.querySelector('.theme-toggle').style.opacity = '1';
+    try {
+      smartsupp('chat:close');
+      smartsupp('chat:hide');
+    } catch(e) {
+      console.error('Close error:', e);
+    }
+    // Show button and toggle regardless
+    var btn = document.getElementById('chatTrigger');
+    var toggle = document.querySelector('.theme-toggle');
+    if (btn) btn.classList.remove('hidden');
+    if (toggle) toggle.style.opacity = '1';
   });
 }
 
 // Hook into Smartsupp's close event to show button again
-var initCheck = setInterval(() => {
-  if (typeof smartsupp !== 'undefined') {
+var initCheck = setInterval(function() {
+  if (typeof smartsupp !== 'undefined' && smartsupp.api) {
     clearInterval(initCheck);
-    smartsupp('on', 'closed', closeLexChat);
+    try {
+      smartsupp('on', 'closed', function() {
+        closeLexChat();
+      });
+    } catch(e) {
+      console.error('Event hook error:', e);
+    }
   }
 }, 300);
-setTimeout(() => clearInterval(initCheck), 10000);
+setTimeout(function() { clearInterval(initCheck); }, 10000);
 // ── SCROLL ──
 window.addEventListener('scroll', () => {
   const nav = document.getElementById('navbar');
