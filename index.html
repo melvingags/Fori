@@ -71,7 +71,7 @@ color: var(--text-secondary); transition: all 0.3s ease; font-size: 14px;
 }
 .theme-btn.active { background: var(--accent-gold); color: var(--bg-primary); }
 
-/* Custom Chat Button */
+/* Custom Chat Button - Always visible */
 .chat-trigger-btn {
   position: fixed;
   bottom: 90px;
@@ -1065,14 +1065,15 @@ _smartsupp.zIndex = 2147483647;
 // Chat state
 let chatInitialized = false;
 let chatOpen = false;
-let pendingMessages = 0;
+let smartsuppReady = false;
 
 // Initialize chat events once Smartsupp is ready
 function initChatEvents() {
   if (chatInitialized || typeof smartsupp === 'undefined') return;
   chatInitialized = true;
+  smartsuppReady = true;
 
-  // Chat opened - hide button, clear notification
+  // Chat opened
   smartsupp('on', 'opened', function() {
     chatOpen = true;
     hideChatButton();
@@ -1080,7 +1081,7 @@ function initChatEvents() {
     clearNotification();
   });
 
-  // Chat closed (down arrow clicked) - show button
+  // Chat closed
   smartsupp('on', 'closed', function() {
     chatOpen = false;
     showChatButton();
@@ -1088,14 +1089,14 @@ function initChatEvents() {
     hideSmartsuppWidget();
   });
 
-  // New message received - show notification if chat not open
+  // New message
   smartsupp('on', 'message', function(msg) {
     if (!chatOpen && msg && msg.type === 'received') {
       showNotification();
     }
   });
 
-  // Also listen for unread count changes
+  // Unread count
   smartsupp('on', 'unread', function(count) {
     if (!chatOpen && count > 0) {
       showNotification();
@@ -1104,15 +1105,15 @@ function initChatEvents() {
 }
 
 function hideSmartsuppWidget() {
-  // Completely hide Smartsupp widget
+  // Hide the widget completely
   try {
     smartsupp('chat:hide');
-    smartsupp('chat:close');
   } catch(e) {}
 
   var widget = document.getElementById('smartsupp-widget-container');
   if (widget) {
     widget.style.display = 'none';
+    widget.style.visibility = 'hidden';
   }
 }
 
@@ -1120,6 +1121,8 @@ function showSmartsuppWidget() {
   var widget = document.getElementById('smartsupp-widget-container');
   if (widget) {
     widget.style.display = 'block';
+    widget.style.visibility = 'visible';
+    widget.style.opacity = '1';
   }
 
   try {
@@ -1129,57 +1132,42 @@ function showSmartsuppWidget() {
 }
 
 function openChat() {
-  if (typeof smartsupp === 'undefined') {
-    console.log('Chat not ready yet');
-    return;
-  }
-
   hideChatButton();
   hideThemeToggle();
   clearNotification();
-  showSmartsuppWidget();
-  chatOpen = true;
-}
 
-function hideChatButton() {
-  var btn = document.getElementById('chatTrigger');
-  if (btn) btn.classList.add('hidden');
-}
-
-function showChatButton() {
-  var btn = document.getElementById('chatTrigger');
-  if (btn) btn.classList.remove('hidden');
-}
-
-function showNotification() {
-  pendingMessages++;
-  var btn = document.getElementById('chatTrigger');
-  if (btn && !chatOpen) btn.classList.add('has-notification');
-}
-
-function clearNotification() {
-  pendingMessages = 0;
-  var btn = document.getElementById('chatTrigger');
-  if (btn) btn.classList.remove('has-notification');
-}
-
-function hideThemeToggle() {
-  var toggle = document.querySelector('.theme-toggle');
-  if (toggle) {
-    toggle.style.opacity = '0';
-    toggle.style.pointerEvents = 'none';
+  // If Smartsupp is ready, open immediately
+  if (smartsuppReady && typeof smartsupp !== 'undefined') {
+    showSmartsuppWidget();
+    chatOpen = true;
+    return;
   }
+
+  // Otherwise wait for it
+  var attempts = 0;
+  var maxAttempts = 50; // 5 seconds
+
+  var checkReady = setInterval(function() {
+    attempts++;
+
+    if (typeof smartsupp !== 'undefined' && smartsupp.api) {
+      clearInterval(checkReady);
+      initChatEvents();
+      showSmartsuppWidget();
+      chatOpen = true;
+      return;
+    }
+
+    if (attempts >= maxAttempts) {
+      clearInterval(checkReady);
+      showChatButton();
+      showThemeToggle();
+      console.error('Smartsupp failed to load');
+    }
+  }, 100);
 }
 
-function showThemeToggle() {
-  var toggle = document.querySelector('.theme-toggle');
-  if (toggle) {
-    toggle.style.opacity = '1';
-    toggle.style.pointerEvents = 'auto';
-  }
-}
-
-// Load Smartsupp script immediately
+// Load Smartsupp script immediately but it will be hidden
 (function() {
   var s = document.getElementsByTagName('script')[0];
   var c = document.createElement('script');
@@ -1190,19 +1178,14 @@ function showThemeToggle() {
   s.parentNode.insertBefore(c, s);
 
   // Wait for Smartsupp to load and then hide it
-  var checkInterval = setInterval(function() {
+  var hideInterval = setInterval(function() {
     if (typeof smartsupp !== 'undefined') {
-      clearInterval(checkInterval);
+      clearInterval(hideInterval);
       initChatEvents();
       // Initially hide the widget
       setTimeout(hideSmartsuppWidget, 500);
     }
   }, 100);
-
-  // Stop checking after 10 seconds
-  setTimeout(function() {
-    clearInterval(checkInterval);
-  }, 10000);
 })();
 
 // ── SCROLL ──
