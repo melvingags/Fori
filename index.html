@@ -99,17 +99,34 @@ color: var(--text-secondary); transition: all 0.3s ease; font-size: 14px;
   transform: translateY(-2px);
   box-shadow: 0 6px 24px rgba(201, 168, 108, 0.5);
 }
+.chat-trigger-btn.hidden {
+  display: none !important;
+}
 .chat-trigger-btn svg {
   width: 18px;
   height: 18px;
 }
 
-
-/* Smartsupp widget - hidden by default, shown when opened */
-/* Smartsupp z-index only - let JS control visibility */
+/* Smartsupp widget container - hide default bubble completely */
 #smartsupp-widget-container,
-#smartsupp-widget-container iframe {
+#smartsupp-widget-container iframe,
+#smartsupp-widget-container > div {
   z-index: 2147483647 !important;
+}
+
+/* Hide Smartsupp default button/bubble completely */
+.smartsupp-button,
+.smartsupp-button-wrapper,
+.smartsupp-widget__button,
+.smartsupp-widget__button-wrapper,
+.smartsupp-widget__bubble,
+.smartsupp-widget__bubble-wrapper,
+[class*="smartsupp-button"],
+[class*="smartsupp-bubble"] {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 
 /* Cookie Consent Banner */
@@ -608,6 +625,7 @@ nav { padding: 24px 40px; }
 
 <base target="_blank">
 <base target="_blank">
+<base target="_blank">
 </head>
 <body>
 
@@ -1018,7 +1036,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // ── SMARTSUPP CUSTOM CHAT INTEGRATION ──
-// Smartsupp configuration
+// Smartsupp configuration - hide default widget completely
 var _smartsupp = _smartsupp || {};
 _smartsupp.key = '99d6caca759541ed4edb4f3443bf5969a35e7845';
 _smartsupp.offsetY = 20;
@@ -1038,40 +1056,146 @@ _smartsupp.zIndex = 2147483647;
   s.parentNode.insertBefore(c, s);
 })();
 
-// Wait for Smartsupp to load
-function waitForSmartsupp(cb) {
-  if (typeof smartsupp !== 'undefined') { cb(); }
-  else { setTimeout(() => waitForSmartsupp(cb), 300); }
+// Global variable to track chat state
+let lexChatOpen = false;
+
+// Wait for Smartsupp to load with timeout
+function waitForSmartsupp(callback, maxAttempts = 50) {
+  let attempts = 0;
+  const checkInterval = setInterval(function() {
+    attempts++;
+    if (typeof smartsupp !== 'undefined') {
+      clearInterval(checkInterval);
+      callback();
+    } else if (attempts >= maxAttempts) {
+      clearInterval(checkInterval);
+      console.log('Smartsupp failed to load');
+    }
+  }, 200);
 }
 
+// Initialize Smartsupp when ready
+waitForSmartsupp(function() {
+  console.log('Smartsupp loaded');
+  
+  // Hide default button immediately
+  try {
+    smartsupp('chat:hide');
+    smartsupp('widget:hide');
+  } catch(e) {}
+  
+  // Set up event listeners
+  try {
+    // When chat is closed by user clicking the down arrow
+    smartsupp('on', 'chat:closed', function() {
+      console.log('Chat closed by user');
+      lexChatOpen = false;
+      showChatButton();
+    });
+    
+    // When widget is closed
+    smartsupp('on', 'widget:closed', function() {
+      console.log('Widget closed');
+      lexChatOpen = false;
+      showChatButton();
+    });
+    
+    // When chat is minimized
+    smartsupp('on', 'chat:minimized', function() {
+      console.log('Chat minimized');
+      lexChatOpen = false;
+      showChatButton();
+    });
+  } catch(e) {
+    console.error('Smartsupp event setup error:', e);
+  }
+});
+
+function showChatButton() {
+  var btn = document.getElementById('chatTrigger');
+  if (btn) {
+    btn.classList.remove('hidden');
+    btn.style.display = 'flex';
+  }
+  // Ensure Smartsupp default button stays hidden
+  hideSmartsuppDefaultButton();
+}
+
+function hideChatButton() {
+  var btn = document.getElementById('chatTrigger');
+  if (btn) {
+    btn.classList.add('hidden');
+    btn.style.display = 'none';
+  }
+}
+
+// Aggressively hide Smartsupp default button
+function hideSmartsuppDefaultButton() {
+  // Hide via API
+  try {
+    smartsupp('chat:hide');
+    smartsupp('widget:hide');
+  } catch(e) {}
+  
+  // Hide via CSS/DOM
+  var selectors = [
+    '.smartsupp-button',
+    '.smartsupp-button-wrapper',
+    '.smartsupp-widget__button',
+    '.smartsupp-widget__button-wrapper',
+    '.smartsupp-widget__bubble',
+    '[class*="smartsupp-button"]',
+    '[class*="smartsupp-bubble"]',
+    '#smartsupp-widget-container > div > div'
+  ];
+  
+  selectors.forEach(function(sel) {
+    var elements = document.querySelectorAll(sel);
+    elements.forEach(function(el) {
+      el.style.display = 'none !important';
+      el.style.visibility = 'hidden !important';
+      el.style.opacity = '0 !important';
+    });
+  });
+}
+
+// Call hide function periodically to catch any late-rendered elements
+setInterval(hideSmartsuppDefaultButton, 500);
+
 function openLexChat() {
+  console.log('Opening chat...');
   waitForSmartsupp(function() {
     try {
-      smartsupp('chat:show');
-      smartsupp('chat:open');
-      var btn = document.getElementById('chatTrigger');
-      if (btn) btn.style.display = 'none';
-    } catch(e) { console.error('Smartsupp open error:', e); }
+      // First ensure any existing chat is properly reset
+      smartsupp('chat:close');
+      
+      // Small delay then open
+      setTimeout(function() {
+        smartsupp('chat:show');
+        smartsupp('chat:open');
+        smartsupp('widget:show');
+        lexChatOpen = true;
+        hideChatButton();
+        hideSmartsuppDefaultButton();
+      }, 100);
+    } catch(e) {
+      console.error('Smartsupp open error:', e);
+      showChatButton();
+    }
   });
 }
 
 function closeLexChat() {
-  try { smartsupp('chat:close'); smartsupp('chat:hide'); } catch(e) {}
-  var btn = document.getElementById('chatTrigger');
-  if (btn) btn.style.display = 'flex';
+  try {
+    smartsupp('chat:close');
+    smartsupp('chat:hide');
+    smartsupp('widget:hide');
+  } catch(e) {}
+  lexChatOpen = false;
+  showChatButton();
+  hideSmartsuppDefaultButton();
 }
 
-var ssInitCheck = setInterval(function() {
-  if (typeof smartsupp !== 'undefined') {
-    clearInterval(ssInitCheck);
-    try {
-      smartsupp('on', 'chat:closed', closeLexChat);
-      smartsupp('on', 'widget:closed', closeLexChat);
-    } catch(e) {}
-    try { smartsupp('chat:hide'); } catch(e) {}
-  }
-}, 300);
-setTimeout(function() { clearInterval(ssInitCheck); }, 15000);
 // ── SCROLL ──
 window.addEventListener('scroll', () => {
   const nav = document.getElementById('navbar');
