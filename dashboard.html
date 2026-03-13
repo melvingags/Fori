@@ -1980,13 +1980,20 @@
     }
   }
 
+  function lexToast(msg) {
+    let t = document.getElementById('lexToastEl');
+    if (!t) { t = document.createElement('div'); t.id = 'lexToastEl'; t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a1a;border:1px solid var(--accent-gold);color:var(--text-primary);padding:12px 24px;font-size:13px;z-index:9999;pointer-events:none;transition:opacity 0.3s;'; document.body.appendChild(t); }
+    t.textContent = msg; t.style.opacity = '1';
+    clearTimeout(t._t); t._t = setTimeout(() => { t.style.opacity = '0'; }, 3000);
+  }
+
   async function initiateCheckout(type) {
     const btn = document.getElementById('indUpgradeBtn');
     const txt = document.getElementById('indUpgradeText');
     const storedUser = JSON.parse(localStorage.getItem('lexUser') || '{}');
     const uid = storedUser.uid || '';
     const email = storedUser.email || '';
-    if (!uid) { showToast('Please sign in to upgrade.', 'error'); return; }
+    if (!uid) { lexToast('Please sign in to upgrade.'); return; }
     txt.textContent = 'Loading...';
     btn.disabled = true;
     const variantKey = indBilling === 'yearly' ? 'premium_yearly' : 'premium_monthly';
@@ -2000,11 +2007,11 @@
       if (data.checkout_url) {
         window.location.href = data.checkout_url;
       } else {
-        showToast(data.error || 'Could not start checkout. Please try again.', 'error');
+        lexToast(data.error || 'Could not start checkout. Please try again.');
         txt.textContent = 'Upgrade Now'; btn.disabled = false;
       }
     } catch (e) {
-      showToast('Connection error. Please try again.', 'error');
+      lexToast('Connection error. Please try again.');
       txt.textContent = 'Upgrade Now'; btn.disabled = false;
     }
   }
