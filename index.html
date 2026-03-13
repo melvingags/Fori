@@ -1059,34 +1059,34 @@ function waitForSmartsupp(cb) {
   else { setTimeout(() => waitForSmartsupp(cb), 300); }
 }
 
-// Call this when user clicks your chat button (bottom right)
 function openLexChat() {
-  waitForSmartsupp(() => {
-    smartsupp('chat:show');
-    smartsupp('chat:open');
-    document.getElementById('chatTrigger').classList.add('hidden');
-    document.querySelector('.theme-toggle').style.opacity = '0';
+  waitForSmartsupp(function() {
+    try {
+      smartsupp('chat:show');
+      smartsupp('chat:open');
+      var btn = document.getElementById('chatTrigger');
+      if (btn) btn.style.display = 'none';
+    } catch(e) { console.error('Smartsupp open error:', e); }
   });
 }
 
-// Call this when user clicks the collapse arrow (↓) inside chat box
 function closeLexChat() {
-  waitForSmartsupp(() => {
-    smartsupp('chat:close');
-    smartsupp('chat:hide');
-    document.getElementById('chatTrigger').classList.remove('hidden');
-    document.querySelector('.theme-toggle').style.opacity = '1';
-  });
+  try { smartsupp('chat:close'); smartsupp('chat:hide'); } catch(e) {}
+  var btn = document.getElementById('chatTrigger');
+  if (btn) btn.style.display = 'flex';
 }
 
-// Hook into Smartsupp's close event to show button again
-var initCheck = setInterval(() => {
+var ssInitCheck = setInterval(function() {
   if (typeof smartsupp !== 'undefined') {
-    clearInterval(initCheck);
-    smartsupp('on', 'closed', closeLexChat);
+    clearInterval(ssInitCheck);
+    try {
+      smartsupp('on', 'chat:closed', closeLexChat);
+      smartsupp('on', 'widget:closed', closeLexChat);
+    } catch(e) {}
+    try { smartsupp('chat:hide'); } catch(e) {}
   }
 }, 300);
-setTimeout(() => clearInterval(initCheck), 10000);
+setTimeout(function() { clearInterval(ssInitCheck); }, 15000);
 // ── SCROLL ──
 window.addEventListener('scroll', () => {
   const nav = document.getElementById('navbar');
