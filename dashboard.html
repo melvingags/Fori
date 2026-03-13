@@ -387,7 +387,7 @@
       const snap = await getDoc(doc(db, "users", user.uid));
       if (snap.exists()) {
         const data = snap.data();
-        localStorage.setItem('lexUser', JSON.stringify({ uid: user.uid, name: data.name, role: data.role, plan: data.plan || 'free' }));
+        localStorage.setItem('lexUser', JSON.stringify({ uid: user.uid, email: user.email || '', name: data.name, role: data.role, plan: data.plan || 'free' }));
         localStorage.setItem('lexRole', data.role);
         if (data.role === 'lawyer') window.location.href = 'dashboard-lawyer.html';
       }
@@ -398,7 +398,7 @@
     await signOut(auth);
     localStorage.removeItem('lexUser');
     localStorage.removeItem('lexRole');
-    window.location.href = 'index.html';
+    window.location.href = '/';
   };
 
   // ── FIRESTORE CONNECTION FUNCTIONS ──
@@ -621,7 +621,7 @@
   </div>
 
   <div class="sidebar-footer">
-    <button class="sidebar-footer-btn" onclick="window.location.href='index.html'">← Home</button>
+    <button class="sidebar-footer-btn" onclick="window.location.href='/'">← Home</button>
     <div class="theme-toggle" onclick="toggleTheme()">
       <button class="theme-btn" data-theme="dark">🌙</button>
       <button class="theme-btn" data-theme="light">☀️</button>
@@ -1447,7 +1447,7 @@
       }
       await deleteUser(getAuth().currentUser);
       ['lexUser','lexRole','lexHistory','lexNotifs_individual','lexSettingsPrefs','lexCookieConsent'].forEach(k => localStorage.removeItem(k));
-      window.location.href = 'index.html';
+      window.location.href = '/';
     } catch(e) {
       alert(e.code === 'auth/requires-recent-login' ? 'Please log out and log back in before deleting your account.' : 'Failed to delete account. Please try again.');
     }
@@ -1983,7 +1983,10 @@
   async function initiateCheckout(type) {
     const btn = document.getElementById('indUpgradeBtn');
     const txt = document.getElementById('indUpgradeText');
-    if (!currentUser) { showToast('Please sign in to upgrade.', 'error'); return; }
+    const storedUser = JSON.parse(localStorage.getItem('lexUser') || '{}');
+    const uid = storedUser.uid || '';
+    const email = storedUser.email || '';
+    if (!uid) { showToast('Please sign in to upgrade.', 'error'); return; }
     txt.textContent = 'Loading...';
     btn.disabled = true;
     const variantKey = indBilling === 'yearly' ? 'premium_yearly' : 'premium_monthly';
@@ -1991,7 +1994,7 @@
       const res = await fetch('/create-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ variant_key: variantKey, email: currentUser.email || '', uid: currentUser.uid })
+        body: JSON.stringify({ variant_key: variantKey, email: email, uid: uid })
       });
       const data = await res.json();
       if (data.checkout_url) {
