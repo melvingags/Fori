@@ -71,14 +71,16 @@ color: var(--text-secondary); transition: all 0.3s ease; font-size: 14px;
 }
 .theme-btn.active { background: var(--accent-gold); color: var(--bg-primary); }
 
-/* Smartsupp widget container - ensure it's above everything */
+/* Smartsupp widget - constrain to small bubble size */
 #smartsupp-widget-container,
-#smartsupp-widget-container iframe,
-#smartsupp-widget-container > div,
-.smartsupp-widget-container,
-.smartsupp-widget-container iframe {
+#smartsupp-widget-container iframe {
   z-index: 2147483647 !important;
-  position: fixed !important;
+}
+
+/* Ensure widget doesn't expand beyond bounds */
+.smartsupp-widget {
+  max-width: 80px !important;
+  max-height: 80px !important;
 }
 
 /* Cookie Consent Banner */
@@ -973,12 +975,14 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // ── SMARTSUPP NATIVE WIDGET INTEGRATION ──
-// Smartsupp configuration - use native widget with custom styling
+// Smartsupp configuration - start minimized as small bubble
 var _smartsupp = _smartsupp || {};
 _smartsupp.key = '99d6caca759541ed4edb4f3443bf5969a35e7845';
-_smartsupp.offsetY = 80; // Position above theme toggle
+_smartsupp.offsetY = 90; // Position above theme toggle (24px + button height + gap)
 _smartsupp.offsetX = 24;
 _smartsupp.position = 'bottom-right';
+_smartsupp.startMinimized = true; // Start as minimized bubble
+_smartsupp.minimized = true; // Ensure minimized state
 
 // Load Smartsupp script
 (function() {
@@ -990,6 +994,18 @@ _smartsupp.position = 'bottom-right';
   c.src = 'https://www.smartsuppchat.com/loader.js?';
   s.parentNode.insertBefore(c, s);
 })();
+
+// Ensure widget stays minimized on load
+window.addEventListener('load', function() {
+  setTimeout(function() {
+    if (typeof smartsupp !== 'undefined') {
+      try {
+        smartsupp('chat:minimize');
+        smartsupp('widget:minimize');
+      } catch(e) {}
+    }
+  }, 2000);
+});
 
 // ── SCROLL ──
 window.addEventListener('scroll', () => {
