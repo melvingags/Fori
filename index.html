@@ -106,25 +106,10 @@ color: var(--text-secondary); transition: all 0.3s ease; font-size: 14px;
 
 
 /* Smartsupp widget - hidden by default, shown when opened */
+/* Smartsupp z-index only - let JS control visibility */
 #smartsupp-widget-container,
-#smartsupp-widget-container iframe,
-.smartsupp-widget-container,
-.smartsupp-chat,
-.smartsupp-box {
+#smartsupp-widget-container iframe {
   z-index: 2147483647 !important;
-  position: fixed !important;
-  bottom: 0 !important;
-  right: 0 !important;
-  top: auto !important;
-  left: auto !important;
-  display: none !important; /* Hidden by default */
-}
-
-/* Show when Smartsupp is active */
-#smartsupp-widget-container.smartsupp--active,
-#smartsupp-widget-container[data-state="opened"],
-.smartsupp-widget-container--opened {
-  display: block !important;
 }
 
 /* Cookie Consent Banner */
