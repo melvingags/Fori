@@ -5,6 +5,26 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>LEX — AI Global Legal Navigator</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+<!-- Smartsupp Live Chat script -->
+<script type="text/javascript">
+var _smartsupp = _smartsupp || {};
+_smartsupp.key = '99d6caca759541ed4edb4f3443bf5969a35e7845';
+_smartsupp.align = 'br'; // Bottom right
+_smartsupp.offsetX = 0;
+_smartsupp.offsetY = 80; // Push up to make room for theme toggle
+_smartsupp.style = 'default';
+_smartsupp.color = '#c9a86c'; // Match your gold accent
+_smartsupp.language = 'en';
+window.smartsupp||(function(d) {
+  var s,c,o=smartsupp=function(){ o._.push(arguments)};o._=[];
+  s=d.getElementsByTagName('script')[0];c=d.createElement('script');
+  c.type='text/javascript';c.charset='utf-8';c.async=true;
+  c.src='https://www.smartsuppchat.com/loader.js?';
+  s.parentNode.insertBefore(c,s);
+})(document);
+</script>
+
 <style>
   :root {
     --bg-primary: #0a0a0a;
@@ -47,12 +67,12 @@
   }
   .font-serif { font-family: 'Cormorant Garamond', serif; }
 
-/* Theme Toggle - Fixed position above chat widget area */
+/* Theme Toggle - Fixed position at bottom right */
 .theme-toggle {
 position: fixed;
 bottom: 24px;
 right: 24px;
-z-index: 1000;
+z-index: 999999; /* High z-index but below chat */
 background: var(--bg-card);
 border: 1px solid var(--border);
 border-radius: 50px;
@@ -72,63 +92,21 @@ color: var(--text-secondary); transition: all 0.3s ease; font-size: 14px;
 }
 .theme-btn.active { background: var(--accent-gold); color: var(--bg-primary); }
 
-/* Smartsupp widget - positioned ABOVE the theme toggle */
+/* Smartsupp widget container adjustments */
 #smartsupp-widget-container {
-  position: fixed !important;
-  bottom: 90px !important; /* Above theme toggle (24px + ~60px height + spacing) */
+  z-index: 2147483647 !important; /* Smartsupp default max z-index */
+}
+
+/* When chat is minimized (bubble only) - position above theme toggle */
+#smartsupp-widget-container:not(.chat-open) {
+  bottom: 90px !important; /* Above theme toggle */
   right: 24px !important;
-  width: 60px !important;
-  height: 60px !important;
-  z-index: 2147483647 !important;
-  overflow: visible !important;
-  transition: all 0.3s ease !important;
 }
 
-/* Smartsupp iframe when minimized (bubble only) */
-#smartsupp-widget-container iframe {
-  width: 60px !important;
-  height: 60px !important;
-  max-width: 60px !important;
-  max-height: 60px !important;
-  border-radius: 50% !important;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.3) !important;
-  transition: all 0.3s ease !important;
-}
-
-/* When chat is open - expand to full size and move up if needed */
+/* When chat is open */
 #smartsupp-widget-container.chat-open {
-  width: 380px !important;
-  height: 600px !important;
-  max-width: calc(100vw - 48px) !important;
-  max-height: calc(100vh - 120px) !important;
-  bottom: 90px !important; /* Keep above theme toggle even when open */
+  bottom: 90px !important;
   right: 24px !important;
-  border-radius: 12px !important;
-  z-index: 2147483647 !important;
-}
-
-#smartsupp-widget-container.chat-open iframe {
-  width: 100% !important;
-  height: 100% !important;
-  max-width: 100% !important;
-  max-height: 100% !important;
-  border-radius: 12px !important;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.4) !important;
-}
-
-/* Mobile adjustments for chat widget */
-@media (max-width: 480px) {
-  #smartsupp-widget-container.chat-open {
-    width: calc(100vw - 48px) !important;
-    right: 24px !important;
-    left: 24px !important;
-    bottom: 90px !important;
-  }
-}
-
-/* Hide any stray elements that might appear */
-#smartsupp-widget-container > div:not(iframe) {
-  display: none !important;
 }
 
 /* Cookie Consent Banner */
@@ -140,7 +118,7 @@ color: var(--text-secondary); transition: all 0.3s ease; font-size: 14px;
   background: var(--bg-card);
   border-top: 1px solid var(--border);
   padding: 20px 24px;
-  z-index: 999999;
+  z-index: 999998; /* Below theme toggle */
   transform: translateY(100%);
   transition: transform 0.4s ease, opacity 0.4s ease;
   opacity: 0;
@@ -223,12 +201,6 @@ color: var(--text-secondary); transition: all 0.3s ease; font-size: 14px;
 /* Adjust fixed elements when cookie banner is visible */
 body.cookie-visible .theme-toggle {
   bottom: 140px;
-}
-body.cookie-visible #smartsupp-widget-container {
-  bottom: 200px !important;
-}
-body.cookie-visible #smartsupp-widget-container.chat-open {
-  bottom: 200px !important;
 }
 
 /* Fix hero background for better visibility in both modes */
@@ -1027,106 +999,52 @@ document.addEventListener('DOMContentLoaded', function() {
   setTimeout(showCookieBanner, 1000);
 });
 
-// ── SMARTSUPP WIDGET WITH FIXED POSITIONING ──
-var _smartsupp = _smartsupp || {};
-_smartsupp.key = '99d6caca759541ed4edb4f3443bf5969a35e7845';
-_smartsupp.align = 'br'; // Bottom right alignment
-_smartsupp.offsetX = 0;
-_smartsupp.offsetY = 70; // Offset to account for theme toggle (was 0)
-_smartsupp.style = 'default';
-
-// Load Smartsupp script
-(function() {
-  var s = document.getElementsByTagName('script')[0];
-  var c = document.createElement('script');
-  c.type = 'text/javascript';
-  c.charset = 'utf-8';
-  c.async = true;
-  c.src = 'https://www.smartsuppchat.com/loader.js?';
-  s.parentNode.insertBefore(c, s);
-})();
-
-// Better Smartsupp initialization with proper event handling
-let smartsuppLoaded = false;
-let chatOpen = false;
-
-function initSmartsupp() {
+// ── SMARTSUPP WIDGET CONTROL ──
+// Wait for Smartsupp to load and configure it
+function initSmartsuppWidget() {
   if (typeof smartsupp === 'undefined') {
-    setTimeout(initSmartsupp, 500);
+    // Retry after 500ms if not loaded yet
+    setTimeout(initSmartsuppWidget, 500);
     return;
   }
   
-  smartsuppLoaded = true;
+  console.log('Smartsupp loaded successfully');
   
-  // Configure widget appearance
+  // Set theme color to match LEX branding
   smartsupp('theme:colors', {
     primary: '#c9a86c',
     primaryText: '#0a0a0a'
   });
   
-  // Set widget to minimized state initially
+  // Ensure widget starts minimized
   smartsupp('chat:minimize');
   
-  // Listen for chat state changes with proper class toggling
+  // Track widget state
+  let isChatOpen = false;
+  
+  // Listen for chat open
   smartsupp('on', 'chat:opened', function() {
-    chatOpen = true;
-    const widget = document.getElementById('smartsupp-widget-container');
-    if (widget) {
-      widget.classList.add('chat-open');
-      // Force proper dimensions
-      widget.style.width = '380px';
-      widget.style.height = '600px';
-    }
+    isChatOpen = true;
+    document.body.classList.add('chat-open');
   });
   
+  // Listen for chat close/minimize
   smartsupp('on', 'chat:closed', function() {
-    chatOpen = false;
-    const widget = document.getElementById('smartsupp-widget-container');
-    if (widget) {
-      widget.classList.remove('chat-open');
-      // Reset to bubble size
-      widget.style.width = '60px';
-      widget.style.height = '60px';
-    }
+    isChatOpen = false;
+    document.body.classList.remove('chat-open');
   });
   
   smartsupp('on', 'chat:minimized', function() {
-    chatOpen = false;
-    const widget = document.getElementById('smartsupp-widget-container');
-    if (widget) {
-      widget.classList.remove('chat-open');
-      widget.style.width = '60px';
-      widget.style.height = '60px';
-    }
+    isChatOpen = false;
+    document.body.classList.remove('chat-open');
   });
 }
 
-// Initialize with retry logic
-function waitForSmartsupp() {
-  if (typeof smartsupp !== 'undefined') {
-    initSmartsupp();
-  } else {
-    setTimeout(waitForSmartsupp, 300);
-  }
-}
-
-// Start initialization after page load
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', function() {
-    setTimeout(waitForSmartsupp, 1000);
-  });
-} else {
-  setTimeout(waitForSmartsupp, 1000);
-}
-
-// Periodic check to ensure widget stays minimized when closed
-setInterval(function() {
-  if (smartsuppLoaded && !chatOpen && typeof smartsupp !== 'undefined') {
-    try {
-      smartsupp('chat:minimize');
-    } catch(e) {}
-  }
-}, 5000);
+// Initialize when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+  // Give Smartsupp time to initialize
+  setTimeout(initSmartsuppWidget, 1500);
+});
 
 // ── SCROLL ──
 window.addEventListener('scroll', () => {
