@@ -523,10 +523,6 @@
     </a>
 
     <div class="nav-section-label">Profile</div>
-    <a class="nav-item" onclick="showPage('settings', this)">
-      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-      Settings
-    </a>
     <a class="nav-item" onclick="showPage('profile', this)">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
       My Profile
@@ -541,6 +537,10 @@
     </a>
 
     <div class="nav-section-label">Account</div>
+    <a class="nav-item" onclick="showPage('settings', this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      Settings
+    </a>
     <a class="nav-item" onclick="openSupport()">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
       Help & Support
@@ -1190,18 +1190,36 @@
       <button onclick="closeSupport()" style="background:transparent;border:1px solid var(--border);color:var(--text-muted);width:32px;height:32px;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;">×</button>
     </div>
     <div style="padding:0 24px 24px;display:flex;flex-direction:column;gap:12px;">
-      <!-- Live Chat → Email fallback (no Smartsupp on lawyer dash) -->
+      <!-- Live Chat -->
       <div style="border:1px solid var(--border);padding:16px;cursor:pointer;transition:all 0.2s;" onclick="openLiveChat()" onmouseover="this.style.borderColor='var(--accent-gold)'" onmouseout="this.style.borderColor='var(--border)'">
         <div style="display:flex;align-items:center;gap:14px;">
           <div style="width:40px;height:40px;background:var(--accent-gold);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--bg-primary)" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
           </div>
           <div style="flex:1;">
-            <div style="font-size:13px;color:var(--text-primary);font-weight:600;margin-bottom:2px;">Email Support</div>
-            <div style="font-size:11px;color:var(--text-secondary);">support@lex-ai.com — response within 24hrs</div>
+            <div style="font-size:13px;color:var(--text-primary);font-weight:600;margin-bottom:2px;">Live Chat</div>
+            <div style="font-size:11px;color:var(--text-secondary);">Chat with our support team in real time</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:5px;">
+            <div style="width:7px;height:7px;background:#27ae60;border-radius:50%;"></div>
+            <span style="font-size:10px;color:#27ae60;letter-spacing:1px;text-transform:uppercase;">Online</span>
           </div>
         </div>
       </div>
+      <!-- Email -->
+      <a href="mailto:support@lex-ai.com" style="text-decoration:none;">
+        <div style="border:1px solid var(--border);padding:16px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--accent-gold)'" onmouseout="this.style.borderColor='var(--border)'">
+          <div style="display:flex;align-items:center;gap:14px;">
+            <div style="width:40px;height:40px;background:transparent;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-gold)" stroke-width="1.5"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            </div>
+            <div style="flex:1;">
+              <div style="font-size:13px;color:var(--text-primary);font-weight:600;margin-bottom:2px;">Email Support</div>
+              <div style="font-size:11px;color:var(--text-secondary);">support@lex-ai.com — response within 24hrs</div>
+            </div>
+          </div>
+        </div>
+      </a>
       <!-- FAQ -->
       <div style="border:1px solid var(--border);padding:16px;">
         <div style="display:flex;align-items:center;gap:14px;cursor:pointer;" onclick="toggleFAQ(this)">
@@ -1212,10 +1230,28 @@
           <svg class="faq-arrow" width="14" height="14" viewBox="0 0 16 16" fill="none" style="transition:transform 0.3s;flex-shrink:0;"><path d="M4 6l4 4 4-4" stroke="var(--text-muted)" stroke-width="1.5" stroke-linecap="round"/></svg>
         </div>
         <div class="faq-body" style="display:none;flex-direction:column;gap:0;margin-top:14px;">
-          <div class="faq-item" onclick="toggleFAQItem(this)"><div class="faq-q">How do I get my Verified Badge?</div><div class="faq-a">Go to your profile and click <strong>Get Verified</strong>. Upload your bar certificate. Our team reviews within 48 hours.</div></div>
-          <div class="faq-item" onclick="toggleFAQItem(this)"><div class="faq-q">How do Profile Boosts work?</div><div class="faq-a">A boost pushes your profile to the top of search results. 7-day boost is $4.99, 30-day is $12.99.</div></div>
-          <div class="faq-item" onclick="toggleFAQItem(this)"><div class="faq-q">How do I receive client messages?</div><div class="faq-a">When a client sends a connection request, you'll see it in <strong>Client Leads</strong>. Accept to unlock the chat.</div></div>
-          <div class="faq-item" onclick="toggleFAQItem(this)"><div class="faq-q">How do I cancel my subscription?</div><div class="faq-a">Go to Settings → then email support@lex-ai.com to cancel. Access continues until end of billing period.</div></div>
+          <!-- GETTING STARTED -->
+          <div class="faq-item" onclick="toggleFAQItem(this)"><div class="faq-q">How does LEX work for lawyers?</div><div class="faq-a">LEX connects you with clients who need legal help across 195 countries. Once you subscribe, your profile appears in the global lawyer directory. Clients can browse your specialisation, location, ratings, and bio — and if they're Premium users, they can send you a direct contact request. You review the request and accept or decline. If accepted, you communicate via the built-in secure chat.</div></div>
+          <div class="faq-item" onclick="toggleFAQItem(this)"><div class="faq-q">How do I set up my profile to attract clients?</div><div class="faq-a">A strong profile includes: a clear specialisation (e.g. Corporate Law, Family Law), your city and country, a compelling bio that explains your experience and approach, your firm name, and your case count. The more complete your profile, the higher you rank in search results. Verified lawyers and boosted profiles appear at the top of the directory — both significantly increase visibility.</div></div>
+
+          <!-- VERIFICATION & TRUST -->
+          <div class="faq-item" onclick="toggleFAQItem(this)"><div class="faq-q">How do I get my Verified Badge?</div><div class="faq-a">The <strong>✓ Verified</strong> badge signals to clients that you are a qualified, licensed legal professional reviewed by the LEX team. To get verified, go to your Profile section and click <strong>Get Verified</strong>, then submit your bar association certificate or practising licence. Our team reviews submissions within 48 hours. Verified lawyers appear above unverified lawyers in all search results — it's the single most impactful thing you can do for your visibility.</div></div>
+          <div class="faq-item" onclick="toggleFAQItem(this)"><div class="faq-q">How do ratings and reviews work?</div><div class="faq-a">After a case is closed, clients are prompted to rate their experience with you (1–5 stars), select the case outcome (Won, Settled, Lost, Ongoing), and leave a written review. All ratings are verified by LEX — only clients who had an active case with you can leave a review. Your average rating and review count are displayed on your profile card. High ratings directly improve your ranking in the directory.</div></div>
+
+          <!-- CLIENT LEADS -->
+          <div class="faq-item" onclick="toggleFAQItem(this)"><div class="faq-q">How do I receive and manage client requests?</div><div class="faq-a">When a Premium client sends you a contact request, it appears in your <strong>Client Leads</strong> section with their name, the nature of their legal matter, and the date received. You have 48 hours to Accept or Decline. If you accept, a secure chat opens between you and the client. If you decline or don't respond, the client is free to contact other lawyers. There's no limit on how many active cases you can manage simultaneously.</div></div>
+          <div class="faq-item" onclick="toggleFAQItem(this)"><div class="faq-q">Can I close a case, and what happens when I do?</div><div class="faq-a">Yes. Either party can close a case at any time from the chat screen. Once closed, the chat becomes read-only and the client is prompted to leave a rating. Closed cases are archived in your case history. Closing a case cleanly and prompting a rating is important — positive reviews build your reputation on the platform over time.</div></div>
+          <div class="faq-item" onclick="toggleFAQItem(this)"><div class="faq-q">Can clients share documents with me?</div><div class="faq-a">Yes. Inside the chat, clients can attach files (PDF, Word, images) directly to messages. You'll see the attachment inline and can open or download it. You can also send files to clients the same way. All file transfers are encrypted and stored securely — neither LEX staff nor third parties have access to case documents.</div></div>
+
+          <!-- SUBSCRIPTION & BILLING -->
+          <div class="faq-item" onclick="toggleFAQItem(this)"><div class="faq-q">What does the Lawyer Subscription include?</div><div class="faq-a">Your Lawyer Subscription ($24.99/month or $19.99/month billed yearly) includes: a profile listing in the global LEX directory, unlimited client connection requests, the secure client chat system, case management tools, access to ratings and reviews, and eligibility for the Verified Badge. You also get priority support via live chat and email.</div></div>
+          <div class="faq-item" onclick="toggleFAQItem(this)"><div class="faq-q">How do Profile Boosts work?</div><div class="faq-a">A Profile Boost temporarily pins your listing to the top of the lawyer directory and search results, above all unverified and unboosted profiles. This dramatically increases your visibility to clients browsing the directory. A <strong>7-Day Boost</strong> costs $4.99 and a <strong>30-Day Boost</strong> costs $12.99 — both are one-time purchases. Boosted profiles display a <strong>⬆ Featured</strong> badge. You can purchase a boost from your Profile section at any time.</div></div>
+          <div class="faq-item" onclick="toggleFAQItem(this)"><div class="faq-q">How do I cancel my subscription?</div><div class="faq-a">You can cancel anytime with no penalties. Your subscription is managed through Lemon Squeezy — the cancellation link is in your subscription confirmation email. Click <strong>Manage Subscription → Cancel Plan</strong>. Your access continues until the end of the current billing period, after which your profile is removed from the directory. Your account, case history, and ratings data are preserved.</div></div>
+
+          <!-- PRIVACY & PLATFORM -->
+          <div class="faq-item" onclick="toggleFAQItem(this)"><div class="faq-q">Does LEX take a commission on cases?</div><div class="faq-a">No. LEX operates on a subscription model only — we never take a commission or percentage of any fees you charge your clients. What you earn from your clients is entirely yours. LEX's revenue comes solely from lawyer subscriptions, client Premium plans, Verified Badge purchases, and Profile Boosts.</div></div>
+          <div class="faq-item" onclick="toggleFAQItem(this)"><div class="faq-q">Is client and case data kept confidential?</div><div class="faq-a">Absolutely. All case conversations, documents, and client information are encrypted and stored securely on Google Firebase. LEX staff cannot read your case chats. Client data is never shared with third parties, advertisers, or other lawyers. LEX is fully GDPR-aware and built with privacy as a core principle.</div></div>
+          <div class="faq-item" onclick="toggleFAQItem(this)"><div class="faq-q">How do I get support if something goes wrong?</div><div class="faq-a">Use the <strong>Live Chat</strong> option at the top of this support panel for real-time help from our team. Alternatively, email <strong>support@lex-ai.com</strong> and we'll respond within 24 hours. For billing issues, include your account email and subscription ID. For technical bugs, describe what happened and we'll prioritise a fix.</div></div>
         </div>
       </div>
     </div>
@@ -1998,14 +2034,81 @@
     }catch(e){showToast('Connection error.');btn.disabled=false;}
   }
 
-  // ── SUPPORT MODAL (no Smartsupp on lawyer dash) ──
-  function openSupport(){document.getElementById('supportModal').style.display='flex';}
+  // ── SUPPORT MODAL ──
+  function openSupport(){
+    document.getElementById('supportModal').style.display='flex';
+    const u=JSON.parse(localStorage.getItem('lexUser')||'{}');
+    if(u.name&&window.smartsupp){try{smartsupp('name',u.name);if(u.email)smartsupp('email',u.email);}catch(e){}}
+  }
   function closeSupport(){document.getElementById('supportModal').style.display='none';}
-  // ── FIX 1: openLiveChat redirects to email (no Smartsupp) ──
-  function openLiveChat(){closeSupport();window.location.href='mailto:support@lex-ai.com';}
+
+  // ── LIVE CHAT — opens Smartsupp inline, bubble hidden otherwise ──
+  function openLiveChat(){
+    closeSupport();
+    if(window.smartsupp){
+      smartsupp('chat:show');
+      smartsupp('chat:open');
+      smartsupp('on','chat:close',function(){smartsupp('chat:hide');});
+      smartsupp('on','chat:minimized',function(){smartsupp('chat:hide');});
+    }
+  }
+
   function toggleFAQ(header){const body=header.parentElement.querySelector('.faq-body');const arrow=header.querySelector('.faq-arrow');const isOpen=body.style.display==='flex';body.style.display=isOpen?'none':'flex';if(arrow)arrow.style.transform=isOpen?'rotate(0deg)':'rotate(180deg)';}
   function toggleFAQItem(item){item.classList.toggle('open');}
   document.addEventListener('keydown',function(e){if(e.key==='Escape')closeSupport();});
+</script>
+
+<!-- SMARTSUPP — hidden bubble, opens only via Live Chat button -->
+<script type="text/javascript">
+  var _smartsupp = _smartsupp || {};
+  _smartsupp.key = '99d6caca759541ed4edb4f3443bf5969a35e7845';
+  _smartsupp.offsetX = 16;
+  _smartsupp.offsetY = 80;
+  _smartsupp.align = 'right';
+  _smartsupp.hideBranding = false;
+
+  window.smartsupp||(function(d) {
+    var s,c,o=smartsupp=function(){ o._.push(arguments)};o._=[];
+    s=d.getElementsByTagName('script')[0];c=d.createElement('script');
+    c.type='text/javascript';c.charset='utf-8';c.async=true;
+    c.src='https://www.smartsuppchat.com/loader.js?';s.parentNode.insertBefore(c,s);
+  })(document);
+
+  // Apply theme-adaptive color and hide bubble on load
+  function initSmartsupp() {
+    if (typeof smartsupp === 'undefined') { setTimeout(initSmartsupp, 500); return; }
+
+    // Set color based on current theme
+    function applySmartsupp() {
+      const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+      smartsupp('theme:colors', {
+        primary: isDark ? '#c9a86c' : '#8b7355',
+        primaryText: '#0a0a0a'
+      });
+    }
+
+    applySmartsupp();
+
+    // Hide bubble completely on load
+    smartsupp('chat:hide');
+
+    // Option 1: Show bubble only when agent sends a message
+    smartsupp('on', 'message:received', function() {
+      smartsupp('chat:show');
+    });
+
+    // When user closes chat, hide bubble again
+    smartsupp('on', 'chat:close', function() { smartsupp('chat:hide'); });
+    smartsupp('on', 'chat:minimized', function() { smartsupp('chat:hide'); });
+
+    // Re-apply color when theme toggles
+    const observer = new MutationObserver(applySmartsupp);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(initSmartsupp, 1500);
+  });
 </script>
 </body>
 </html>
