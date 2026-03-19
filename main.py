@@ -45,7 +45,6 @@ LS_VARIANT_IDS = {
     "boost_30day":      "1396704",
 }
 
-# Map variant ID → plan/action for webhook processing
 LS_VARIANT_MAP = {
     "1396669": {"plan": "premium",   "role": "individual", "billing": "monthly"},
     "1396678": {"plan": "premium",   "role": "individual", "billing": "yearly"},
@@ -140,19 +139,13 @@ RULES:
 - Always end with: "This analysis constitutes legal information prepared by LEX Business AI. It does not establish an attorney-client relationship. Verify all citations before use in legal proceedings."
 - Deliver elite-level legal intelligence"""
 
-# ── LEGAL RESEARCH DOMAINS BY REGION ──
 LEGAL_DOMAINS = [
-    # International / General
     "worldlii.org", "law.cornell.edu", "legal-dictionary.thefreedictionary.com",
     "lawteacher.net", "legislation.gov.uk", "bailii.org",
-    # Africa
     "nigerialii.org", "supremecourt.gov.ng", "lawnigeria.com",
     "ghanalii.org", "kenyalaw.org", "saflii.org", "lawlibrary.org.za",
-    # Americas
     "justice.gov", "supremecourt.gov", "law.justia.com", "canlii.org",
-    # Asia-Pacific
     "austlii.edu.au", "lawphil.net", "singaporelegaladvice.com",
-    # Europe
     "eur-lex.europa.eu", "echr.coe.int",
 ]
 
@@ -164,7 +157,6 @@ SOURCE_TYPE_KEYWORDS = {
 }
 
 def classify_source(title, content):
-    """Classify a search result by source type."""
     text = (title + " " + content).lower()
     for stype, keywords in SOURCE_TYPE_KEYWORDS.items():
         if any(k in text for k in keywords):
@@ -172,7 +164,6 @@ def classify_source(title, content):
     return "legal reference"
 
 def optimise_legal_query(question, country, model_instance):
-    """Use AI to rewrite user question into an optimised legal research query."""
     if not model_instance:
         return f"{question} {country} law"
     try:
@@ -194,12 +185,10 @@ Rules:
         return f"{question} {country} law legal"
 
 def search_legal_info(query, country, optimise=False):
-    """Search for legal information using Tavily. Returns (context_string, sources_list)."""
     if not TAVILY_API_KEY:
         return None, []
     try:
         search_query = optimise_legal_query(query, country, model) if optimise else f"{query} {country} law legal"
-        
         response = requests.post(
             "https://api.tavily.com/search",
             json={
@@ -217,8 +206,6 @@ def search_legal_info(query, country, optimise=False):
             results = data.get("results", [])
             if not results:
                 return None, []
-
-            # Filter by jurisdiction relevance
             country_lower = country.lower()
             scored = []
             for r in results:
@@ -226,22 +213,15 @@ def search_legal_info(query, country, optimise=False):
                 title = r.get('title', '')
                 content = r.get('content', '')
                 url = r.get('url', '')
-                # Boost if country mentioned
                 if country_lower in (title + content + url).lower():
                     score += 0.3
-                scored.append({ 'title': title, 'content': content, 'url': url, 'score': score, 'type': classify_source(title, content) })
-
+                scored.append({'title': title, 'content': content, 'url': url, 'score': score, 'type': classify_source(title, content)})
             scored.sort(key=lambda x: x['score'], reverse=True)
             top = scored[:5]
-
-            # Build context for AI
             search_summary = "\n\nLEGAL RESEARCH SOURCES FOUND:\n"
             for r in top:
                 search_summary += f"\n[{r['type'].upper()}] {r['title']}\n{r['content'][:400]}\n"
-
-            # Build clean sources list for frontend display
             sources = [{'title': r['title'], 'url': r['url'], 'type': r['type'], 'snippet': r['content'][:200]} for r in top]
-
             return search_summary, sources
     except Exception as e:
         logger.error(f"Search error: {e}")
@@ -305,6 +285,33 @@ def dashboard_lawyer():
         return send_file(static_path)
     return "Not found", 404
 
+@app.route('/admin.html')
+def admin():
+    static_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'admin.html')
+    if os.path.exists(static_path):
+        return send_file(static_path)
+    return "Not found", 404
+
+
+# ── MEMORY SYSTEM ──
+def build_memory_context(memories):
+    """Build a memory context string from saved memories to inject into prompts."""
+    if not memories:
+        return ""
+    lines = ["\n\n=== USER MEMORY CONTEXT ==="]
+    lines.append("The following is important context from this user's previous interactions with LEX.")
+    lines.append("Use this to provide personalised, contextually aware responses:\n")
+    for m in memories[:10]:
+        mtype = m.get('type', 'interaction')
+        summary = m.get('summary', '')
+        date = m.get('date', '')
+        if summary:
+            lines.append(f"[{mtype.upper()} — {date}]: {summary}")
+    lines.append("\n=== END MEMORY CONTEXT ===")
+    lines.append("When relevant, reference this history naturally. If the user asks about a previous case or document, refer to it directly.")
+    return "\n".join(lines)
+
+
 @app.route('/ask', methods=['POST'])
 def ask():
     data = request.json
@@ -312,6 +319,7 @@ def ask():
     country = data.get('country', 'Nigeria')
     category = data.get('category', 'General Law')
     tier = data.get('tier', 'free').lower()
+    memories = data.get('memories', [])
 
     if not question:
         return jsonify({'error': 'No question provided'}), 400
@@ -327,6 +335,9 @@ def ask():
         }), 429
 
     try:
+        # FIX 1: memory_context now defined before use
+        memory_context = build_memory_context(memories)
+
         if tier == "business":
             system_prompt = BUSINESS_PROMPT
         elif tier == "premium":
@@ -396,6 +407,7 @@ Provide a comprehensive response based on the laws of {country}."""
     except Exception as e:
         logger.error(f"LEX AI Error: {e}")
         return jsonify({'error': f'LEX encountered an error: {str(e)[:150]}'}), 500
+
 
 @app.route('/ask-stream', methods=['POST'])
 def ask_stream():
@@ -470,7 +482,6 @@ Provide a comprehensive response based on the laws of {country}."""
             {"role": "model", "parts": [f"Understood. I am LEX {'Business' if tier == 'business' else 'Premium' if tier == 'premium' else ''}. Ready to provide {tier_intro[tier]} based on the laws of {country}.{memory_intro}"]}
         ]
 
-        # Add conversation history
         for msg in history:
             role = "user" if msg.get("role") == "user" else "model"
             chat_history.append({"role": role, "parts": [msg.get("content", "")]})
@@ -485,15 +496,10 @@ Provide a comprehensive response based on the laws of {country}."""
                     if chunk.text:
                         full_answer += chunk.text
                         yield f"data: {json.dumps({'chunk': chunk.text})}\n\n"
-
-                # Send final metadata
                 remaining = get_remaining_questions(ip) if tier == "free" else None
                 yield f"data: {json.dumps({'done': True, 'answer': full_answer, 'query_type': query_type, 'web_search_used': bool(search_context), 'sources': search_sources, 'remaining_questions': remaining})}\n\n"
-
-                # Update rate limit count
                 if tier == "free":
                     usage_tracker[ip]["count"] = max(0, usage_tracker[ip]["count"] - 1)
-
             except Exception as e:
                 logger.error(f"Stream error: {e}")
                 yield f"data: {json.dumps({'error': f'LEX encountered an error: {str(e)[:150]}'})}\n\n"
@@ -506,6 +512,7 @@ Provide a comprehensive response based on the laws of {country}."""
     except Exception as e:
         logger.error(f"LEX Stream Setup Error: {e}")
         return jsonify({'error': f'LEX encountered an error: {str(e)[:150]}'}), 500
+
 
 @app.route('/draft', methods=['POST'])
 def draft_document():
@@ -523,7 +530,6 @@ def draft_document():
 
     try:
         system_prompt = BUSINESS_PROMPT if tier == 'business' else PREMIUM_PROMPT
-
         prompt = f"""DOCUMENT DRAFTING REQUEST
 Country: {country}
 Document Type: {doc_type}
@@ -546,7 +552,6 @@ Include all necessary clauses, proper headings, signature blocks, and legal lang
 
 
 def extract_text_from_file(file):
-    """Extract text from uploaded PDF, DOCX or TXT file."""
     filename = file.filename.lower()
     content = file.read()
 
@@ -636,7 +641,6 @@ Be specific with revised language. Write as if advising a client preparing for c
 
 @app.route('/review-stream', methods=['POST'])
 def review_stream():
-    """Stream contract review with clause flagging."""
     if not model:
         return jsonify({'error': 'LEX AI engine is offline.'}), 503
 
@@ -654,7 +658,6 @@ def review_stream():
         if not text or len(text.strip()) < 50:
             return jsonify({'error': 'Could not extract text from file. Please ensure it is a readable PDF, Word or text document.'}), 400
 
-        # Truncate very long contracts to avoid token limits
         if len(text) > 15000:
             text = text[:15000] + '\n\n[Document truncated for analysis — first 15,000 characters reviewed]'
 
@@ -694,7 +697,6 @@ CONTRACT TEXT:
 
 @app.route('/redline-stream', methods=['POST'])
 def redline_stream():
-    """Stream contract redlining with suggested revisions."""
     if not model:
         return jsonify({'error': 'LEX AI engine is offline.'}), 503
 
@@ -784,7 +786,6 @@ Any important differences for the specified jurisdiction compared to internation
 
 Be thorough, practical and provide clause text that is ready to copy and use."""
 
-
 OUTCOME_PROMPT = """You are LEX Case Analyst, an expert in legal case assessment and outcome prediction across all jurisdictions.
 
 Analyse the case described and provide a structured assessment:
@@ -829,7 +830,6 @@ Be honest about uncertainty. Never guarantee outcomes. Always recommend consulti
 
 @app.route('/clause-stream', methods=['POST'])
 def clause_stream():
-    """Stream clause library response."""
     if not model:
         return jsonify({'error': 'LEX AI engine is offline.'}), 503
 
@@ -873,7 +873,6 @@ Clause Request: {query}
 
 @app.route('/outcome-stream', methods=['POST'])
 def outcome_stream():
-    """Stream case outcome prediction."""
     if not model:
         return jsonify({'error': 'LEX AI engine is offline.'}), 503
 
@@ -948,7 +947,7 @@ Risk Level: 🔴 HIGH / 🟡 MEDIUM / 🟢 LOW difference
 ---
 
 ## CONFLICTING CLAUSES ⚠️
-List any clauses that directly contradict each other between the two documents, with explanation of the conflict and its legal implications.
+List any clauses that directly contradict each other between the two documents.
 
 ## CLAUSES IN A BUT NOT IN B
 List important clauses present in Document A that are missing from Document B.
@@ -966,14 +965,11 @@ State clearly whether Document A or Document B is more protective/favourable for
 - Document B overall risk: LOW / MEDIUM / HIGH
 
 ## RECOMMENDATIONS
-Specific advice on which document to use, what to negotiate, and what clauses to add or remove before signing.
-
-Be thorough, specific and use plain English. Reference clauses by name wherever possible."""
+Specific advice on which document to use, what to negotiate, and what clauses to add or remove before signing."""
 
 
 @app.route('/compare-stream', methods=['POST'])
 def compare_stream():
-    """Stream multi-document comparison analysis."""
     if not model:
         return jsonify({'error': 'LEX AI engine is offline.'}), 503
 
@@ -990,11 +986,10 @@ def compare_stream():
         text_b = extract_text_from_file(file_b)
 
         if not text_a or len(text_a.strip()) < 30:
-            return jsonify({'error': 'Could not extract text from Document A. Please ensure it is a readable PDF, Word or text file.'}), 400
+            return jsonify({'error': 'Could not extract text from Document A.'}), 400
         if not text_b or len(text_b.strip()) < 30:
-            return jsonify({'error': 'Could not extract text from Document B. Please ensure it is a readable PDF, Word or text file.'}), 400
+            return jsonify({'error': 'Could not extract text from Document B.'}), 400
 
-        # Truncate each to 8000 chars to fit both in context
         if len(text_a) > 8000:
             text_a = text_a[:8000] + '\n\n[Document A truncated — first 8,000 characters reviewed]'
         if len(text_b) > 8000:
@@ -1010,11 +1005,12 @@ def compare_stream():
 
 {COMPARE_PROMPT}"""
 
+        # FIX 2: compare_stream — fixed double-brace f-string bug
         def generate():
             try:
                 chat = model.start_chat(history=[
-                    {{"role": "user", "parts": [BUSINESS_PROMPT if tier == 'business' else PREMIUM_PROMPT]}},
-                    {{"role": "model", "parts": ["Understood. I am LEX Document Comparison Expert. I will conduct a thorough side-by-side analysis of both documents."]}}
+                    {"role": "user", "parts": [BUSINESS_PROMPT if tier == 'business' else PREMIUM_PROMPT]},
+                    {"role": "model", "parts": ["Understood. I am LEX Document Comparison Expert. I will conduct a thorough side-by-side analysis of both documents."]}
                 ])
                 response = chat.send_message(prompt, stream=True)
                 full = ""
@@ -1027,13 +1023,13 @@ def compare_stream():
                 logger.error(f"Compare stream error: {e}")
                 yield f"data: {json.dumps({'error': str(e)[:150]})}\n\n"
 
-        return Response(generate(), mimetype='text/event-stream', headers={{
+        return Response(generate(), mimetype='text/event-stream', headers={
             'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'
-        }})
+        })
 
     except Exception as e:
         logger.error(f"Compare setup error: {e}")
-        return jsonify({{'error': str(e)[:150]}}), 500
+        return jsonify({'error': str(e)[:150]}), 500
 
 
 RESEARCH_PROMPT = """You are LEX Legal Research Engine, an expert legal researcher with access to current case law, legislation and legal commentary across all jurisdictions worldwide.
@@ -1066,14 +1062,11 @@ If relevant, note how the law differs in nearby or commonly compared jurisdictio
 A concise 3-5 sentence summary of the key legal position for practical use.
 
 ## SOURCES & CITATIONS
-List all sources referenced with proper legal citation format.
-
-Be thorough and authoritative. Cite specific laws and cases wherever possible."""
+List all sources referenced with proper legal citation format."""
 
 
 @app.route('/research-stream', methods=['POST'])
 def research_stream():
-    """Dedicated legal research endpoint with optimised search and source citations."""
     if not model:
         return jsonify({'error': 'LEX AI engine is offline.'}), 503
 
@@ -1087,7 +1080,6 @@ def research_stream():
     if not topic or len(topic) < 5:
         return jsonify({'error': 'Please enter a research topic.'}), 400
 
-    # Always use optimised search for research
     search_context, sources = search_legal_info(topic, country, optimise=True)
 
     prompt = f"""Research Topic: {topic}
@@ -1121,43 +1113,15 @@ Jurisdiction: {country}
     })
 
 
-
-# ── MEMORY SYSTEM ──
-# Memory is saved/loaded via REST endpoints called from the frontend
-# Frontend uses Firebase SDK directly for Firestore reads/writes
-# Backend injects memory context into AI prompts via memory parameter
-
-def build_memory_context(memories):
-    """Build a memory context string from saved memories to inject into prompts."""
-    if not memories:
-        return ""
-    
-    lines = ["\n\n=== USER MEMORY CONTEXT ==="]
-    lines.append("The following is important context from this user's previous interactions with LEX.")
-    lines.append("Use this to provide personalised, contextually aware responses:\n")
-    
-    for m in memories[:10]:  # Max 10 most recent memories
-        mtype = m.get('type', 'interaction')
-        summary = m.get('summary', '')
-        date = m.get('date', '')
-        if summary:
-            lines.append(f"[{mtype.upper()} — {date}]: {summary}")
-    
-    lines.append("\n=== END MEMORY CONTEXT ===")
-    lines.append("When relevant, reference this history naturally. If the user asks about a previous case or document, refer to it directly.")
-    return "\n".join(lines)
-
-
 @app.route('/summarise-memory', methods=['POST'])
 def summarise_memory():
-    """Generate a concise memory summary of an AI interaction to save to Firestore."""
     if not model:
         return jsonify({'error': 'AI engine offline.'}), 503
 
     data = request.json
     interaction_type = data.get('type', 'question')
     content_to_summarise = data.get('content', '').strip()
-    
+
     if not content_to_summarise or len(content_to_summarise) < 20:
         return jsonify({'error': 'Nothing to summarise.'}), 400
 
@@ -1197,12 +1161,13 @@ Rules:
 
 @app.route('/create-checkout', methods=['POST'])
 def create_checkout():
-    """Create a Lemon Squeezy checkout session and return the checkout URL."""
     data = request.json
     variant_key = data.get('variant_key', '').strip()
     user_email = data.get('email', '').strip()
     user_uid = data.get('uid', '').strip()
     custom_data = data.get('custom_data', {})
+    # FIX 3: dynamic redirect_url — accept from request body, fallback to default
+    redirect_url = data.get('redirect_url', 'https://lex-production-cf5f.up.railway.app/dashboard.html?payment=success')
 
     if not variant_key or variant_key not in LS_VARIANT_IDS:
         return jsonify({'error': 'Invalid product selected.'}), 400
@@ -1231,7 +1196,7 @@ def create_checkout():
                         }
                     },
                     "product_options": {
-                        "redirect_url": "https://lex-production-cf5f.up.railway.app/dashboard.html?payment=success",
+                        "redirect_url": redirect_url,
                         "receipt_link_url": "https://lex-production-cf5f.up.railway.app/dashboard.html",
                         "receipt_thank_you_note": "Thank you for subscribing to LEX! Your account has been upgraded."
                     },
@@ -1274,11 +1239,9 @@ def create_checkout():
 
 @app.route('/webhook/lemonsqueezy', methods=['POST'])
 def lemonsqueezy_webhook():
-    """Handle Lemon Squeezy webhook events and update Firestore user plans."""
     raw_body = request.get_data()
     signature = request.headers.get('X-Signature', '')
 
-    # Verify webhook signature
     mac = hmac.new(LS_WEBHOOK_SECRET.encode('utf-8'), raw_body, hashlib.sha256)
     expected = mac.hexdigest()
 
@@ -1300,21 +1263,23 @@ def lemonsqueezy_webhook():
 
         variant_info = LS_VARIANT_MAP.get(variant_id, {})
         plan = variant_info.get('plan', '')
+        role = variant_info.get('role', 'individual')
         billing = variant_info.get('billing', '')
 
-        logger.info(f"LS webhook: {event_name} | uid={user_uid} | variant={variant_id} | plan={plan}")
+        logger.info(f"LS webhook: {event_name} | uid={user_uid} | variant={variant_id} | plan={plan} | role={role}")
 
         if not user_uid:
             logger.warning("LS webhook: no uid in custom_data")
             return jsonify({'status': 'ok', 'note': 'no uid'}), 200
 
-        # ── Handle events ──
         update_payload = {}
 
         if event_name in ('order_created', 'subscription_created'):
             if plan == 'premium':
+                # FIX 4: lawyer webhook now correctly sets role for lawyer variants
                 update_payload = {
                     'plan': 'premium',
+                    'role': role,
                     'premiumSince': datetime.datetime.utcnow().isoformat(),
                     'billing': billing,
                     'lsVariantId': variant_id,
@@ -1340,6 +1305,7 @@ def lemonsqueezy_webhook():
         elif event_name == 'subscription_resumed':
             update_payload = {
                 'plan': 'premium',
+                'role': role,
                 'billing': billing,
                 'lsVariantId': variant_id,
             }
@@ -1351,7 +1317,6 @@ def lemonsqueezy_webhook():
                 'billing': None,
             }
 
-        # Write to Firestore if we have an update
         if update_payload and user_uid:
             try:
                 import firebase_admin
@@ -1385,7 +1350,7 @@ def health():
         'ai': 'online' if model else 'offline',
         'web_search': 'online' if TAVILY_API_KEY else 'offline',
         'tiers': ['free', 'premium', 'business'],
-        'version': '2.0'
+        'version': '2.1'
     })
 
 if __name__ == '__main__':
