@@ -6,6 +6,7 @@
 <title>LEX Admin</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   :root {
     --bg: #0a0a0a;
@@ -41,11 +42,11 @@
   body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; display:flex; }
 
   /* ── SIDEBAR ── */
-  .sidebar { width:var(--sidebar-w); min-height:100vh; background:var(--bg-card); border-right:1px solid var(--border); display:flex; flex-direction:column; position:fixed; top:0; left:0; z-index:100; }
+  .sidebar { width:var(--sidebar-w); min-height:100vh; background:var(--bg-card); border-right:1px solid var(--border); display:flex; flex-direction:column; position:fixed; top:0; left:0; z-index:200; transition:transform 0.3s ease; }
   .sidebar-logo { padding:24px 20px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
-  .logo-icon { width:28px; height:28px; border:1.5px solid var(--gold); border-radius:50%; display:flex; align-items:center; justify-content:center; color:var(--gold); font-size:11px; }
+  .logo-icon { width:28px; height:28px; border:1.5px solid var(--gold); border-radius:50%; display:flex; align-items:center; justify-content:center; color:var(--gold); font-size:11px; flex-shrink:0; }
   .logo-text { font-family:'Cormorant Garamond',serif; font-size:20px; letter-spacing:2px; color:var(--text); }
-  .admin-badge { font-size:8px; letter-spacing:2px; text-transform:uppercase; color:var(--gold); background:var(--gold-dim); padding:2px 6px; margin-left:auto; border:1px solid var(--border-gold); }
+  .admin-badge { font-size:8px; letter-spacing:2px; text-transform:uppercase; color:var(--gold); background:var(--gold-dim); padding:2px 6px; margin-left:auto; border:1px solid var(--border-gold); white-space:nowrap; }
   .nav { flex:1; padding:16px 0; overflow-y:auto; }
   .nav-section { font-size:9px; letter-spacing:2.5px; text-transform:uppercase; color:var(--text-muted); padding:12px 20px 6px; }
   .nav-item { display:flex; align-items:center; gap:10px; padding:10px 20px; cursor:pointer; color:var(--text-secondary); font-size:13px; transition:all 0.2s; border-left:2px solid transparent; }
@@ -60,26 +61,53 @@
   .sign-out-btn { flex:1; padding:8px; background:transparent; border:1px solid var(--border); color:var(--text-muted); font-size:11px; cursor:pointer; transition:all 0.2s; font-family:'Inter',sans-serif; letter-spacing:0.5px; }
   .sign-out-btn:hover { border-color:var(--red); color:var(--red); }
 
+  /* ── SIDEBAR OVERLAY (mobile) ── */
+  .sidebar-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:199; }
+  .sidebar-overlay.visible { display:block; }
+
+  /* ── MOBILE SIDEBAR TOGGLE ── */
+  @media (max-width:1023px) {
+    .sidebar { transform:translateX(-100%); }
+    .sidebar.open { transform:translateX(0); }
+    .main { margin-left:0 !important; }
+    .menu-btn { display:flex !important; }
+  }
+  @media (min-width:1024px) {
+    .sidebar { transform:translateX(0) !important; }
+    .sidebar-overlay { display:none !important; }
+    .menu-btn { display:none !important; }
+  }
+
   /* ── MAIN ── */
   .main { margin-left:var(--sidebar-w); flex:1; min-height:100vh; }
-  .topbar { padding:18px 32px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; background:var(--bg-card); position:sticky; top:0; z-index:50; }
-  .topbar-title { font-family:'Cormorant Garamond',serif; font-size:22px; }
+  .topbar { padding:16px 24px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:12px; background:var(--bg-card); position:sticky; top:0; z-index:50; }
+  .menu-btn { display:none; width:36px; height:36px; background:transparent; border:1px solid var(--border); color:var(--text-secondary); cursor:pointer; align-items:center; justify-content:center; flex-shrink:0; transition:all 0.2s; }
+  .menu-btn:hover { border-color:var(--gold); color:var(--gold); }
+  .topbar-title { font-family:'Cormorant Garamond',serif; font-size:22px; flex:1; }
   .topbar-right { display:flex; align-items:center; gap:12px; }
   .admin-name { font-size:12px; color:var(--text-muted); }
-  .status-dot { width:8px; height:8px; border-radius:50%; background:var(--green); box-shadow:0 0 6px var(--green); }
-  .content { padding:32px; }
+  .status-dot { width:8px; height:8px; border-radius:50%; background:var(--green); box-shadow:0 0 6px var(--green); flex-shrink:0; }
+  .content { padding:24px; }
 
   /* ── PAGES ── */
   .page { display:none; }
   .page.active { display:block; }
 
   /* ── STATS GRID ── */
-  .stats-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:32px; }
-  .stat-card { background:var(--bg-card); border:1px solid var(--border); padding:20px; }
+  .stats-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px; }
+  .stat-card { background:var(--bg-card); border:1px solid var(--border); padding:20px; position:relative; overflow:hidden; }
+  .stat-card::before { content:''; position:absolute; top:0; left:0; width:100%; height:2px; background:linear-gradient(to right, var(--gold), transparent); }
   .stat-label { font-size:9px; letter-spacing:2px; text-transform:uppercase; color:var(--text-muted); margin-bottom:8px; }
   .stat-value { font-family:'Cormorant Garamond',serif; font-size:36px; color:var(--text); line-height:1; }
   .stat-sub { font-size:11px; color:var(--green); margin-top:4px; }
   .stat-card.gold { border-color:var(--border-gold); background:linear-gradient(135deg,var(--gold-dim),transparent); }
+
+  /* ── ANALYTICS CHARTS ── */
+  .charts-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:24px; }
+  .chart-card { background:var(--bg-card); border:1px solid var(--border); padding:20px; }
+  .chart-title { font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--text-muted); margin-bottom:16px; }
+  .chart-wrap { position:relative; height:200px; }
+  .chart-full { grid-column:1 / -1; }
 
   /* ── SECTION HEADERS ── */
   .section-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
@@ -113,7 +141,7 @@
   .wallet-save-btn.saving { opacity:0.6; }
   .wallet-updated { font-size:10px; color:var(--green); margin-top:8px; display:none; }
 
-  /* ── STRIPE CONFIG ── */
+  /* ── PAYMENT CONFIG ── */
   .config-card { background:var(--bg-card); border:1px solid var(--border); padding:24px; margin-bottom:16px; }
   .config-title { font-size:12px; font-weight:600; color:var(--text); margin-bottom:4px; }
   .config-desc { font-size:11px; color:var(--text-muted); margin-bottom:16px; }
@@ -127,10 +155,10 @@
   .config-save-btn:hover { background:var(--gold-light); }
 
   /* ── USERS TABLE ── */
-  .table-wrap { background:var(--bg-card); border:1px solid var(--border); overflow:hidden; }
-  .table-header { display:grid; grid-template-columns:2fr 1fr 1fr 1fr 1fr 120px; padding:12px 20px; background:var(--bg-elevated); border-bottom:1px solid var(--border); }
+  .table-wrap { background:var(--bg-card); border:1px solid var(--border); overflow:hidden; overflow-x:auto; }
+  .table-header { display:grid; grid-template-columns:2fr 1fr 1fr 1fr 1fr 120px; padding:12px 20px; background:var(--bg-elevated); border-bottom:1px solid var(--border); min-width:600px; }
   .th { font-size:9px; letter-spacing:2px; text-transform:uppercase; color:var(--text-muted); }
-  .table-row { display:grid; grid-template-columns:2fr 1fr 1fr 1fr 1fr 120px; padding:14px 20px; border-bottom:1px solid var(--border); transition:background 0.15s; align-items:center; }
+  .table-row { display:grid; grid-template-columns:2fr 1fr 1fr 1fr 1fr 120px; padding:14px 20px; border-bottom:1px solid var(--border); transition:background 0.15s; align-items:center; min-width:600px; }
   .table-row:last-child { border-bottom:none; }
   .table-row:hover { background:var(--bg-elevated); }
   .td { font-size:12px; color:var(--text-secondary); }
@@ -146,21 +174,20 @@
   .action-btn.danger:hover { border-color:var(--red); color:var(--red); }
   .search-bar { width:100%; background:var(--bg-elevated); border:1px solid var(--border); color:var(--text); padding:10px 14px; font-family:'Inter',sans-serif; font-size:13px; outline:none; transition:border 0.2s; margin-bottom:16px; }
   .search-bar:focus { border-color:var(--gold); }
-  .filter-row { display:flex; gap:10px; margin-bottom:16px; }
+  .filter-row { display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; }
   .filter-btn { padding:6px 14px; background:var(--bg-card); border:1px solid var(--border); color:var(--text-muted); font-size:11px; cursor:pointer; font-family:'Inter',sans-serif; transition:all 0.2s; }
   .filter-btn.active { border-color:var(--gold); color:var(--gold); background:var(--gold-dim); }
 
   /* ── LAWYER VERIFICATION ── */
   .verify-card { background:var(--bg-card); border:1px solid var(--border); padding:20px; margin-bottom:12px; display:flex; align-items:flex-start; gap:16px; }
   .verify-avatar { width:44px; height:44px; background:var(--gold-dim); border:1px solid var(--border-gold); border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:'Cormorant Garamond',serif; font-size:18px; color:var(--gold); flex-shrink:0; }
-  .verify-info { flex:1; }
+  .verify-info { flex:1; min-width:0; }
   .verify-name { font-size:14px; font-weight:500; color:var(--text); margin-bottom:2px; }
   .verify-meta { font-size:11px; color:var(--text-muted); }
-  .verify-actions { display:flex; gap:8px; margin-top:12px; }
+  .verify-actions { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
   .verify-btn { padding:6px 16px; font-size:10px; letter-spacing:1px; text-transform:uppercase; border:none; cursor:pointer; font-family:'Inter',sans-serif; font-weight:600; transition:all 0.2s; }
   .verify-btn.approve { background:var(--green); color:#0a0a0a; }
   .verify-btn.reject { background:transparent; border:1px solid var(--red); color:var(--red); }
-  .verify-btn.view { background:transparent; border:1px solid var(--border); color:var(--text-muted); }
   .verify-badge { font-size:9px; letter-spacing:1.5px; text-transform:uppercase; padding:3px 8px; border:1px solid; margin-left:auto; flex-shrink:0; }
   .verify-badge.pending { color:#f39c12; border-color:rgba(243,156,18,0.3); background:rgba(243,156,18,0.05); }
 
@@ -201,7 +228,7 @@
 
   /* ── LOGIN SCREEN ── */
   #loginScreen { position:fixed; inset:0; background:var(--bg); z-index:999; display:flex; align-items:center; justify-content:center; }
-  .login-box { background:var(--bg-card); border:1px solid var(--border-gold); padding:48px 40px; width:360px; text-align:center; }
+  .login-box { background:var(--bg-card); border:1px solid var(--border-gold); padding:48px 40px; width:360px; max-width:90vw; text-align:center; }
   .login-logo { font-family:'Cormorant Garamond',serif; font-size:28px; letter-spacing:3px; margin-bottom:4px; }
   .login-sub { font-size:10px; letter-spacing:3px; text-transform:uppercase; color:var(--gold); margin-bottom:32px; }
   .login-field { margin-bottom:14px; text-align:left; }
@@ -219,11 +246,19 @@
   #toast { position:fixed; bottom:28px; right:28px; background:var(--bg-card); border:1px solid var(--border-gold); padding:12px 20px; font-size:12px; color:var(--gold); z-index:9999; display:none; box-shadow:0 8px 32px rgba(0,0,0,0.4); }
 
   /* ── RESPONSIVE ── */
-  @media (max-width: 1100px) {
+  @media (max-width:900px) {
     .stats-grid { grid-template-columns:repeat(2,1fr); }
+    .charts-grid { grid-template-columns:1fr; }
+    .revenue-grid { grid-template-columns:1fr 1fr; }
     .wallets-grid { grid-template-columns:1fr; }
     .config-row { grid-template-columns:1fr; }
     .settings-grid { grid-template-columns:1fr; }
+    .content { padding:16px; }
+  }
+  @media (max-width:500px) {
+    .stats-grid { grid-template-columns:1fr 1fr; }
+    .revenue-grid { grid-template-columns:1fr; }
+    .login-box { padding:32px 24px; }
   }
 </style>
 </head>
@@ -247,8 +282,11 @@
   </div>
 </div>
 
+<!-- SIDEBAR OVERLAY (mobile) -->
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
 <!-- SIDEBAR -->
-<aside class="sidebar">
+<aside class="sidebar" id="sidebar">
   <div class="sidebar-logo">
     <div class="logo-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
     <span class="logo-text">LEX</span>
@@ -259,6 +297,10 @@
     <div class="nav-item active" onclick="showPage('overview',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
       Overview
+    </div>
+    <div class="nav-item" onclick="showPage('analytics',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      Analytics
     </div>
     <div class="nav-item" onclick="showPage('activity',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
@@ -305,6 +347,10 @@
 <!-- MAIN -->
 <main class="main">
   <div class="topbar">
+    <!-- Hamburger — mobile only -->
+    <button class="menu-btn" onclick="toggleSidebar()">
+      <svg width="18" height="14" viewBox="0 0 18 14" fill="none"><path d="M1 1H17M1 7H17M1 13H17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    </button>
     <div class="topbar-title" id="pageTitle">Overview</div>
     <div class="topbar-right">
       <div class="admin-name" id="adminNameDisplay">—</div>
@@ -339,7 +385,7 @@
         </div>
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;" class="overview-grid">
         <div>
           <div class="section-header">
             <div class="section-title">Recent Activity</div>
@@ -360,6 +406,61 @@
       </div>
     </div>
 
+    <!-- ANALYTICS PAGE -->
+    <div class="page" id="page-analytics">
+      <div class="stats-grid" style="margin-bottom:24px;">
+        <div class="stat-card">
+          <div class="stat-label">Conversion Rate</div>
+          <div class="stat-value" id="anaConversion">—</div>
+          <div class="stat-sub">Free → Premium</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Verified Lawyers</div>
+          <div class="stat-value" id="anaVerified">—</div>
+          <div class="stat-sub" id="anaVerifiedSub">of total lawyers</div>
+        </div>
+        <div class="stat-card gold">
+          <div class="stat-label">ARR (est.)</div>
+          <div class="stat-value" id="anaARR">—</div>
+          <div class="stat-sub">Annual run rate</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Avg. Revenue / User</div>
+          <div class="stat-value" id="anaARPU">—</div>
+          <div class="stat-sub">per month</div>
+        </div>
+      </div>
+
+      <div class="charts-grid">
+        <!-- Plan distribution pie -->
+        <div class="chart-card">
+          <div class="chart-title">User Plan Distribution</div>
+          <div class="chart-wrap"><canvas id="chartPlans"></canvas></div>
+        </div>
+        <!-- Lawyer metrics pie -->
+        <div class="chart-card">
+          <div class="chart-title">Lawyer Status</div>
+          <div class="chart-wrap"><canvas id="chartLawyers"></canvas></div>
+        </div>
+        <!-- Revenue breakdown bar -->
+        <div class="chart-card chart-full">
+          <div class="chart-title">Revenue Breakdown (estimated monthly)</div>
+          <div class="chart-wrap" style="height:220px;"><canvas id="chartRevenue"></canvas></div>
+        </div>
+        <!-- User role distribution bar -->
+        <div class="chart-card chart-full">
+          <div class="chart-title">User Roles</div>
+          <div class="chart-wrap" style="height:180px;"><canvas id="chartRoles"></canvas></div>
+        </div>
+      </div>
+
+      <div class="config-card" style="margin-top:0;">
+        <div class="config-title">Top Countries</div>
+        <div class="config-desc">Users by registered country</div>
+        <div id="topCountries" style="margin-top:12px;"></div>
+      </div>
+    </div>
+
     <!-- CRYPTO WALLETS PAGE -->
     <div class="page" id="page-wallets">
       <div style="margin-bottom:24px;">
@@ -367,87 +468,56 @@
           ⚡ These wallet addresses are used by the LEX Web3 payment gate. Users pay directly to these addresses. Update them anytime — changes take effect immediately on new payment sessions.
         </div>
       </div>
-
-      <div class="section-header">
-        <div class="section-title">Network Wallet Addresses</div>
-      </div>
-
+      <div class="section-header"><div class="section-title">Network Wallet Addresses</div></div>
       <div class="wallets-grid">
-        <!-- ETH / Polygon (same EVM address) -->
         <div class="wallet-card" id="wallet-eth">
           <div class="wallet-network">
             <div class="network-icon eth">Ξ</div>
-            <div>
-              <div class="network-name">Ethereum</div>
-              <div class="network-coins">ETH · USDT (ERC-20) · USDC (ERC-20)</div>
-            </div>
+            <div><div class="network-name">Ethereum</div><div class="network-coins">ETH · USDT (ERC-20) · USDC (ERC-20)</div></div>
             <span class="wallet-status empty" id="status-eth">NOT SET</span>
           </div>
           <div class="wallet-address-wrap">
             <input class="wallet-address-input" id="addr-eth" placeholder="0x..." oninput="onWalletInput('eth')">
-            <button class="copy-btn" onclick="copyAddr('eth')" title="Copy">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-            </button>
+            <button class="copy-btn" onclick="copyAddr('eth')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>
           </div>
           <button class="wallet-save-btn" id="save-eth" onclick="saveWallet('eth')">Save Address</button>
           <div class="wallet-updated" id="updated-eth">✓ Saved successfully</div>
         </div>
-
-        <!-- BNB Chain -->
         <div class="wallet-card" id="wallet-bnb">
           <div class="wallet-network">
             <div class="network-icon bnb">B</div>
-            <div>
-              <div class="network-name">BNB Chain</div>
-              <div class="network-coins">BNB · USDT (BEP-20) · USDC (BEP-20)</div>
-            </div>
+            <div><div class="network-name">BNB Chain</div><div class="network-coins">BNB · USDT (BEP-20) · USDC (BEP-20)</div></div>
             <span class="wallet-status empty" id="status-bnb">NOT SET</span>
           </div>
           <div class="wallet-address-wrap">
             <input class="wallet-address-input" id="addr-bnb" placeholder="0x..." oninput="onWalletInput('bnb')">
-            <button class="copy-btn" onclick="copyAddr('bnb')" title="Copy">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-            </button>
+            <button class="copy-btn" onclick="copyAddr('bnb')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>
           </div>
           <button class="wallet-save-btn" id="save-bnb" onclick="saveWallet('bnb')">Save Address</button>
           <div class="wallet-updated" id="updated-bnb">✓ Saved successfully</div>
         </div>
-
-        <!-- Solana -->
         <div class="wallet-card" id="wallet-sol">
           <div class="wallet-network">
             <div class="network-icon sol">◎</div>
-            <div>
-              <div class="network-name">Solana</div>
-              <div class="network-coins">SOL · USDC (SPL)</div>
-            </div>
+            <div><div class="network-name">Solana</div><div class="network-coins">SOL · USDC (SPL)</div></div>
             <span class="wallet-status empty" id="status-sol">NOT SET</span>
           </div>
           <div class="wallet-address-wrap">
             <input class="wallet-address-input" id="addr-sol" placeholder="Base58 address..." oninput="onWalletInput('sol')">
-            <button class="copy-btn" onclick="copyAddr('sol')" title="Copy">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-            </button>
+            <button class="copy-btn" onclick="copyAddr('sol')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>
           </div>
           <button class="wallet-save-btn" id="save-sol" onclick="saveWallet('sol')">Save Address</button>
           <div class="wallet-updated" id="updated-sol">✓ Saved successfully</div>
         </div>
-
-        <!-- Polygon -->
         <div class="wallet-card" id="wallet-matic">
           <div class="wallet-network">
             <div class="network-icon matic">⬡</div>
-            <div>
-              <div class="network-name">Polygon</div>
-              <div class="network-coins">MATIC · USDT (Polygon) · USDC (Polygon)</div>
-            </div>
+            <div><div class="network-name">Polygon</div><div class="network-coins">MATIC · USDT (Polygon) · USDC (Polygon)</div></div>
             <span class="wallet-status empty" id="status-matic">NOT SET</span>
           </div>
           <div class="wallet-address-wrap">
             <input class="wallet-address-input" id="addr-matic" placeholder="0x..." oninput="onWalletInput('matic')">
-            <button class="copy-btn" onclick="copyAddr('matic')" title="Copy">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-            </button>
+            <button class="copy-btn" onclick="copyAddr('matic')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>
           </div>
           <button class="wallet-save-btn" id="save-matic" onclick="saveWallet('matic')">Save Address</button>
           <div class="wallet-updated" id="updated-matic">✓ Saved successfully</div>
@@ -459,110 +529,61 @@
     <div class="page" id="page-stripe">
       <div style="margin-bottom:24px;">
         <div style="font-size:11px;color:var(--text-muted);line-height:1.7;background:var(--bg-card);border:1px solid var(--border-gold);padding:14px 18px;border-left:3px solid var(--gold);">
-          🍋 Lemon Squeezy is the active payment processor for LEX. Add your API key and webhook secret here. Get these from app.lemonsqueezy.com → Settings → API and Webhooks.
+          🍋 Lemon Squeezy is the active payment processor for LEX. Add your API key and webhook secret here.
         </div>
       </div>
-
       <div class="config-card">
         <div class="config-title">Lemon Squeezy API</div>
-        <div class="config-desc">Your API key from Settings → API. Store ID is shown in Settings → Stores.</div>
+        <div class="config-desc">Your API key from Settings → API. Store ID shown in Settings → Stores.</div>
         <div class="config-row">
-          <div class="config-field">
-            <label class="config-label">API Key</label>
-            <input class="config-input" id="lsApiKey" placeholder="eyJ0eXAi..." type="password">
-          </div>
-          <div class="config-field">
-            <label class="config-label">Store ID</label>
-            <input class="config-input" id="lsStoreId" placeholder="314031" value="314031">
-          </div>
+          <div class="config-field"><label class="config-label">API Key</label><input class="config-input" id="lsApiKey" placeholder="eyJ0eXAi..." type="password"></div>
+          <div class="config-field"><label class="config-label">Store ID</label><input class="config-input" id="lsStoreId" placeholder="314031" value="314031"></div>
         </div>
         <div class="config-row">
-          <div class="config-field">
-            <label class="config-label">Webhook Secret</label>
-            <input class="config-input" id="lsWebhookSecret" placeholder="vaxjfkoll65lexsecret" type="password">
-          </div>
+          <div class="config-field"><label class="config-label">Webhook Secret</label><input class="config-input" id="lsWebhookSecret" placeholder="vaxjfkoll65lexsecret" type="password"></div>
         </div>
       </div>
-
       <div class="config-card">
         <div class="config-title">Individual Premium Variant IDs</div>
         <div class="config-desc">Get these from Products → each product → Variant ID</div>
         <div class="config-row">
-          <div class="config-field">
-            <label class="config-label">Monthly — $4.99/mo</label>
-            <input class="config-input" id="lsIndMonthly" placeholder="1396669" value="1396669">
-          </div>
-          <div class="config-field">
-            <label class="config-label">Yearly — $49.90/yr</label>
-            <input class="config-input" id="lsIndYearly" placeholder="1396678" value="1396678">
-          </div>
+          <div class="config-field"><label class="config-label">Monthly — $4.99/mo</label><input class="config-input" id="lsIndMonthly" value="1396669"></div>
+          <div class="config-field"><label class="config-label">Yearly — $49.90/yr</label><input class="config-input" id="lsIndYearly" value="1396678"></div>
         </div>
       </div>
-
       <div class="config-card">
         <div class="config-title">Lawyer Subscription Variant IDs</div>
         <div class="config-desc">Get these from Products → each product → Variant ID</div>
         <div class="config-row">
-          <div class="config-field">
-            <label class="config-label">Monthly — $24.99/mo</label>
-            <input class="config-input" id="lsLawMonthly" placeholder="1396689" value="1396689">
-          </div>
-          <div class="config-field">
-            <label class="config-label">Yearly — $249.90/yr</label>
-            <input class="config-input" id="lsLawYearly" placeholder="1396693" value="1396693">
-          </div>
+          <div class="config-field"><label class="config-label">Monthly — $24.99/mo</label><input class="config-input" id="lsLawMonthly" value="1396689"></div>
+          <div class="config-field"><label class="config-label">Yearly — $249.90/yr</label><input class="config-input" id="lsLawYearly" value="1396693"></div>
         </div>
       </div>
-
       <div class="config-card">
         <div class="config-title">One-Time Payment Variant IDs</div>
         <div class="config-desc">Verified Badge and Profile Boosts</div>
         <div class="config-row">
-          <div class="config-field">
-            <label class="config-label">Verified Badge — $19.99</label>
-            <input class="config-input" id="lsVerifiedBadge" placeholder="1396698" value="1396698">
-          </div>
-          <div class="config-field">
-            <label class="config-label">7-Day Boost — $4.99</label>
-            <input class="config-input" id="lsBoost7" placeholder="1396701" value="1396701">
-          </div>
+          <div class="config-field"><label class="config-label">Verified Badge — $19.99</label><input class="config-input" id="lsVerifiedBadge" value="1396698"></div>
+          <div class="config-field"><label class="config-label">7-Day Boost — $4.99</label><input class="config-input" id="lsBoost7" value="1396701"></div>
         </div>
         <div class="config-row">
-          <div class="config-field">
-            <label class="config-label">30-Day Boost — $12.99</label>
-            <input class="config-input" id="lsBoost30" placeholder="1396704" value="1396704">
-          </div>
+          <div class="config-field"><label class="config-label">30-Day Boost — $12.99</label><input class="config-input" id="lsBoost30" value="1396704"></div>
         </div>
       </div>
-
       <button class="config-save-btn" onclick="saveStripeConfig()">Save Payment Configuration →</button>
     </div>
 
     <!-- REVENUE PAGE -->
     <div class="page" id="page-revenue">
       <div class="revenue-grid">
-        <div class="rev-card">
-          <div class="rev-label">Total Revenue (est.)</div>
-          <div class="rev-value" id="revTotal">$0.00</div>
-          <div class="rev-sub">All time</div>
-        </div>
-        <div class="rev-card">
-          <div class="rev-label">MRR (est.)</div>
-          <div class="rev-value" id="revMRR">$0.00</div>
-          <div class="rev-sub">Monthly recurring</div>
-        </div>
-        <div class="rev-card">
-          <div class="rev-label">ARR (est.)</div>
-          <div class="rev-value" id="revARR">$0.00</div>
-          <div class="rev-sub">Annual run rate</div>
-        </div>
+        <div class="rev-card"><div class="rev-label">Total Revenue (est.)</div><div class="rev-value" id="revTotal">$0.00</div><div class="rev-sub">All time estimate</div></div>
+        <div class="rev-card"><div class="rev-label">MRR (est.)</div><div class="rev-value" id="revMRR">$0.00</div><div class="rev-sub">Monthly recurring</div></div>
+        <div class="rev-card"><div class="rev-label">ARR (est.)</div><div class="rev-value" id="revARR">$0.00</div><div class="rev-sub">Annual run rate</div></div>
       </div>
       <div class="config-card">
         <div class="config-title">Revenue Breakdown</div>
-        <div class="config-desc">Estimated based on active subscriptions in Firestore</div>
-        <div id="revenueBreakdown" style="margin-top:16px;">
-          <div class="empty-state">Loading...</div>
-        </div>
+        <div class="config-desc">Estimated based on active subscriptions in Firestore. Connect Lemon Squeezy API for real payment data.</div>
+        <div id="revenueBreakdown" style="margin-top:16px;"><div class="empty-state">Loading...</div></div>
       </div>
     </div>
 
@@ -577,12 +598,7 @@
       </div>
       <div class="table-wrap">
         <div class="table-header">
-          <div class="th">Name / Email</div>
-          <div class="th">Role</div>
-          <div class="th">Plan</div>
-          <div class="th">Country</div>
-          <div class="th">Joined</div>
-          <div class="th">Actions</div>
+          <div class="th">Name / Email</div><div class="th">Role</div><div class="th">Plan</div><div class="th">Country</div><div class="th">Joined</div><div class="th">Actions</div>
         </div>
         <div id="usersTableBody"><div class="empty-state">Loading users...</div></div>
       </div>
@@ -611,61 +627,28 @@
         <div class="setting-card">
           <div class="setting-title">Free Tier Limits</div>
           <div class="setting-desc">Daily question limits for non-premium users</div>
-          <div class="toggle-row">
-            <span class="toggle-label">Free users daily limit</span>
-            <input class="number-input" id="settingFreeLimit" type="number" value="5" min="1" max="50">
-          </div>
-          <div class="toggle-row">
-            <span class="toggle-label">Guest users daily limit</span>
-            <input class="number-input" id="settingGuestLimit" type="number" value="3" min="1" max="20">
-          </div>
+          <div class="toggle-row"><span class="toggle-label">Free users daily limit</span><input class="number-input" id="settingFreeLimit" type="number" value="5" min="1" max="50"></div>
+          <div class="toggle-row"><span class="toggle-label">Guest users daily limit</span><input class="number-input" id="settingGuestLimit" type="number" value="3" min="1" max="20"></div>
         </div>
-
         <div class="setting-card">
           <div class="setting-title">Feature Flags</div>
           <div class="setting-desc">Enable or disable platform features globally</div>
-          <div class="toggle-row">
-            <span class="toggle-label">New user signups</span>
-            <label class="toggle"><input type="checkbox" id="flagSignups" checked><span class="toggle-slider"></span></label>
-          </div>
-          <div class="toggle-row">
-            <span class="toggle-label">Lawyer registrations</span>
-            <label class="toggle"><input type="checkbox" id="flagLawyerReg" checked><span class="toggle-slider"></span></label>
-          </div>
-          <div class="toggle-row">
-            <span class="toggle-label">Crypto payments</span>
-            <label class="toggle"><input type="checkbox" id="flagCrypto" checked><span class="toggle-slider"></span></label>
-          </div>
-          <div class="toggle-row">
-            <span class="toggle-label">Card payments (Lemon Squeezy)</span>
-            <label class="toggle"><input type="checkbox" id="flagStripe" checked><span class="toggle-slider"></span></label>
-          </div>
+          <div class="toggle-row"><span class="toggle-label">New user signups</span><label class="toggle"><input type="checkbox" id="flagSignups" checked><span class="toggle-slider"></span></label></div>
+          <div class="toggle-row"><span class="toggle-label">Lawyer registrations</span><label class="toggle"><input type="checkbox" id="flagLawyerReg" checked><span class="toggle-slider"></span></label></div>
+          <div class="toggle-row"><span class="toggle-label">Crypto payments</span><label class="toggle"><input type="checkbox" id="flagCrypto" checked><span class="toggle-slider"></span></label></div>
+          <div class="toggle-row"><span class="toggle-label">Card payments (Lemon Squeezy)</span><label class="toggle"><input type="checkbox" id="flagStripe" checked><span class="toggle-slider"></span></label></div>
         </div>
-
         <div class="setting-card">
           <div class="setting-title">Maintenance Mode</div>
           <div class="setting-desc">Show a maintenance message to all users. Admin access still works.</div>
-          <div class="toggle-row">
-            <span class="toggle-label">Maintenance mode</span>
-            <label class="toggle"><input type="checkbox" id="flagMaintenance"><span class="toggle-slider"></span></label>
-          </div>
-          <div class="toggle-row">
-            <span class="toggle-label">Show status banner</span>
-            <label class="toggle"><input type="checkbox" id="flagStatusBanner" checked><span class="toggle-slider"></span></label>
-          </div>
+          <div class="toggle-row"><span class="toggle-label">Maintenance mode</span><label class="toggle"><input type="checkbox" id="flagMaintenance"><span class="toggle-slider"></span></label></div>
+          <div class="toggle-row"><span class="toggle-label">Show status banner</span><label class="toggle"><input type="checkbox" id="flagStatusBanner" checked><span class="toggle-slider"></span></label></div>
         </div>
-
         <div class="setting-card">
           <div class="setting-title">Admin Access</div>
           <div class="setting-desc">Manage admin credentials. Only change if you know what you're doing.</div>
-          <div class="config-field" style="margin-bottom:10px;">
-            <label class="config-label">Admin Email</label>
-            <input class="config-input" id="adminEmail" placeholder="admin@lex-ai.com">
-          </div>
-          <div class="config-field">
-            <label class="config-label">New Admin Password</label>
-            <input class="config-input" id="adminNewPass" type="password" placeholder="Leave blank to keep current">
-          </div>
+          <div class="config-field" style="margin-bottom:10px;"><label class="config-label">Admin Email</label><input class="config-input" id="adminEmail" placeholder="admin@lex-ai.com"></div>
+          <div class="config-field"><label class="config-label">New Admin Password</label><input class="config-input" id="adminNewPass" type="password" placeholder="Leave blank to keep current"></div>
         </div>
       </div>
       <button class="config-save-btn" style="margin-top:20px;" onclick="savePlatformSettings()">Save All Settings →</button>
@@ -674,13 +657,12 @@
   </div><!-- /content -->
 </main>
 
-<!-- TOAST -->
 <div id="toast"></div>
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
-  import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
-  import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, collection, query, where, orderBy, limit, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+  import { getAuth, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+  import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, collection, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyAW2Cc8KT4ss9Y0G3kpCRzDT4QE6PCiNr0",
@@ -695,16 +677,24 @@
   const auth = getAuth(app);
   const db = getFirestore(app);
 
-  // ── ADMIN AUTH ──
-  // Hardcoded admin UID whitelist — add your Firebase UID here after first login
   const ADMIN_UIDS = ['l8J7TQch8ac1QUqur8Gd7uC98FC2'];
-  // Fallback local password (used before Firebase auth is set up)
   const LOCAL_ADMIN_PASS = 'lex-admin-2025';
 
   let _allUsers = [];
   let _allLawyers = [];
   let _userFilter = 'all';
   let _lawyerFilter = 'pending';
+  let _charts = {};
+
+  // ── MOBILE SIDEBAR ──
+  window.toggleSidebar = function() {
+    document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('sidebarOverlay').classList.toggle('visible');
+  };
+  window.closeSidebar = function() {
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebarOverlay').classList.remove('visible');
+  };
 
   // ── LOGIN ──
   window.doLogin = async function() {
@@ -712,18 +702,15 @@
     const pass = document.getElementById('loginPass').value;
     const errEl = document.getElementById('loginError');
     errEl.style.display = 'none';
-
-    // Try Firebase auth first
     try {
       const cred = await signInWithEmailAndPassword(auth, email, pass);
-      if (!ADMIN_UIDS.includes('l8J7TQch8ac1QUqur8Gd7uC98FC2') && !ADMIN_UIDS.includes(cred.user.uid)) {
+      if (!ADMIN_UIDS.includes(cred.user.uid)) {
         await signOut(auth);
         errEl.style.display = 'block';
         return;
       }
       bootAdmin(cred.user);
     } catch(e) {
-      // Fallback: local password for initial setup
       if (pass === LOCAL_ADMIN_PASS) {
         bootAdmin({ email, uid: 'local', displayName: 'Admin' });
       } else {
@@ -734,8 +721,7 @@
 
   function bootAdmin(user) {
     document.getElementById('loginScreen').style.display = 'none';
-    document.getElementById('adminNameDisplay').textContent = user.email || user.displayName || 'Admin';
-    loadOverview();
+    document.getElementById('adminNameDisplay').textContent = user.email || 'Admin';
     loadWallets();
     loadStripeConfig();
     loadUsers();
@@ -755,8 +741,10 @@
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     document.getElementById('page-' + page).classList.add('active');
     if (el) el.classList.add('active');
-    const titles = { overview:'Overview', wallets:'Crypto Wallets', stripe:'Payment Configuration', revenue:'Revenue', users:'All Users', lawyers:'Lawyer Verification', activity:'Activity Log', settings:'Platform Settings' };
+    const titles = { overview:'Overview', analytics:'Analytics', wallets:'Crypto Wallets', stripe:'Payment Configuration', revenue:'Revenue', users:'All Users', lawyers:'Lawyer Verification', activity:'Activity Log', settings:'Platform Settings' };
     document.getElementById('pageTitle').textContent = titles[page] || page;
+    closeSidebar();
+    if (page === 'analytics') setTimeout(buildCharts, 100);
   };
 
   // ── THEME ──
@@ -764,6 +752,7 @@
     document.documentElement.setAttribute('data-theme', t);
     document.querySelectorAll('.theme-btn').forEach(b => b.classList.toggle('active', b.dataset.theme === t));
     localStorage.setItem('lexAdminTheme', t);
+    if (Object.keys(_charts).length) setTimeout(buildCharts, 100);
   };
   setTheme(localStorage.getItem('lexAdminTheme') || 'dark');
 
@@ -783,57 +772,38 @@
       if (snap.exists()) {
         const d = snap.data();
         ['eth','bnb','sol','matic'].forEach(net => {
-          if (d[net]) {
-            document.getElementById('addr-' + net).value = d[net];
-            setWalletStatus(net, true);
-          }
+          if (d[net]) { document.getElementById('addr-' + net).value = d[net]; setWalletStatus(net, true); }
         });
       }
-    } catch(e) { console.warn('Wallets load:', e); }
+    } catch(e) { console.warn('Wallets:', e); }
   }
 
   function setWalletStatus(net, isSet) {
     const el = document.getElementById('status-' + net);
     const card = document.getElementById('wallet-' + net);
-    if (isSet) {
-      el.textContent = 'SET ✓';
-      el.className = 'wallet-status set';
-      card.classList.add('active-wallet');
-    } else {
-      el.textContent = 'NOT SET';
-      el.className = 'wallet-status empty';
-      card.classList.remove('active-wallet');
-    }
+    if (isSet) { el.textContent='SET ✓'; el.className='wallet-status set'; card.classList.add('active-wallet'); }
+    else { el.textContent='NOT SET'; el.className='wallet-status empty'; card.classList.remove('active-wallet'); }
   }
 
-  window.onWalletInput = function(net) {
-    const val = document.getElementById('addr-' + net).value.trim();
-    setWalletStatus(net, val.length > 10);
-  };
+  window.onWalletInput = function(net) { setWalletStatus(net, document.getElementById('addr-'+net).value.trim().length > 10); };
 
   window.saveWallet = async function(net) {
-    const addr = document.getElementById('addr-' + net).value.trim();
-    const btn = document.getElementById('save-' + net);
-    const updEl = document.getElementById('updated-' + net);
+    const addr = document.getElementById('addr-'+net).value.trim();
+    const btn = document.getElementById('save-'+net);
     if (!addr) { showToast('Enter a wallet address first', 'red'); return; }
-    btn.textContent = 'Saving...';
-    btn.classList.add('saving');
+    btn.textContent = 'Saving...'; btn.classList.add('saving');
     try {
       await setDoc(doc(db, 'admin', 'wallets'), { [net]: addr, [`${net}UpdatedAt`]: serverTimestamp() }, { merge: true });
       setWalletStatus(net, true);
-      updEl.style.display = 'block';
-      setTimeout(() => updEl.style.display = 'none', 3000);
+      const upd = document.getElementById('updated-'+net); upd.style.display='block'; setTimeout(()=>upd.style.display='none',3000);
       showToast(`${net.toUpperCase()} wallet saved ✓`, 'green');
       logActivity(`${net.toUpperCase()} wallet address updated`, 'gold');
-    } catch(e) {
-      showToast('Save failed — check Firestore rules', 'red');
-    }
-    btn.textContent = 'Save Address';
-    btn.classList.remove('saving');
+    } catch(e) { showToast('Save failed — check Firestore rules', 'red'); }
+    btn.textContent='Save Address'; btn.classList.remove('saving');
   };
 
   window.copyAddr = function(net) {
-    const val = document.getElementById('addr-' + net).value;
+    const val = document.getElementById('addr-'+net).value;
     if (!val) return;
     navigator.clipboard.writeText(val).then(() => showToast('Address copied ✓', 'green'));
   };
@@ -844,17 +814,17 @@
       const snap = await getDoc(doc(db, 'admin', 'stripe'));
       if (snap.exists()) {
         const d = snap.data();
-        const fields = ['lsApiKey','lsStoreId','lsWebhookSecret','lsIndMonthly','lsIndYearly','lsLawMonthly','lsLawYearly','lsVerifiedBadge','lsBoost7','lsBoost30'];
-        fields.forEach(f => { const el = document.getElementById(f); if (el && d[f]) el.value = d[f]; });
+        ['lsApiKey','lsStoreId','lsWebhookSecret','lsIndMonthly','lsIndYearly','lsLawMonthly','lsLawYearly','lsVerifiedBadge','lsBoost7','lsBoost30'].forEach(f => {
+          const el = document.getElementById(f); if (el && d[f]) el.value = d[f];
+        });
       }
     } catch(e) {}
   }
 
   window.saveStripeConfig = async function() {
     const fields = ['lsApiKey','lsStoreId','lsWebhookSecret','lsIndMonthly','lsIndYearly','lsLawMonthly','lsLawYearly','lsVerifiedBadge','lsBoost7','lsBoost30'];
-    const data = {};
+    const data = { updatedAt: serverTimestamp() };
     fields.forEach(f => { const v = document.getElementById(f).value.trim(); if (v) data[f] = v; });
-    data.updatedAt = serverTimestamp();
     try {
       await setDoc(doc(db, 'admin', 'stripe'), data, { merge: true });
       showToast('Payment config saved ✓', 'green');
@@ -886,14 +856,14 @@
 
     document.getElementById('usersTableBody').innerHTML = users.map(u => `
       <div class="table-row">
-        <div class="td name">${u.name || '—'}<div style="font-size:10px;color:var(--text-muted);margin-top:2px;">${u.email || u.id}</div></div>
-        <div class="td"><span class="role-badge">${u.role || 'user'}</span></div>
-        <div class="td"><span class="plan-badge ${u.plan === 'premium' ? 'premium' : u.role === 'lawyer' ? 'lawyer' : 'free'}">${u.plan || 'free'}</span></div>
-        <div class="td">${u.country || '—'}</div>
+        <div class="td name">${u.name||'—'}<div style="font-size:10px;color:var(--text-muted);margin-top:2px;">${u.email||u.id}</div></div>
+        <div class="td"><span class="role-badge">${u.role||'user'}</span></div>
+        <div class="td"><span class="plan-badge ${u.plan==='premium'?'premium':u.role==='lawyer'?'lawyer':'free'}">${u.plan||'free'}</span></div>
+        <div class="td">${u.country||'—'}</div>
         <div class="td">${u.createdAt ? new Date(u.createdAt.seconds*1000).toLocaleDateString() : '—'}</div>
         <div class="td"><div class="action-btns">
           <button class="action-btn" onclick="upgradePlan('${u.id}','premium')">Premium</button>
-          <button class="action-btn danger" onclick="confirmBanUser('${u.id}','${u.name||u.id}')">Ban</button>
+          <button class="action-btn danger" onclick="confirmBanUser('${u.id}','${(u.name||u.id).replace(/'/g,'')}')">Ban</button>
         </div></div>
       </div>`).join('');
   }
@@ -901,7 +871,7 @@
   window.filterUsers = renderUsers;
   window.setUserFilter = function(f, el) {
     _userFilter = f;
-    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('#page-users .filter-btn').forEach(b => b.classList.remove('active'));
     el.classList.add('active');
     renderUsers();
   };
@@ -909,18 +879,17 @@
   window.upgradePlan = async function(uid, plan) {
     try {
       await updateDoc(doc(db, 'users', uid), { plan });
-      const u = _allUsers.find(x => x.id === uid);
-      if (u) u.plan = plan;
-      renderUsers();
+      const u = _allUsers.find(x => x.id === uid); if (u) u.plan = plan;
+      renderUsers(); updateStats();
       showToast(`User upgraded to ${plan} ✓`, 'green');
-    } catch(e) { showToast('Update failed', 'red'); }
+    } catch(e) { showToast('Update failed — log in with Firebase Auth first', 'red'); }
   };
 
   window.confirmBanUser = function(uid, name) {
-    if (!confirm(`Ban user ${name}? This will mark their account as banned.`)) return;
+    if (!confirm(`Ban user ${name}?`)) return;
     updateDoc(doc(db, 'users', uid), { banned: true, bannedAt: serverTimestamp() })
       .then(() => { showToast('User banned ✓', 'red'); logActivity(`User banned: ${name}`, 'red'); })
-      .catch(() => showToast('Failed to ban user', 'red'));
+      .catch(() => showToast('Failed — log in with Firebase Auth first', 'red'));
   };
 
   // ── LAWYERS ──
@@ -931,8 +900,8 @@
       snap.forEach(d => _allLawyers.push({ id: d.id, ...d.data() }));
       renderLawyers();
       const pending = _allLawyers.filter(l => !l.verified).length;
-      const dot = document.getElementById('pendingDot');
-      dot.style.display = pending > 0 ? 'block' : 'none';
+      document.getElementById('pendingDot').style.display = pending > 0 ? 'block' : 'none';
+      renderOverviewPending();
     } catch(e) {}
   }
 
@@ -940,46 +909,40 @@
     let lawyers = _allLawyers;
     if (_lawyerFilter === 'pending') lawyers = lawyers.filter(l => !l.verified);
     if (_lawyerFilter === 'verified') lawyers = lawyers.filter(l => l.verified);
-
-    if (!lawyers.length) {
-      document.getElementById('lawyersList').innerHTML = '<div class="empty-state">No lawyers in this category</div>';
-      return;
-    }
-
+    if (!lawyers.length) { document.getElementById('lawyersList').innerHTML = '<div class="empty-state">No lawyers in this category</div>'; return; }
     document.getElementById('lawyersList').innerHTML = lawyers.map(l => `
       <div class="verify-card">
         <div class="verify-avatar">${(l.name||'L')[0].toUpperCase()}</div>
         <div class="verify-info">
-          <div class="verify-name">${l.name || 'Unknown'}</div>
-          <div class="verify-meta">${l.email || ''} · ${l.specialisation || 'General'} · ${l.country || '—'}</div>
+          <div class="verify-name">${l.name||'Unknown'}</div>
+          <div class="verify-meta">${l.email||''} · ${l.specialisation||'General'} · ${l.country||'—'}</div>
           ${l.barNumber ? `<div class="verify-meta" style="margin-top:4px;">Bar No: <span style="color:var(--text);">${l.barNumber}</span></div>` : ''}
           ${l.firm ? `<div class="verify-meta">Firm: ${l.firm}</div>` : ''}
           <div class="verify-actions">
-            ${!l.verified ? `<button class="verify-btn approve" onclick="verifyLawyer('${l.id}', true)">✓ Verify</button>` : '<span style="color:var(--green);font-size:11px;">✓ Verified</span>'}
-            ${l.verified ? `<button class="verify-btn reject" onclick="verifyLawyer('${l.id}', false)">Revoke</button>` : `<button class="verify-btn reject" onclick="verifyLawyer('${l.id}', false, true)">✗ Reject</button>`}
+            ${!l.verified ? `<button class="verify-btn approve" onclick="verifyLawyer('${l.id}',true)">✓ Verify</button>` : '<span style="color:var(--green);font-size:11px;">✓ Verified</span>'}
+            <button class="verify-btn reject" onclick="verifyLawyer('${l.id}',false)">${l.verified ? 'Revoke' : '✗ Reject'}</button>
           </div>
         </div>
-        <span class="verify-badge ${l.verified ? '' : 'pending'}">${l.verified ? '✓ VERIFIED' : 'PENDING'}</span>
+        <span class="verify-badge ${l.verified?'':'pending'}">${l.verified?'✓ VERIFIED':'PENDING'}</span>
       </div>`).join('');
   }
 
   window.setLawyerFilter = function(f, el) {
     _lawyerFilter = f;
-    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('#page-lawyers .filter-btn').forEach(b => b.classList.remove('active'));
     el.classList.add('active');
     renderLawyers();
   };
 
-  window.verifyLawyer = async function(uid, approve, reject=false) {
+  window.verifyLawyer = async function(uid, approve) {
     try {
       await updateDoc(doc(db, 'users', uid), { verified: approve, verifiedAt: approve ? serverTimestamp() : null });
-      const l = _allLawyers.find(x => x.id === uid);
-      if (l) l.verified = approve;
+      const l = _allLawyers.find(x => x.id === uid); if (l) l.verified = approve;
       renderLawyers();
       showToast(approve ? 'Lawyer verified ✓' : 'Verification revoked', approve ? 'green' : 'red');
-      logActivity(`Lawyer ${approve ? 'verified' : 'rejected'}: ${l?.name || uid}`, approve ? 'green' : 'red');
+      logActivity(`Lawyer ${approve?'verified':'rejected'}: ${l?.name||uid}`, approve?'green':'red');
       await loadLawyers();
-    } catch(e) { showToast('Update failed', 'red'); }
+    } catch(e) { showToast('Update failed — log in with Firebase Auth to enable writes', 'red'); }
   };
 
   // ── STATS ──
@@ -988,31 +951,50 @@
     const premium = _allUsers.filter(u => u.plan === 'premium').length;
     const lawyers = _allUsers.filter(u => u.role === 'lawyer').length;
     const premiumLawyers = _allUsers.filter(u => u.role === 'lawyer' && u.plan === 'premium').length;
+    const freeUsers = total - premium - lawyers;
     const mrr = (premium * 4.99 + premiumLawyers * 24.99).toFixed(2);
+    const arr = (mrr * 12).toFixed(2);
+    const arpu = total > 0 ? (mrr / total).toFixed(2) : '0.00';
+    const convRate = total > 0 ? ((premium / total) * 100).toFixed(1) + '%' : '0%';
+    const verified = _allLawyers.filter(l => l.verified).length;
 
     document.getElementById('statTotalUsers').textContent = total;
     document.getElementById('statPremiumUsers').textContent = premium;
     document.getElementById('statLawyers').textContent = lawyers;
     document.getElementById('statMRR').textContent = '$' + mrr;
-    document.getElementById('statUsersGrowth').textContent = `${lawyers} lawyers · ${total - lawyers} individuals`;
-    document.getElementById('statPremiumSub').textContent = `${((premium/Math.max(total,1))*100).toFixed(1)}% conversion`;
+    document.getElementById('statUsersGrowth').textContent = `${lawyers} lawyers · ${total-lawyers} individuals`;
+    document.getElementById('statPremiumSub').textContent = `${convRate} conversion`;
     document.getElementById('statLawyersSub').textContent = `${_allLawyers.filter(l=>!l.verified).length} pending verification`;
+
+    // Analytics stats
+    document.getElementById('anaConversion').textContent = convRate;
+    document.getElementById('anaVerified').textContent = verified;
+    document.getElementById('anaVerifiedSub').textContent = `of ${lawyers} total lawyers`;
+    document.getElementById('anaARR').textContent = '$' + arr;
+    document.getElementById('anaARPU').textContent = '$' + arpu;
 
     // Revenue page
     document.getElementById('revMRR').textContent = '$' + mrr;
-    document.getElementById('revARR').textContent = '$' + (mrr * 12).toFixed(2);
-    document.getElementById('revTotal').textContent = '$' + mrr; // live estimate only
-
+    document.getElementById('revARR').textContent = '$' + arr;
+    document.getElementById('revTotal').textContent = '$' + mrr;
     document.getElementById('revenueBreakdown').innerHTML = `
-      <div class="toggle-row"><span class="toggle-label">Individual Premium (${premium} users × $4.99)</span><span style="color:var(--gold);">$${(premium*4.99).toFixed(2)}/mo</span></div>
-      <div class="toggle-row"><span class="toggle-label">Lawyer Subscriptions (${premiumLawyers} lawyers × $24.99)</span><span style="color:var(--gold);">$${(premiumLawyers*24.99).toFixed(2)}/mo</span></div>
-      <div class="toggle-row" style="border-top:1px solid var(--border-gold);margin-top:8px;padding-top:16px;"><span style="color:var(--text);font-weight:600;">Estimated MRR</span><span style="color:var(--gold);font-weight:600;">$${mrr}/mo</span></div>`;
+      <div class="toggle-row"><span class="toggle-label">Individual Premium (${premium} × $4.99/mo)</span><span style="color:var(--gold);">$${(premium*4.99).toFixed(2)}/mo</span></div>
+      <div class="toggle-row"><span class="toggle-label">Lawyer Subscriptions (${premiumLawyers} × $24.99/mo)</span><span style="color:var(--gold);">$${(premiumLawyers*24.99).toFixed(2)}/mo</span></div>
+      <div class="toggle-row" style="border-top:1px solid var(--border-gold);margin-top:8px;padding-top:16px;"><span style="color:var(--text);font-weight:600;">Estimated MRR</span><span style="color:var(--gold);font-weight:600;">$${mrr}/mo</span></div>
+      <div class="toggle-row"><span style="color:var(--text-muted);font-size:11px;">Estimated ARR</span><span style="color:var(--text-muted);font-size:11px;">$${arr}/yr</span></div>`;
+
+    // Top countries
+    const countryCounts = {};
+    _allUsers.forEach(u => { if (u.country) countryCounts[u.country] = (countryCounts[u.country]||0)+1; });
+    const sorted = Object.entries(countryCounts).sort((a,b) => b[1]-a[1]).slice(0,8);
+    document.getElementById('topCountries').innerHTML = sorted.length ? sorted.map(([c,n]) => `
+      <div class="toggle-row"><span class="toggle-label">${c}</span><span style="color:var(--gold);font-size:12px;">${n} user${n!==1?'s':''}</span></div>`).join('') : '<div class="empty-state" style="padding:20px;">No country data yet</div>';
+
+    // Store for charts
+    window._statsData = { total, premium, lawyers, premiumLawyers, freeUsers, mrr, arr, verified };
   }
 
-  // ── OVERVIEW ──
-  async function loadOverview() {
-    // Pending verifications preview
-    await loadLawyers();
+  function renderOverviewPending() {
     const pending = _allLawyers.filter(l => !l.verified);
     document.getElementById('overviewPendingList').innerHTML = pending.length ? pending.slice(0,3).map(l => `
       <div class="verify-card" style="margin-bottom:8px;">
@@ -1023,30 +1005,111 @@
         </div>
         <span class="verify-badge pending">PENDING</span>
       </div>`).join('') : '<div class="config-card" style="padding:20px;"><div class="empty-state">No pending verifications</div></div>';
+
+    const actLog = _activityLog.slice(0,6);
+    document.getElementById('recentActivityList').innerHTML = actLog.length ? actLog.map(a => `
+      <div class="log-item">
+        <div class="log-dot ${a.type}"></div>
+        <div><div class="log-text">${a.text}</div><div class="log-time">${a.time}</div></div>
+      </div>`).join('') : '<div class="empty-state">No activity yet</div>';
+  }
+
+  // ── CHARTS ──
+  function buildCharts() {
+    const d = window._statsData;
+    if (!d) return;
+
+    const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+    const textColor = isDark ? '#a09880' : '#6b6050';
+    const gridColor = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
+    const gold = '#c9a86c';
+    const blue = '#3498db';
+    const green = '#2ecc71';
+    const red = '#e74c3c';
+
+    Chart.defaults.color = textColor;
+    Chart.defaults.font.family = 'Inter';
+    Chart.defaults.font.size = 11;
+
+    const destroyChart = id => { if (_charts[id]) { _charts[id].destroy(); delete _charts[id]; } };
+
+    // Plan distribution — doughnut
+    destroyChart('plans');
+    const ctxPlans = document.getElementById('chartPlans').getContext('2d');
+    _charts.plans = new Chart(ctxPlans, {
+      type: 'doughnut',
+      data: {
+        labels: ['Free', 'Premium', 'Lawyer'],
+        datasets: [{ data: [d.freeUsers, d.premium, d.lawyers], backgroundColor: ['rgba(90,85,72,0.6)', gold, blue], borderColor: 'transparent', borderWidth: 0 }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { padding: 16, usePointStyle: true } } }, cutout: '65%' }
+    });
+
+    // Lawyer status — doughnut
+    destroyChart('lawyers');
+    const ctxLaw = document.getElementById('chartLawyers').getContext('2d');
+    const unverified = d.lawyers - d.verified;
+    _charts.lawyers = new Chart(ctxLaw, {
+      type: 'doughnut',
+      data: {
+        labels: ['Verified', 'Pending'],
+        datasets: [{ data: [d.verified, unverified], backgroundColor: [green, 'rgba(243,156,18,0.7)'], borderColor: 'transparent', borderWidth: 0 }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { padding: 16, usePointStyle: true } } }, cutout: '65%' }
+    });
+
+    // Revenue bar
+    destroyChart('revenue');
+    const ctxRev = document.getElementById('chartRevenue').getContext('2d');
+    const indRev = (d.premium * 4.99).toFixed(2);
+    const lawRev = (d.premiumLawyers * 24.99).toFixed(2);
+    _charts.revenue = new Chart(ctxRev, {
+      type: 'bar',
+      data: {
+        labels: ['Individual Premium', 'Lawyer Subscriptions', 'Total MRR'],
+        datasets: [{ label: '$/mo', data: [parseFloat(indRev), parseFloat(lawRev), parseFloat(d.mrr)], backgroundColor: [gold + 'cc', blue + 'cc', green + 'cc'], borderRadius: 2 }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { grid: { color: gridColor }, ticks: { callback: v => '$' + v } },
+          x: { grid: { display: false } }
+        }
+      }
+    });
+
+    // User roles bar
+    destroyChart('roles');
+    const ctxRoles = document.getElementById('chartRoles').getContext('2d');
+    _charts.roles = new Chart(ctxRoles, {
+      type: 'bar',
+      data: {
+        labels: ['Free Individuals', 'Premium Individuals', 'Lawyers (any plan)'],
+        datasets: [{ label: 'Users', data: [d.freeUsers, d.premium, d.lawyers], backgroundColor: ['rgba(90,85,72,0.5)', gold + 'cc', blue + 'cc'], borderRadius: 2 }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { color: gridColor }, ticks: { precision: 0 } },
+          y: { grid: { display: false } }
+        }
+      }
+    });
   }
 
   // ── ACTIVITY LOG ──
   const _activityLog = [];
   function logActivity(text, type='gold') {
-    const now = new Date();
-    _activityLog.unshift({ text, type, time: now.toLocaleTimeString() });
+    _activityLog.unshift({ text, type, time: new Date().toLocaleTimeString() });
     if (_activityLog.length > 50) _activityLog.pop();
-    renderActivityLog();
-  }
-
-  function renderActivityLog() {
-    const list = _activityLog.length ? _activityLog.map(a => `
+    document.getElementById('activityLogList').innerHTML = _activityLog.map(a => `
       <div class="log-item">
         <div class="log-dot ${a.type}"></div>
         <div><div class="log-text">${a.text}</div><div class="log-time">${a.time}</div></div>
-      </div>`).join('') : '<div class="empty-state">No activity yet</div>';
-
-    document.getElementById('activityLogList').innerHTML = list;
-    document.getElementById('recentActivityList').innerHTML = _activityLog.slice(0,6).map(a => `
-      <div class="log-item">
-        <div class="log-dot ${a.type}"></div>
-        <div><div class="log-text">${a.text}</div><div class="log-time">${a.time}</div></div>
-      </div>`).join('') || '<div class="empty-state">No activity yet</div>';
+      </div>`).join('');
+    renderOverviewPending();
   }
 
   // ── PLATFORM SETTINGS ──
@@ -1082,7 +1145,7 @@
       await setDoc(doc(db, 'admin', 'settings'), data, { merge: true });
       showToast('Platform settings saved ✓', 'green');
       logActivity('Platform settings updated', 'gold');
-    } catch(e) { showToast('Save failed', 'red'); }
+    } catch(e) { showToast('Save failed — log in with Firebase Auth first', 'red'); }
   };
 
   logActivity('Admin console loaded', 'gold');
