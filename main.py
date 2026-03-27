@@ -1167,7 +1167,7 @@ def create_checkout():
     user_uid = data.get('uid', '').strip()
     custom_data = data.get('custom_data', {})
     # FIX 3: dynamic redirect_url — accept from request body, fallback to default
-    redirect_url = data.get('redirect_url', 'https://lex-production-cf5f.up.railway.app/dashboard.html?payment=success')
+    redirect_url = data.get('redirect_url', 'https://lex-rvmc.onrender.com/dashboard.html?payment=success')
 
     if not variant_key or variant_key not in LS_VARIANT_IDS:
         return jsonify({'error': 'Invalid product selected.'}), 400
@@ -1197,7 +1197,7 @@ def create_checkout():
                     },
                     "product_options": {
                         "redirect_url": redirect_url,
-                        "receipt_link_url": "https://lex-production-cf5f.up.railway.app/dashboard.html",
+                        "receipt_link_url": "https://lex-rvmc.onrender.com/dashboard.html",
                         "receipt_thank_you_note": "Thank you for subscribing to LEX! Your account has been upgraded."
                     },
                     "expires_at": None
