@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>LEX — Sign In</title>
+<title>FORI — Sign In</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -58,6 +58,7 @@
   .auth-nav { padding: 20px 24px; display: flex; align-items: center; justify-content: space-between; }
   .logo { font-family: 'Cormorant Garamond', serif; font-size: 24px; font-weight: 700; color: var(--text-primary); letter-spacing: 2px; display: flex; align-items: center; gap: 10px; text-decoration: none; }
   .logo-icon { width: 34px; height: 34px; border: 1.5px solid var(--accent-gold); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--accent-gold); }
+  /* TODO: Replace logo text with <img src="logo-icon.png" style="height:48px;" alt="FORI"> when available */
   .back-link { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-muted); text-decoration: none; transition: color 0.3s; display: flex; align-items: center; gap: 6px; }
   .back-link:hover { color: var(--accent-gold); }
 
@@ -130,7 +131,6 @@
   .form-input::placeholder { color: var(--text-muted); }
   .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 
-  /* FIX 3: Password strength */
   .strength-bar { height: 3px; background: var(--border); margin-top: 8px; border-radius: 2px; overflow: hidden; display: none; }
   .strength-fill { height: 100%; width: 0; border-radius: 2px; transition: all 0.3s; }
   .strength-label { font-size: 10px; margin-top: 5px; display: none; }
@@ -183,10 +183,7 @@
   const auth = getAuth(app);
   const db = getFirestore(app);
 
-  // FIX 4: Google uses signInWithPopup (inline, no new tab)
   const googleProvider = new GoogleAuthProvider();
-
-  // FIX 4: Apple uses OAuthProvider + signInWithPopup (inline, no new tab)
   const appleProvider = new OAuthProvider('apple.com');
   appleProvider.addScope('email');
   appleProvider.addScope('name');
@@ -205,7 +202,6 @@
     window.location.href = role === 'lawyer' ? 'dashboard-lawyer.html' : 'dashboard.html';
   }
 
-  // FIX 1: Friendly error messages — maps Firebase codes to plain English
   function friendlyError(code) {
     const map = {
       'auth/user-not-found':         'No account found with this email address.',
@@ -228,7 +224,6 @@
     const role = window._selectedRole || 'individual';
     const email = document.getElementById('signupEmail')?.value.trim();
     const password = document.getElementById('signupPassword')?.value;
-    // FIX 2: Confirm password
     const confirmPassword = document.getElementById('signupConfirmPassword')?.value;
     const name = document.getElementById('signupName')?.value.trim() || document.getElementById('signupFirmName')?.value.trim() || '';
     if (!email || !password) return showAuthError('Please enter your email and password.');
@@ -237,8 +232,8 @@
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       await saveUserToFirestore({ uid: cred.user.uid, email, displayName: name }, role);
-      localStorage.setItem('lexUser', JSON.stringify({ uid: cred.user.uid, name: name || email.split('@')[0], role, plan: 'free' }));
-      localStorage.setItem('lexRole', role);
+      localStorage.setItem('foriUser', JSON.stringify({ uid: cred.user.uid, name: name || email.split('@')[0], role, plan: 'free' }));
+      localStorage.setItem('foriRole', role);
       redirectUser(role);
     } catch (e) { showAuthError(friendlyError(e.code)); }
   };
@@ -252,38 +247,35 @@
       const cred = await signInWithEmailAndPassword(auth, email, password);
       const snap = await getDoc(doc(db, "users", cred.user.uid));
       const userData = snap.exists() ? snap.data() : { name: email.split('@')[0], role, plan: 'free' };
-      localStorage.setItem('lexUser', JSON.stringify({ uid: cred.user.uid, name: userData.name, role: userData.role || role, plan: userData.plan || 'free' }));
-      localStorage.setItem('lexRole', userData.role || role);
+      localStorage.setItem('foriUser', JSON.stringify({ uid: cred.user.uid, name: userData.name, role: userData.role || role, plan: userData.plan || 'free' }));
+      localStorage.setItem('foriRole', userData.role || role);
       redirectUser(userData.role || role);
     } catch (e) { showAuthError(friendlyError(e.code)); }
   };
 
-  // FIX 4: Google — signInWithPopup (inline popup, no new tab)
   window.firebaseGoogleAuth = async function() {
     const role = window._selectedRole || 'individual';
     try {
       const cred = await signInWithPopup(auth, googleProvider);
       await saveUserToFirestore({ uid: cred.user.uid, email: cred.user.email, displayName: cred.user.displayName }, role);
-      localStorage.setItem('lexUser', JSON.stringify({ uid: cred.user.uid, name: cred.user.displayName, role, plan: 'free' }));
-      localStorage.setItem('lexRole', role);
+      localStorage.setItem('foriUser', JSON.stringify({ uid: cred.user.uid, name: cred.user.displayName, role, plan: 'free' }));
+      localStorage.setItem('foriRole', role);
       redirectUser(role);
     } catch (e) { showAuthError(friendlyError(e.code)); }
   };
 
-  // FIX 4: Apple — signInWithPopup (inline popup, no new tab)
   window.firebaseAppleAuth = async function() {
     const role = window._selectedRole || 'individual';
     try {
       const cred = await signInWithPopup(auth, appleProvider);
       const name = cred.user.displayName || cred.user.email?.split('@')[0] || 'User';
       await saveUserToFirestore({ uid: cred.user.uid, email: cred.user.email, displayName: name }, role);
-      localStorage.setItem('lexUser', JSON.stringify({ uid: cred.user.uid, name, role, plan: 'free' }));
-      localStorage.setItem('lexRole', role);
+      localStorage.setItem('foriUser', JSON.stringify({ uid: cred.user.uid, name, role, plan: 'free' }));
+      localStorage.setItem('foriRole', role);
       redirectUser(role);
     } catch (e) { showAuthError(friendlyError(e.code)); }
   };
 
-  // Forgot password
   window.firebaseForgotPassword = async function() {
     const email = document.getElementById('signinEmail')?.value.trim();
     if (!email) return showAuthError('Enter your email address above first, then click Forgot Password.');
@@ -328,7 +320,7 @@
       <div class="logo-icon">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
       </div>
-      LEX
+      FORI
     </a>
     <div style="display:flex;align-items:center;gap:16px;">
       <a href="index.html" class="back-link">
@@ -351,9 +343,9 @@
     <!-- STEP 1 -->
     <div class="step active" id="step1">
       <div class="step-header">
-        <div class="step-label">Welcome to LEX</div>
+        <div class="step-label">Welcome to FORI</div>
         <h1 class="step-title">Who are <em>you?</em></h1>
-        <p class="step-sub">Choose how you'll be using LEX to personalise your experience.</p>
+        <p class="step-sub">Choose how you'll be using FORI to personalise your experience.</p>
       </div>
 
       <div class="role-grid">
@@ -382,7 +374,7 @@
       <div class="guest-link"><a onclick="continueAsGuest()">Continue as Guest (5 questions/day)</a></div>
 
       <div class="app-download-section">
-        <div class="app-download-label">Get the LEX app</div>
+        <div class="app-download-label">Get the FORI app</div>
         <div class="app-badges">
           <a class="app-badge" onclick="showAppModal('ios')">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="var(--text-primary)"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
@@ -407,7 +399,7 @@
     <!-- STEP 2 -->
     <div class="step" id="step2">
       <div class="step-header">
-        <div class="step-label">Access LEX</div>
+        <div class="step-label">Access FORI</div>
         <h1 class="step-title">Sign in or <em>create</em> an account</h1>
       </div>
       <div class="auth-form">
@@ -446,7 +438,7 @@
             <input type="password" id="signinPassword" class="form-input" placeholder="••••••••" onkeydown="if(event.key==='Enter')handleAuth()">
           </div>
           <button class="submit-btn" onclick="handleAuth()">
-            Sign In to LEX
+            Sign In to FORI
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8H13M13 8L9 4M13 8L9 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
           </button>
           <div class="form-footer"><a onclick="firebaseForgotPassword()">Forgot password?</a> &nbsp;·&nbsp; No account? <a onclick="switchTab('signup', document.querySelectorAll('.form-tab')[1])">Sign up free</a></div>
@@ -481,14 +473,12 @@
             <label class="form-label">Email Address</label>
             <input type="email" id="signupEmail" class="form-input" placeholder="you@example.com">
           </div>
-          <!-- FIX 3: Password with strength indicator -->
           <div class="form-group">
             <label class="form-label">Password</label>
             <input type="password" id="signupPassword" class="form-input" placeholder="Create a password (min. 6 characters)" oninput="checkPasswordStrength(this.value)">
             <div class="strength-bar" id="strengthBar"><div class="strength-fill" id="strengthFill"></div></div>
             <div class="strength-label" id="strengthLabel"></div>
           </div>
-          <!-- FIX 2: Confirm password field -->
           <div class="form-group">
             <label class="form-label">Confirm Password</label>
             <input type="password" id="signupConfirmPassword" class="form-input" placeholder="Re-enter your password">
@@ -513,7 +503,7 @@
     <button class="modal-close" onclick="document.getElementById('appModal').classList.remove('open')">×</button>
     <div style="font-size:44px;margin-bottom:16px;" id="modalIcon">📱</div>
     <div style="font-family:'Cormorant Garamond',serif;font-size:28px;margin-bottom:8px;color:var(--text-primary);">Coming Soon</div>
-    <div style="font-size:14px;color:var(--text-secondary);line-height:1.7;margin-bottom:24px;">The LEX <span id="modalPlatform">app</span> is in development. Leave your email to be notified at launch.</div>
+    <div style="font-size:14px;color:var(--text-secondary);line-height:1.7;margin-bottom:24px;">The FORI <span id="modalPlatform">app</span> is in development. Leave your email to be notified at launch.</div>
     <input type="email" class="form-input" placeholder="your@email.com" style="margin-bottom:14px;">
     <button class="submit-btn" onclick="document.getElementById('appModal').classList.remove('open')">Notify Me at Launch</button>
   </div>
@@ -527,12 +517,12 @@
     document.querySelectorAll('.theme-btn').forEach(btn => {
       btn.classList.toggle('active', btn.getAttribute('data-theme') === theme);
     });
-    localStorage.setItem('lexTheme', theme);
+    localStorage.setItem('foriTheme', theme);
   }
   function toggleTheme() {
     applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
   }
-  applyTheme(localStorage.getItem('lexTheme') || 'dark');
+  applyTheme(localStorage.getItem('foriTheme') || 'dark');
 
   function selectRole(role, card) {
     selectedRole = role;
@@ -580,12 +570,11 @@
   }
 
   function continueAsGuest() {
-    localStorage.setItem('lexUser', JSON.stringify({ role: 'guest', name: 'Guest', loginTime: Date.now() }));
-    localStorage.setItem('lexRole', 'guest');
+    localStorage.setItem('foriUser', JSON.stringify({ role: 'guest', name: 'Guest', loginTime: Date.now() }));
+    localStorage.setItem('foriRole', 'guest');
     window.location.href = 'dashboard.html';
   }
 
-  // FIX 3: Password strength checker
   function checkPasswordStrength(val) {
     const bar = document.getElementById('strengthBar');
     const fill = document.getElementById('strengthFill');
@@ -610,6 +599,13 @@
     fill.style.background = lvl.color;
     label.textContent = lvl.text;
     label.style.color = lvl.color;
+  }
+
+  // Pre-select role from URL param
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('role') === 'lawyer') {
+    const lawyerCard = document.querySelectorAll('.role-card')[1];
+    if (lawyerCard) selectRole('lawyer', lawyerCard);
   }
 
   const modalData = {
