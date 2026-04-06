@@ -546,16 +546,15 @@ window.smartsupp||(function(d) {
     .footer-links { margin-bottom: 0; }
   }
 </style>
-<base target="_blank">
 </head>
 <body>
 
 <!-- Mobile Menu -->
 <div class="mobile-menu" id="mobileMenu">
-  <a href="#ask" onclick="closeMenu()">Ask FORI</a>
-  <a href="#practice" onclick="closeMenu()">Practice Areas</a>
-  <a href="#features" onclick="closeMenu()">Features</a>
-  <a href="#pricing" onclick="closeMenu()">Pricing</a>
+  <a onclick="closeMenu();document.getElementById('ask').scrollIntoView({behavior:'smooth'})">Ask FORI</a>
+  <a onclick="closeMenu();document.getElementById('practice').scrollIntoView({behavior:'smooth'})">Practice Areas</a>
+  <a onclick="closeMenu();document.getElementById('features').scrollIntoView({behavior:'smooth'})">Features</a>
+  <a onclick="closeMenu();document.getElementById('pricing').scrollIntoView({behavior:'smooth'})">Pricing</a>
 </div>
 
 <!-- Theme Toggle -->
@@ -575,15 +574,13 @@ window.smartsupp||(function(d) {
 
 <nav id="navbar">
   <div class="logo">
-    <!-- TODO: Replace with <img src="logo-icon.png" style="height:48px;" alt="FORI"> when available -->
-    <div class="logo-icon">⚖</div>
-    FORI
+    <img src="logo.png" alt="FORI" style="height:48px;width:auto;object-fit:contain;">
   </div>
   <ul class="nav-links">
-    <li><a href="#ask">Ask FORI</a></li>
-    <li><a href="#practice">Practice Areas</a></li>
-    <li><a href="#features">Features</a></li>
-    <li><a href="#pricing">Pricing</a></li>
+    <li><a onclick="document.getElementById('ask').scrollIntoView({behavior:'smooth'})" style="cursor:pointer">Ask FORI</a></li>
+    <li><a onclick="document.getElementById('practice').scrollIntoView({behavior:'smooth'})" style="cursor:pointer">Practice Areas</a></li>
+    <li><a onclick="document.getElementById('features').scrollIntoView({behavior:'smooth'})" style="cursor:pointer">Features</a></li>
+    <li><a onclick="document.getElementById('pricing').scrollIntoView({behavior:'smooth'})" style="cursor:pointer">Pricing</a></li>
   </ul>
   <button class="nav-cta" onclick="window.location.href='auth.html'">Get Started</button>
   <button class="mobile-menu-btn" onclick="toggleMenu()">
@@ -1147,8 +1144,7 @@ window.smartsupp||(function(d) {
 <footer>
   <div class="footer-container">
     <div class="footer-brand">
-      <!-- TODO: Replace with <img src="logo-tagline.png" style="height:180px;" alt="FORI"> when available -->
-      <div class="footer-logo">FORI</div>
+      <img src="logo.png" alt="FORI" style="height:80px;width:auto;object-fit:contain;margin-bottom:12px;filter:drop-shadow(0 2px 8px rgba(201,168,108,0.2));">
       <p class="footer-tagline">Democratizing legal intelligence through artificial intelligence.</p>
     </div>
     <div class="footer-links">
@@ -1165,7 +1161,7 @@ window.smartsupp||(function(d) {
         <ul>
           <li><a onclick="openLegal('about')">About</a></li>
           <li><a href="#faq">FAQ</a></li>
-          <li><a href="mailto:support@lex-ai.com">Contact</a></li>
+          <li><a href="/cdn-cgi/l/email-protection#75060005051a07013519100d58141c5b161a18">Contact</a></li>
         </ul>
       </div>
       <div class="footer-col">
@@ -1200,7 +1196,7 @@ window.smartsupp||(function(d) {
       <h3>Coverage</h3>
       <p>FORI covers all 195 countries. Our AI is trained on the laws, statutes, and legal frameworks of every jurisdiction and auto-detects your location to provide the most relevant guidance possible.</p>
       <h3>Contact</h3>
-      <p>For enquiries, reach us at <a href="mailto:support@lex-ai.com" style="color:var(--accent-gold)">support@lex-ai.com</a></p>
+      <p>For enquiries, reach us at <a href="/cdn-cgi/l/email-protection#4e3d3b3e3e213c3a0e222b36632f27602d2123" style="color:var(--accent-gold)"><span class="__cf_email__" data-cfemail="31424441415e4345715d54491c50581f525e5c">[email&#160;protected]</span></a></p>
     </div>
   </div>
 </div>
@@ -1211,21 +1207,64 @@ window.smartsupp||(function(d) {
     <div class="legal-modal-title">Privacy Policy</div>
     <div class="legal-modal-sub">Last updated: January 2026</div>
     <div class="legal-modal-body">
-      <p>FORI ("we", "our", "us") is committed to protecting your personal data. This policy explains what we collect, how we use it, and your rights.</p>
-      <h3>What We Collect</h3>
-      <p>We collect your name, email address, and account preferences when you sign up. We collect the legal questions you submit and documents you upload to provide AI responses. We collect basic usage data (pages visited, features used) to improve our service.</p>
-      <h3>How We Use Your Data</h3>
-      <p>Your data is used to provide, personalise, and improve the FORI service. Your questions and documents are processed by our AI engine to generate responses. We do not use your data to train AI models without explicit consent. We do not sell your data to third parties under any circumstances.</p>
-      <h3>Data Storage</h3>
-      <p>All data is stored securely on Google Firebase, encrypted at rest and in transit using 256-bit SSL. Firebase is GDPR-compliant and hosted on Google Cloud infrastructure.</p>
-      <h3>Payments</h3>
-      <p>Payment processing is handled by Lemon Squeezy, a PCI-DSS compliant payment processor. FORI never stores your card details.</p>
+      <p>FORI Global Legal Navigator ("FORI", "we", "our", "us") is committed to protecting your privacy and personal data. This Privacy Policy explains in detail what personal information we collect, how we use and protect it, who we share it with, and the rights you have over your own data. This policy applies to all users of the FORI platform, including individuals, legal professionals, and firms, across all 195 countries we serve.</p>
+      <p>By using FORI, you agree to the practices described in this policy. If you do not agree, please discontinue use of the platform.</p>
+
+      <h3>1. Who We Are</h3>
+      <p>FORI is an AI-powered global legal intelligence platform connecting individuals seeking legal guidance with verified legal professionals worldwide. Our platform operates as a legal information service — not a law firm — and is headquartered with operations spanning 195 countries. For data protection enquiries, contact us at support@lex-ai.com.</p>
+
+      <h3>2. What Personal Data We Collect</h3>
+      <p><strong>Account Data:</strong> When you register, we collect your full name, email address, password (stored in encrypted form), and account role (individual or lawyer/firm). Lawyers additionally provide their specialisation, country, city, bar number, firm name, and professional biography.</p>
+      <p><strong>Usage Data:</strong> We collect information about how you use FORI, including pages visited, features accessed, questions asked, documents uploaded, lawyers contacted, and session timestamps. This data is used solely to improve platform quality and personalise your experience.</p>
+      <p><strong>AI Query Data:</strong> Legal questions you submit, documents you upload for review, and AI-generated responses are stored securely and linked to your account. This allows you to access your history and allows our system to provide continuity across sessions. We do not use your query data to train AI models without your explicit written consent.</p>
+      <p><strong>Payment Data:</strong> Subscription and one-time payments are processed by Lemon Squeezy, our PCI-DSS Level 1 certified payment partner. FORI never receives, processes, or stores your full card number, CVV, or banking credentials. We retain only a transaction reference, subscription tier, and billing date for account management purposes.</p>
+      <p><strong>Device & Technical Data:</strong> We collect your IP address, browser type, device type, operating system, and timezone automatically when you access FORI. This data is used for security monitoring, fraud prevention, and jurisdiction auto-detection.</p>
+      <p><strong>Communications:</strong> If you contact our support team via email or live chat, we retain those communications to resolve your enquiry and improve service quality.</p>
+
+      <h3>3. How We Use Your Data</h3>
+      <p>We use your personal data for the following purposes: (a) to create and manage your account; (b) to deliver AI-generated legal responses tailored to your jurisdiction; (c) to facilitate connections between individuals and verified lawyers; (d) to process payments and manage subscriptions; (e) to send transactional emails including receipts, account alerts, and security notifications; (f) to monitor and improve platform performance, security, and accuracy; (g) to comply with applicable law and respond to lawful requests from regulatory authorities.</p>
+      <p>We do not use your data for advertising purposes. We do not sell, rent, or lease your personal data to any third party, ever.</p>
+
+      <h3>4. Legal Basis for Processing (GDPR & Global Equivalents)</h3>
+      <p>For users in the European Economic Area, United Kingdom, and other jurisdictions with data protection legislation, our legal bases for processing are: <strong>Contract Performance</strong> — processing necessary to deliver the FORI service you signed up for; <strong>Legitimate Interests</strong> — improving platform security, preventing fraud, and enhancing service quality; <strong>Legal Obligation</strong> — complying with applicable law; and <strong>Consent</strong> — for any optional data uses such as marketing communications, which you may withdraw at any time.</p>
+
+      <h3>5. Data Storage & Security</h3>
+      <p>All data is stored on Google Firebase, a cloud infrastructure platform operated by Google LLC and hosted on Google Cloud. Firebase is ISO 27001 certified, SOC 2 compliant, and GDPR-compliant. Data is encrypted at rest using AES-256 encryption and in transit using TLS 1.2 or higher.</p>
+      <p>Access to personal data within FORI is restricted on a strict need-to-know basis. Administrative access is protected by multi-factor authentication and audit logging. We conduct regular security reviews and vulnerability assessments.</p>
+      <p>Despite these measures, no system can guarantee absolute security. In the event of a data breach that poses a risk to your rights, we will notify you and the relevant authorities within the timeframes required by applicable law.</p>
+
+      <h3>6. Data Retention</h3>
+      <p>We retain your personal data for as long as your account is active and for a reasonable period thereafter to comply with legal obligations, resolve disputes, and enforce our agreements. Specifically: account data is retained for the duration of your account plus 3 years; payment records are retained for 7 years for tax and accounting compliance; AI query history is retained for the duration of your account and deleted upon account deletion; support communications are retained for 2 years.</p>
+      <p>You may request deletion of your account and all associated data at any time via Settings → Danger Zone → Delete Account, or by emailing support@lex-ai.com.</p>
+
+      <h3>7. Cookies & Tracking</h3>
+      <p>FORI uses the following types of cookies: <strong>Essential Cookies</strong> — required for the platform to function, including session authentication and preference storage. These cannot be disabled. <strong>Analytics Cookies</strong> — used to understand how users interact with FORI and improve the service. These are only placed with your consent via our cookie banner.</p>
+      <p>We do not use third-party advertising cookies or tracking pixels. You can manage your cookie preferences at any time via the cookie banner displayed on your first visit.</p>
+
+      <h3>8. Third-Party Services</h3>
+      <p>FORI integrates the following third-party services, each governed by their own privacy policies: Google Firebase (data storage and authentication); Lemon Squeezy (payment processing); Smartsupp (live chat support); Tavily (legal research data); Google Gemini AI (AI response generation). We have contractual data processing agreements with each provider ensuring your data is handled in accordance with applicable law.</p>
+
+      <h3>9. International Data Transfers</h3>
+      <p>FORI serves users in 195 countries. Your data may be processed and stored in servers located outside your home country, including in the United States and European Union. Where such transfers occur, we ensure appropriate safeguards are in place, including Standard Contractual Clauses approved by the European Commission and equivalent mechanisms under applicable law.</p>
+
+      <h3>10. Your Rights</h3>
+      <p>Depending on your jurisdiction, you may have the following rights regarding your personal data: the right to access a copy of your data; the right to correct inaccurate data; the right to erasure ("right to be forgotten"); the right to restrict or object to certain processing; the right to data portability; the right to withdraw consent at any time; and the right to lodge a complaint with your national data protection authority.</p>
+      <p>To exercise any of these rights, contact us at support@lex-ai.com. We will respond within 30 days.</p>
+
+      <h3>11. Children's Privacy</h3>
+      <p>FORI is not intended for users under the age of 18. We do not knowingly collect personal data from minors. If you believe a minor has registered on our platform, please contact us immediately at support@lex-ai.com and we will delete the account.</p>
+
+      <h3>12. Changes to This Policy</h3>
+      <p>We may update this Privacy Policy from time to time to reflect changes in our practices, technology, or legal requirements. We will notify registered users of material changes via email and/or an in-app notification at least 14 days before the change takes effect. Continued use of FORI after the effective date constitutes acceptance of the updated policy.</p>
+
+      <h3>13. Contact & Data Controller</h3>
+      <p>For all privacy-related enquiries, data subject requests, or concerns, contact us at: <a href="mailto:support@lex-ai.com" style="color:var(--accent-gold)">support@lex-ai.com</a>. We aim to respond to all enquiries within 5 business days.</p>
       <h3>Cookies</h3>
       <p>We use essential cookies to keep you signed in and remember your preferences. With your consent, we use analytics cookies to understand how users interact with FORI. You can manage your cookie preferences at any time via the banner on this page.</p>
       <h3>Your Rights</h3>
-      <p>You have the right to access, correct, or delete your personal data at any time. To request deletion of your account and all associated data, go to Settings → Danger Zone → Delete Account. For other data requests, contact us at support@lex-ai.com.</p>
+      <p>You have the right to access, correct, or delete your personal data at any time. To request deletion of your account and all associated data, go to Settings → Danger Zone → Delete Account. For other data requests, contact us at <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="6615131616091412260a031e4b070f4805090b">[email&#160;protected]</a>.</p>
       <h3>Contact</h3>
-      <p>For privacy enquiries: <a href="mailto:support@lex-ai.com" style="color:var(--accent-gold)">support@lex-ai.com</a></p>
+      <p>For privacy enquiries: <a href="/cdn-cgi/l/email-protection#2d5e585d5d425f596d414855004c44034e4240" style="color:var(--accent-gold)"><span class="__cf_email__" data-cfemail="b1c2c4c1c1dec3c5f1ddd4c99cd0d89fd2dedc">[email&#160;protected]</span></a></p>
     </div>
   </div>
 </div>
@@ -1236,23 +1275,56 @@ window.smartsupp||(function(d) {
     <div class="legal-modal-title">Terms of Service</div>
     <div class="legal-modal-sub">Last updated: January 2026</div>
     <div class="legal-modal-body">
-      <p>By using FORI, you agree to these Terms of Service. Please read them carefully.</p>
-      <h3>1. Nature of Service</h3>
-      <p>FORI provides AI-generated legal information for educational purposes only. FORI is not a law firm, and no attorney-client relationship is formed by using this service. The information provided does not constitute legal advice and should not be relied upon as such for any legal decision.</p>
+      <p>Welcome to FORI. These Terms of Service ("Terms") govern your access to and use of the FORI platform, including the website, mobile applications, AI tools, lawyer directory, and all related services (collectively, the "Service"). By creating an account or using any part of FORI, you agree to be bound by these Terms. If you do not agree, do not use the Service.</p>
+      <p>These Terms constitute a legally binding agreement between you and FORI Global Legal Navigator. Please read them carefully before proceeding.</p>
+
+      <h3>1. Nature of Service &amp; Non-Legal Advice Disclaimer</h3>
+      <p>FORI is an AI-powered legal information and lawyer marketplace platform. The Service provides general legal information, AI-generated guidance, document drafting assistance, case analysis, and connections to independent legal professionals. FORI is not a law firm. The information generated by FORI's AI — including answers to legal questions, contract reviews, case outcome predictions, clause suggestions, and legal research — constitutes legal information only and does not constitute legal advice.</p>
+      <p>No attorney-client relationship is created between you and FORI by virtue of using the Service. You should not rely on FORI's AI-generated content as a substitute for advice from a qualified lawyer licensed in your jurisdiction. For any matter involving significant legal, financial, or personal consequences, always seek independent legal counsel.</p>
+
       <h3>2. Eligibility</h3>
-      <p>You must be 18 years or older to use FORI. By creating an account, you confirm that you meet this requirement.</p>
-      <h3>3. Subscriptions & Billing</h3>
-      <p>Paid subscriptions are billed through Lemon Squeezy. Subscriptions auto-renew unless cancelled before the renewal date. Cancellation takes effect at the end of the current billing period. All prices are displayed in USD. Refunds are not provided for partial billing periods.</p>
-      <h3>4. Acceptable Use</h3>
-      <p>You agree not to use FORI for any unlawful purpose, to attempt to extract or reverse-engineer our AI systems, to impersonate any person or entity, or to upload content that is illegal, harmful, or violates third-party rights.</p>
-      <h3>5. Lawyer Listings</h3>
-      <p>Lawyers listed on FORI are independent legal professionals. FORI does not endorse any lawyer and is not responsible for the quality of legal services they provide. The Verified Badge confirms identity and licensing verification only.</p>
-      <h3>6. Limitation of Liability</h3>
-      <p>FORI is provided "as is" without warranties of any kind. To the maximum extent permitted by law, FORI shall not be liable for any indirect, incidental, or consequential damages arising from use of the service.</p>
-      <h3>7. Changes</h3>
-      <p>We may update these Terms at any time. Continued use of FORI after changes constitutes acceptance of the updated Terms.</p>
-      <h3>Contact</h3>
-      <p><a href="mailto:support@lex-ai.com" style="color:var(--accent-gold)">support@lex-ai.com</a></p>
+      <p>You must be at least 18 years of age to create an account or use the Service. By registering, you represent and warrant that you are 18 or older, that you have the legal capacity to enter into binding agreements, and that your use of FORI complies with all applicable laws in your jurisdiction. FORI reserves the right to suspend or terminate any account where there is reason to believe this requirement has not been met.</p>
+
+      <h3>3. Account Registration &amp; Security</h3>
+      <p>To access most features of FORI, you must create an account by providing accurate, current, and complete information. You are responsible for maintaining the confidentiality of your account credentials and for all activity that occurs under your account. You agree to notify us immediately at support@lex-ai.com if you suspect any unauthorised access to your account. FORI shall not be liable for any loss or damage arising from your failure to safeguard your login credentials.</p>
+      <p>You may not create accounts for the purpose of misrepresentation, impersonation, fraud, or any other unlawful activity. FORI reserves the right to verify account information at any time and to terminate accounts found to be inaccurate or fraudulent.</p>
+
+      <h3>4. Subscriptions, Billing &amp; Payments</h3>
+      <p><strong>Free Plan:</strong> Free accounts have access to a limited number of AI queries per day (currently 5) and can browse the lawyer directory but cannot contact lawyers directly.</p>
+      <p><strong>Individual Premium ($4.99/month or $49.90/year):</strong> Provides unlimited AI queries, document drafting, contract review, clause library, case outcome prediction, document comparison, legal research, file uploads, and direct lawyer contact.</p>
+      <p><strong>Lawyer/Firm Subscription ($24.99/month or $249.90/year):</strong> Provides all AI tools, global marketplace listing, client lead pipeline, verified badge eligibility, profile boost options, and case management tools.</p>
+      <p>All payments are processed by Lemon Squeezy, a PCI-DSS Level 1 certified payment processor. Subscriptions auto-renew at the end of each billing period unless cancelled before the renewal date. All prices are displayed in USD. FORI does not store your card details. Refunds are not provided for partial billing periods. If you believe you have been charged in error, contact support@lex-ai.com within 7 days of the charge.</p>
+
+      <h3>5. Cancellation Policy</h3>
+      <p>You may cancel your subscription at any time without penalty. Cancellation takes effect at the end of the current billing period — you retain full access to your plan until that date. To cancel, access your Lemon Squeezy customer portal via the link in your subscription confirmation email or contact support@lex-ai.com. FORI does not offer prorated refunds for unused portions of a billing period.</p>
+
+      <h3>6. Acceptable Use Policy</h3>
+      <p>You agree to use FORI only for lawful purposes and in accordance with these Terms. You must not: (a) use the Service to facilitate any criminal or fraudulent act; (b) upload content that is defamatory, obscene, or that infringes third-party intellectual property rights; (c) attempt to reverse-engineer, scrape, or extract FORI's AI models or proprietary algorithms; (d) use automated tools or bots to access or abuse the Service; (e) impersonate any person, entity, or legal professional; (f) submit false or misleading information to the platform or to lawyers; (g) harass or intimidate any lawyer or other user; or (h) attempt to gain unauthorised access to other users' accounts or FORI's systems.</p>
+      <p>Violation of this policy may result in immediate account suspension or termination without refund, at FORI's sole discretion.</p>
+
+      <h3>7. Lawyer Listings &amp; Marketplace</h3>
+      <p>Lawyers listed on FORI are independent legal professionals solely responsible for the legal services they provide. FORI does not employ, supervise, endorse, or guarantee any listed lawyer. The Verified Badge confirms identity and licensing verification only — it is not an endorsement of quality or suitability. FORI operates on a zero-commission model. Any fee arrangements are strictly between the client and the lawyer, and FORI shall not be liable for any disputes arising from such engagements.</p>
+
+      <h3>8. Intellectual Property</h3>
+      <p>All content on the FORI platform — including the AI system, software, design, text, graphics, and logos — is the exclusive property of FORI Global Legal Navigator or its licensors. You may not copy, reproduce, or distribute any FORI content without prior written permission. Content you submit to FORI remains your property; by submitting it, you grant FORI a limited licence to process it solely for the purpose of delivering the Service.</p>
+
+      <h3>9. Limitation of Liability</h3>
+      <p>To the fullest extent permitted by applicable law, FORI and its affiliates shall not be liable for any indirect, incidental, consequential, or punitive damages arising out of your use of the Service. FORI's total aggregate liability for any claim shall not exceed the total amount paid by you to FORI in the 12 months preceding the claim.</p>
+
+      <h3>10. Indemnification</h3>
+      <p>You agree to indemnify and hold harmless FORI and its affiliates from any claims, liabilities, damages, and costs arising from your use of the Service, your violation of these Terms, or your violation of any applicable law or third-party rights.</p>
+
+      <h3>11. Governing Law &amp; Dispute Resolution</h3>
+      <p>These Terms shall be governed by applicable law. In the event of a dispute, you agree to first attempt informal resolution by contacting support@lex-ai.com. If unresolved within 30 days, either party may pursue formal resolution through courts of competent jurisdiction.</p>
+
+      <h3>12. Modifications to Terms</h3>
+      <p>FORI may update these Terms at any time. We will provide at least 14 days' notice of material changes via email and/or in-app notification. Continued use after the effective date constitutes acceptance of the updated Terms.</p>
+
+      <h3>13. Termination</h3>
+      <p>FORI may suspend or terminate your account at any time if we reasonably believe you have violated these Terms or engaged in conduct harmful to the platform. Upon termination, your right to access the Service ceases immediately.</p>
+
+      <h3>14. Contact</h3>
+      <p>For all Terms-related enquiries: <a href="mailto:support@lex-ai.com" style="color:var(--accent-gold)">support@lex-ai.com</a></p>
     </div>
   </div>
 </div>
@@ -1263,21 +1335,54 @@ window.smartsupp||(function(d) {
     <div class="legal-modal-title">Legal Disclaimer</div>
     <div class="legal-modal-sub">Last updated: January 2026</div>
     <div class="legal-modal-body">
-      <h3>Not Legal Advice</h3>
-      <p>FORI is an AI-powered legal information platform. The content generated by FORI — including answers to questions, document summaries, contract reviews, case outcome predictions, and all other outputs — constitutes legal information only. It does not constitute legal advice.</p>
-      <h3>No Attorney-Client Relationship</h3>
-      <p>Using FORI does not create an attorney-client relationship between you and FORI, its owners, or any lawyer listed on the platform unless you explicitly engage a lawyer and they accept your matter through an independent agreement.</p>
-      <h3>Accuracy</h3>
-      <p>While FORI strives to provide accurate, up-to-date legal information, laws change frequently and vary significantly by jurisdiction. AI-generated responses may contain errors, omissions, or outdated information. Always verify important legal information with a qualified lawyer in your jurisdiction before taking action.</p>
-      <h3>Lawyer Responsibility</h3>
-      <p>Lawyers listed on FORI are solely responsible for the legal services they provide to clients. FORI does not supervise, control, or guarantee the quality of legal services provided by listed lawyers.</p>
-      <h3>Reliance</h3>
-      <p>You rely on information from FORI at your own risk. FORI shall not be liable for any loss, damage, or legal consequence arising from reliance on AI-generated content. For any matter with significant financial, personal, or legal consequences, always consult a qualified lawyer.</p>
+      <p>This Legal Disclaimer governs your use of all content, tools, outputs, and services provided by FORI Global Legal Navigator ("FORI"). By accessing or using the FORI platform, you acknowledge that you have read, understood, and agreed to this disclaimer in its entirety. If you do not agree, you must immediately discontinue use of the platform.</p>
+
+      <h3>1. No Legal Advice</h3>
+      <p>FORI is an AI-powered legal information platform, not a law firm. All content produced by FORI's artificial intelligence — including but not limited to answers to legal questions, contract reviews, clause suggestions, case outcome predictions, document drafts, legal research summaries, and comparative document analysis — constitutes general legal information only. It does not, under any circumstances, constitute legal advice within the meaning of any professional legal standard or regulatory framework in any jurisdiction.</p>
+      <p>Legal information differs fundamentally from legal advice. Legal advice requires an attorney to apply specific legal knowledge to your specific facts, consider all relevant circumstances, exercise professional judgment, and accept professional responsibility for the guidance given. FORI's AI does none of these things. You must not treat FORI's outputs as a substitute for qualified, licensed legal counsel.</p>
+
+      <h3>2. No Attorney-Client Relationship</h3>
+      <p>Using FORI — including asking questions, uploading documents, receiving AI responses, or browsing the lawyer directory — does not create, imply, or establish an attorney-client relationship between you and FORI, its founders, directors, employees, or contractors. No such relationship arises at any point during your use of the platform.</p>
+      <p>An attorney-client relationship is only established when you independently engage a specific lawyer who expressly agrees to represent you, typically through a signed engagement letter or retainer agreement. If you engage a lawyer found through FORI's marketplace, that relationship is exclusively between you and the individual lawyer — FORI is not a party to it and accepts no responsibility for its terms, conduct, or outcomes.</p>
+
+      <h3>3. Accuracy, Completeness & Currency of Information</h3>
+      <p>While FORI makes reasonable efforts to ensure the accuracy and relevance of AI-generated content, we make no representation or warranty — express, implied, or statutory — that such content is accurate, complete, current, reliable, or suitable for any particular purpose. Laws, regulations, statutes, case law, and legal standards change frequently and vary significantly between jurisdictions, sub-jurisdictions, and over time.</p>
+      <p>AI systems, including FORI, may produce outputs that are factually incorrect, jurisdictionally inappropriate, outdated, or inapplicable to your specific circumstances. FORI's AI may also occasionally generate content with apparent confidence that is nonetheless inaccurate — a phenomenon known in the field as "hallucination." You must independently verify all legal information obtained through FORI before relying on it for any decision or action.</p>
+
+      <h3>4. Jurisdictional Limitations</h3>
+      <p>FORI serves users across 195 countries. Laws differ substantially across jurisdictions, and a legal principle that applies in one country, state, or region may not apply — or may apply very differently — in another. FORI's jurisdiction-detection feature improves relevance but does not guarantee that the information provided is specific to, or accurate under, the laws applicable to your exact situation.</p>
+      <p>FORI's AI is trained on broad legal knowledge bases but is not a licensed practitioner in any jurisdiction. It cannot substitute for a lawyer admitted to practice in your specific jurisdiction who has actual knowledge of local law, procedure, courts, and practice norms.</p>
+
+      <h3>5. No Warranty of Outcomes</h3>
+      <p>FORI's case outcome prediction tool and legal analysis features are probabilistic tools based on general legal patterns and AI modelling. They do not, and cannot, predict the outcome of any specific legal matter with certainty. No output from FORI constitutes a guarantee, promise, or assurance of any legal outcome. Legal outcomes depend on numerous factors — including judicial discretion, local procedural rules, evidence, witness credibility, and the specific facts of each case — that FORI's AI cannot fully assess or account for.</p>
+
+      <h3>6. Limitation of Liability</h3>
+      <p>To the fullest extent permitted by applicable law, FORI, its affiliates, directors, officers, employees, agents, licensors, and service providers expressly disclaim all liability for any loss, damage, harm, or consequence — whether direct, indirect, incidental, consequential, punitive, or otherwise — arising from: (a) your reliance on any AI-generated content produced by FORI; (b) any error, inaccuracy, or omission in FORI's outputs; (c) any legal decision or action you take or refrain from taking based on information obtained through FORI; (d) any failure to obtain appropriate independent legal advice; or (e) any outcome of a legal matter, dispute, proceeding, or transaction informed by FORI's content.</p>
+      <p>This limitation applies regardless of whether FORI was advised of the possibility of such damages and regardless of the legal theory under which liability is claimed.</p>
+
+      <h3>7. Independent Lawyer Responsibility</h3>
+      <p>Lawyers and firms listed in FORI's marketplace are independent legal professionals regulated by the bar associations, law societies, or licensing bodies of their respective jurisdictions. FORI does not employ, supervise, direct, endorse, or guarantee any lawyer on the platform. FORI is not responsible for: the quality, timeliness, or outcome of legal services provided by any listed lawyer; any advice, representation, or conduct of any lawyer accessed through FORI; fee disputes between clients and lawyers; or any breach of professional duty by any lawyer.</p>
+      <p>The FORI Verified Badge confirms only that a lawyer has provided documentation of their claimed credentials and that those credentials appear consistent with active legal registration. Verification is not a guarantee of competence, suitability for your matter, or continued good standing.</p>
+
+      <h3>8. Third-Party Content & Links</h3>
+      <p>FORI may reference, cite, or link to third-party legal resources, government websites, case databases, or external content. Such references are provided for informational convenience only. FORI does not endorse, control, or take responsibility for the accuracy, completeness, or currency of any third-party content. You access third-party resources at your own risk.</p>
+
+      <h3>9. Urgency Warning</h3>
+      <p>If your legal matter is urgent — for example, if you face imminent arrest, deportation, eviction, court deadlines, or other time-sensitive legal consequences — do not rely solely on FORI. Contact a qualified lawyer immediately. FORI is not a crisis or emergency legal service and cannot provide the real-time, case-specific guidance that urgent legal situations demand.</p>
+
+      <h3>10. Recommendation to Seek Legal Counsel</h3>
+      <p>For any legal matter of significance — including but not limited to criminal charges, civil litigation, immigration proceedings, family law matters, business transactions, property disputes, employment terminations, or constitutional rights issues — FORI strongly recommends that you seek independent advice from a qualified lawyer licensed in the relevant jurisdiction. FORI is a starting point, not a finishing point, for your legal journey.</p>
+
+      <h3>11. Changes to This Disclaimer</h3>
+      <p>FORI reserves the right to update this disclaimer at any time. The current version will always be accessible on this page. Continued use of the platform following any update constitutes your acceptance of the revised disclaimer.</p>
+
+      <h3>12. Contact</h3>
+      <p>For questions about this disclaimer: <a href="mailto:support@lex-ai.com" style="color:var(--accent-gold)">support@lex-ai.com</a></p>
     </div>
   </div>
 </div>
 
-<script>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
 // ── MOBILE MENU ──
 function toggleMenu() { document.getElementById('mobileMenu').classList.toggle('open'); }
 function closeMenu() { document.getElementById('mobileMenu').classList.remove('open'); }
@@ -1318,7 +1423,7 @@ initCookieBanner();
 function initSmartsuppWidget() {
   if (typeof smartsupp === 'undefined') { setTimeout(initSmartsuppWidget, 500); return; }
   smartsupp('theme:colors', { primary: '#c9a86c', primaryText: '#0a0a0a' });
-  smartsupp('chat:minimize');
+  smartsupp('on','chat:close',function(){ smartsupp('chat:hide'); });
 }
 document.addEventListener('DOMContentLoaded', () => setTimeout(initSmartsuppWidget, 1500));
 
@@ -1608,26 +1713,3 @@ async function askFori() {
           const payload = JSON.parse(line.slice(6));
           if (payload.error) {
             answerBox.classList.remove('visible');
-            document.getElementById('errorText').textContent = '⚠️ ' + payload.error;
-            errorBox.classList.add('visible');
-            break;
-          }
-          if (payload.chunk) answerTextEl.textContent += payload.chunk;
-        } catch(e) {}
-      }
-    }
-  } catch (err) {
-    loading.classList.remove('visible');
-    btn.disabled = false;
-    document.getElementById('errorText').textContent = '⚠️ Connection error. Please try again.';
-    errorBox.classList.add('visible');
-  }
-}
-
-document.getElementById('questionInput').addEventListener('keydown', function(e) {
-  if (e.key === 'Enter' && e.ctrlKey) askFori();
-});
-</script>
-
-</body>
-</html>
