@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>LEX — Lawyer Dashboard</title>
+<title>FORI — Lawyer Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -311,8 +311,8 @@
       const snap = await getDoc(doc(db, "users", user.uid));
       if (snap.exists()) {
         const data = snap.data();
-        localStorage.setItem('lexUser', JSON.stringify({ uid: user.uid, email: user.email || '', name: data.name, role: data.role, plan: data.plan || 'free' }));
-        localStorage.setItem('lexRole', data.role);
+        localStorage.setItem('foriUser', JSON.stringify({ uid: user.uid, email: user.email || '', name: data.name, role: data.role, plan: data.plan || 'free' }));
+        localStorage.setItem('foriRole', data.role);
         if (data.role !== 'lawyer') window.location.href = 'dashboard.html';
       }
     }
@@ -320,8 +320,8 @@
 
   window.lexSignOut = async function() {
     await signOut(auth);
-    localStorage.removeItem('lexUser');
-    localStorage.removeItem('lexRole');
+    localStorage.removeItem('foriUser');
+    localStorage.removeItem('foriRole');
     window.location.href = '/';
   };
 
@@ -453,7 +453,7 @@
       <div class="logo-icon">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
       </div>
-      LEX
+      FORI
     </div>
   </div>
 
@@ -489,7 +489,7 @@
     </a>
     <a class="nav-item" onclick="showPage('aitool', this)">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
-      LEX AI Tool
+      FORI AI Tool
       <span class="nav-badge gold">PRO</span>
     </a>
     <a class="nav-item" onclick="showPage('aihistory', this)">
@@ -682,15 +682,15 @@
     <div class="chat-wrap">
       <div class="chat-messages" id="aiChatMessages">
         <div class="chat-bubble assistant">
-          <div class="bubble-label">LEX Business AI</div>
-          <div class="bubble-content assistant">Good to have you, Counsellor. I'm your LEX Business AI — running on elite analysis mode with unlimited access. Ask me to research case law, draft documents, analyse contracts, check compliance, or find precedents. How can I assist you today?</div>
+          <div class="bubble-label">FORI Business AI</div>
+          <div class="bubble-content assistant">Good to have you, Counsellor. I'm your FORI Business AI — running on elite analysis mode with unlimited access. Ask me to research case law, draft documents, analyse contracts, check compliance, or find precedents. How can I assist you today?</div>
         </div>
       </div>
       <div class="chat-typing" id="aiChatTyping">
-        <div class="bubble-label">LEX is analysing</div>
+        <div class="bubble-label">FORI is analysing</div>
         <div class="typing-dots"><span></span><span></span><span></span></div>
       </div>
-      <div class="chat-disclaimer">LEX Business AI · Elite Analysis Mode · Unlimited · Verify all citations before use in proceedings.</div>
+      <div class="chat-disclaimer">FORI Business AI · Elite Analysis Mode · Unlimited · Verify all citations before use in proceedings.</div>
       <div class="chat-input-area">
         <div class="chat-meta-row">
           <select class="chat-select-mini" id="aiCountry"></select>
@@ -717,7 +717,7 @@
     <div class="content-area">
       <div class="page-label">AI Tools</div>
       <h1 class="page-title">Legal <em>Research</em></h1>
-      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:24px;line-height:1.7;">Search legislation, case law and legal precedents. LEX optimises your query and cites every source.</p>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:24px;line-height:1.7;">Search legislation, case law and legal precedents. FORI optimises your query and cites every source.</p>
       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;">
         <button onclick="setResearchTopic('Wrongful termination employee rights')" class="clause-chip">Wrongful Termination</button>
         <button onclick="setResearchTopic('Landlord tenant eviction rights')" class="clause-chip">Eviction Rights</button>
@@ -735,7 +735,7 @@
       <div id="researchProcessing" style="display:none;text-align:center;padding:40px 20px;">
         <div style="font-size:36px;margin-bottom:16px;">🔍</div>
         <div style="font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--text-primary);margin-bottom:8px;">Searching legal databases...</div>
-        <div style="font-size:13px;color:var(--text-secondary);">LEX is searching legislation, case law and commentary. 15–30 seconds.</div>
+        <div style="font-size:13px;color:var(--text-secondary);">FORI is searching legislation, case law and commentary. 15–30 seconds.</div>
       </div>
       <div id="researchResults" style="display:none;">
         <div id="researchSourcesPanel" style="display:none;margin-bottom:16px;">
@@ -757,7 +757,7 @@
     <div class="content-area">
       <div class="page-label">AI Tools</div>
       <h1 class="page-title">Compare <em>Documents</em></h1>
-      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:24px;line-height:1.7;">Upload two contracts — LEX will compare them side by side, highlight conflicts, missing clauses and advise which is more favourable.</p>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:24px;line-height:1.7;">Upload two contracts — FORI will compare them side by side, highlight conflicts, missing clauses and advise which is more favourable.</p>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
         <div>
           <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;">Document A</div>
@@ -790,7 +790,7 @@
       <div id="compareProcessing" style="display:none;text-align:center;padding:40px 20px;">
         <div style="font-size:36px;margin-bottom:16px;">⚖</div>
         <div style="font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--text-primary);margin-bottom:8px;">Comparing documents...</div>
-        <div style="font-size:13px;color:var(--text-secondary);">LEX is analysing both documents. This may take 30–60 seconds.</div>
+        <div style="font-size:13px;color:var(--text-secondary);">FORI is analysing both documents. This may take 30–60 seconds.</div>
       </div>
       <div id="compareResults" style="display:none;">
         <div id="compareVerdictBadge" style="padding:10px 16px;margin-bottom:16px;font-size:12px;letter-spacing:1px;text-transform:uppercase;font-weight:600;text-align:center;display:none;"></div>
@@ -827,7 +827,7 @@
       <div id="clauseProcessing" style="display:none;text-align:center;padding:40px 20px;">
         <div style="font-size:36px;margin-bottom:16px;">📚</div>
         <div style="font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--text-primary);margin-bottom:8px;">Retrieving clause...</div>
-        <div style="font-size:13px;color:var(--text-secondary);">LEX is drafting the clause with variations and notes.</div>
+        <div style="font-size:13px;color:var(--text-secondary);">FORI is drafting the clause with variations and notes.</div>
       </div>
       <div id="clauseResults" style="display:none;">
         <div id="clauseOutput" style="background:var(--bg-secondary);border:1px solid var(--border);padding:24px;line-height:1.9;font-size:14px;color:var(--text-primary);white-space:pre-wrap;font-family:'Inter',sans-serif;min-height:200px;"></div>
@@ -873,7 +873,7 @@
       <div id="outcomeProcessing" style="display:none;text-align:center;padding:40px 20px;">
         <div style="font-size:36px;margin-bottom:16px;">⚖</div>
         <div style="font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--text-primary);margin-bottom:8px;">Analysing case...</div>
-        <div style="font-size:13px;color:var(--text-secondary);">LEX is assessing the legal landscape and likely outcomes.</div>
+        <div style="font-size:13px;color:var(--text-secondary);">FORI is assessing the legal landscape and likely outcomes.</div>
       </div>
       <div id="outcomeResults" style="display:none;">
         <div id="outcomeUrgencyBadge" style="padding:10px 16px;margin-bottom:16px;font-size:12px;letter-spacing:1px;text-transform:uppercase;font-weight:600;text-align:center;display:none;"></div>
@@ -912,7 +912,7 @@
       <div id="contractProcessing" style="display:none;text-align:center;padding:40px 20px;">
         <div style="font-size:36px;margin-bottom:16px;">⚖</div>
         <div style="font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--text-primary);margin-bottom:8px;" id="contractProcessingLabel">Analysing contract...</div>
-        <div style="font-size:13px;color:var(--text-secondary);">LEX is reviewing every clause. This may take 30–60 seconds.</div>
+        <div style="font-size:13px;color:var(--text-secondary);">FORI is reviewing every clause. This may take 30–60 seconds.</div>
       </div>
       <div id="contractResults" style="display:none;">
         <div id="contractRiskBadge" style="padding:10px 16px;margin-bottom:16px;font-size:12px;letter-spacing:1px;text-transform:uppercase;font-weight:600;text-align:center;"></div>
@@ -954,7 +954,7 @@
             <input type="checkbox" id="lwNotifMessages" checked style="width:16px;height:16px;accent-color:var(--accent-gold);cursor:pointer;">
           </label>
           <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;">
-            <span style="font-size:14px;color:var(--text-secondary);">LEX system updates</span>
+            <span style="font-size:14px;color:var(--text-secondary);">FORI system updates</span>
             <input type="checkbox" id="lwNotifSystem" checked style="width:16px;height:16px;accent-color:var(--accent-gold);cursor:pointer;">
           </label>
         </div>
@@ -1114,7 +1114,7 @@
 
 <!-- Cookie Banner -->
 <div class="cookie-banner" id="cookieBanner">
-  <div class="cookie-text">LEX uses cookies to improve your experience. <a href="#">Learn more</a></div>
+  <div class="cookie-text">FORI uses cookies to improve your experience. <a href="#">Learn more</a></div>
   <div class="cookie-btns">
     <button class="cookie-btn accept" onclick="acceptCookies()">Accept All</button>
     <button class="cookie-btn essential" onclick="declineCookies()">Essential Only</button>
@@ -1127,7 +1127,7 @@
     <button onclick="document.getElementById('upgradeModal').style.display='none'" style="position:absolute;top:14px;right:14px;background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;">×</button>
     <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="var(--accent-gold)" stroke-width="1.5" style="margin:0 auto 16px;display:block;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
     <div style="font-family:'Cormorant Garamond',serif;font-size:32px;margin-bottom:8px;color:var(--text-primary);">Go Premium</div>
-    <div style="font-size:14px;color:var(--text-secondary);line-height:1.7;margin-bottom:20px;">Unlimited AI tools, priority lawyer listings, verified badge, profile boosts, and full access to all LEX Business features.</div>
+    <div style="font-size:14px;color:var(--text-secondary);line-height:1.7;margin-bottom:20px;">Unlimited AI tools, priority lawyer listings, verified badge, profile boosts, and full access to all FORI Business features.</div>
     <div style="display:flex;gap:0;margin:0 auto 16px;border:1px solid var(--accent-gold);width:fit-content;">
       <button id="lwToggleMonthly" onclick="setLwBilling('monthly')" style="padding:8px 20px;background:var(--accent-gold);color:var(--bg-primary);border:none;font-size:11px;font-weight:600;letter-spacing:1px;cursor:pointer;">MONTHLY</button>
       <button id="lwToggleYearly" onclick="setLwBilling('yearly')" style="padding:8px 20px;background:transparent;color:var(--accent-gold);border:none;font-size:11px;font-weight:600;letter-spacing:1px;cursor:pointer;">YEARLY &nbsp;<span style="font-size:9px;opacity:0.8;">2 MONTHS FREE</span></button>
@@ -1146,7 +1146,7 @@
     <button onclick="document.getElementById('badgeModal').style.display='none'" style="position:absolute;top:14px;right:14px;background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;">×</button>
     <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#27ae60" stroke-width="1.5" style="margin:0 auto 16px;display:block;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
     <div style="font-family:'Cormorant Garamond',serif;font-size:28px;margin-bottom:8px;color:var(--text-primary);">Verified Badge</div>
-    <div style="font-size:14px;color:var(--text-secondary);line-height:1.7;margin-bottom:16px;">One-time verification. Show clients your credentials have been reviewed and approved by LEX.</div>
+    <div style="font-size:14px;color:var(--text-secondary);line-height:1.7;margin-bottom:16px;">One-time verification. Show clients your credentials have been reviewed and approved by FORI.</div>
     <div style="font-family:'Cormorant Garamond',serif;font-size:48px;color:var(--text-primary);margin-bottom:16px;"><sup style="font-size:24px;color:var(--text-secondary);">$</sup>19.99<span style="font-size:16px;color:var(--text-muted);font-weight:300;"> one-time</span></div>
     <button class="ask-btn" id="badgePurchaseBtn" onclick="initiateBadgeCheckout()" style="width:100%;justify-content:center;">
       <span id="badgePurchaseText">Purchase Badge</span>
@@ -1184,7 +1184,7 @@
   <div style="background:var(--bg-secondary);border:1px solid var(--border);width:100%;max-width:440px;position:relative;max-height:90vh;overflow-y:auto;">
     <div style="padding:24px 24px 0;display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
       <div>
-        <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px;">LEX</div>
+        <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px;">FORI</div>
         <div style="font-family:'Cormorant Garamond',serif;font-size:24px;color:var(--text-primary);">Help & <em>Support</em></div>
       </div>
       <button onclick="closeSupport()" style="background:transparent;border:1px solid var(--border);color:var(--text-muted);width:32px;height:32px;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;">×</button>
@@ -1231,26 +1231,26 @@
         </div>
         <div class="faq-body" style="display:none;flex-direction:column;gap:0;margin-top:14px;">
           <!-- GETTING STARTED -->
-          <div class="faq-item" onclick="toggleFAQItem(this)"><div class="faq-q">How does LEX work for lawyers?</div><div class="faq-a">LEX connects you with clients who need legal help across 195 countries. Once you subscribe, your profile appears in the global lawyer directory. Clients can browse your specialisation, location, ratings, and bio — and if they're Premium users, they can send you a direct contact request. You review the request and accept or decline. If accepted, you communicate via the built-in secure chat.</div></div>
+          <div class="faq-item" onclick="toggleFAQItem(this)"><div class="faq-q">How does FORI work for lawyers?</div><div class="faq-a">FORI connects you with clients who need legal help across 195 countries. Once you subscribe, your profile appears in the global lawyer directory. Clients can browse your specialisation, location, ratings, and bio — and if they're Premium users, they can send you a direct contact request. You review the request and accept or decline. If accepted, you communicate via the built-in secure chat.</div></div>
           <div class="faq-item" onclick="toggleFAQItem(this)"><div class="faq-q">How do I set up my profile to attract clients?</div><div class="faq-a">A strong profile includes: a clear specialisation (e.g. Corporate Law, Family Law), your city and country, a compelling bio that explains your experience and approach, your firm name, and your case count. The more complete your profile, the higher you rank in search results. Verified lawyers and boosted profiles appear at the top of the directory — both significantly increase visibility.</div></div>
 
           <!-- VERIFICATION & TRUST -->
-          <div class="faq-item" onclick="toggleFAQItem(this)"><div class="faq-q">How do I get my Verified Badge?</div><div class="faq-a">The <strong>✓ Verified</strong> badge signals to clients that you are a qualified, licensed legal professional reviewed by the LEX team. To get verified, go to your Profile section and click <strong>Get Verified</strong>, then submit your bar association certificate or practising licence. Our team reviews submissions within 48 hours. Verified lawyers appear above unverified lawyers in all search results — it's the single most impactful thing you can do for your visibility.</div></div>
-          <div class="faq-item" onclick="toggleFAQItem(this)"><div class="faq-q">How do ratings and reviews work?</div><div class="faq-a">After a case is closed, clients are prompted to rate their experience with you (1–5 stars), select the case outcome (Won, Settled, Lost, Ongoing), and leave a written review. All ratings are verified by LEX — only clients who had an active case with you can leave a review. Your average rating and review count are displayed on your profile card. High ratings directly improve your ranking in the directory.</div></div>
+          <div class="faq-item" onclick="toggleFAQItem(this)"><div class="faq-q">How do I get my Verified Badge?</div><div class="faq-a">The <strong>✓ Verified</strong> badge signals to clients that you are a qualified, licensed legal professional reviewed by the FORI team. To get verified, go to your Profile section and click <strong>Get Verified</strong>, then submit your bar association certificate or practising licence. Our team reviews submissions within 48 hours. Verified lawyers appear above unverified lawyers in all search results — it's the single most impactful thing you can do for your visibility.</div></div>
+          <div class="faq-item" onclick="toggleFAQItem(this)"><div class="faq-q">How do ratings and reviews work?</div><div class="faq-a">After a case is closed, clients are prompted to rate their experience with you (1–5 stars), select the case outcome (Won, Settled, Lost, Ongoing), and leave a written review. All ratings are verified by FORI — only clients who had an active case with you can leave a review. Your average rating and review count are displayed on your profile card. High ratings directly improve your ranking in the directory.</div></div>
 
           <!-- CLIENT LEADS -->
           <div class="faq-item" onclick="toggleFAQItem(this)"><div class="faq-q">How do I receive and manage client requests?</div><div class="faq-a">When a Premium client sends you a contact request, it appears in your <strong>Client Leads</strong> section with their name, the nature of their legal matter, and the date received. You have 48 hours to Accept or Decline. If you accept, a secure chat opens between you and the client. If you decline or don't respond, the client is free to contact other lawyers. There's no limit on how many active cases you can manage simultaneously.</div></div>
           <div class="faq-item" onclick="toggleFAQItem(this)"><div class="faq-q">Can I close a case, and what happens when I do?</div><div class="faq-a">Yes. Either party can close a case at any time from the chat screen. Once closed, the chat becomes read-only and the client is prompted to leave a rating. Closed cases are archived in your case history. Closing a case cleanly and prompting a rating is important — positive reviews build your reputation on the platform over time.</div></div>
-          <div class="faq-item" onclick="toggleFAQItem(this)"><div class="faq-q">Can clients share documents with me?</div><div class="faq-a">Yes. Inside the chat, clients can attach files (PDF, Word, images) directly to messages. You'll see the attachment inline and can open or download it. You can also send files to clients the same way. All file transfers are encrypted and stored securely — neither LEX staff nor third parties have access to case documents.</div></div>
+          <div class="faq-item" onclick="toggleFAQItem(this)"><div class="faq-q">Can clients share documents with me?</div><div class="faq-a">Yes. Inside the chat, clients can attach files (PDF, Word, images) directly to messages. You'll see the attachment inline and can open or download it. You can also send files to clients the same way. All file transfers are encrypted and stored securely — neither FORI staff nor third parties have access to case documents.</div></div>
 
           <!-- SUBSCRIPTION & BILLING -->
-          <div class="faq-item" onclick="toggleFAQItem(this)"><div class="faq-q">What does the Lawyer Subscription include?</div><div class="faq-a">Your Lawyer Subscription ($24.99/month or $19.99/month billed yearly) includes: a profile listing in the global LEX directory, unlimited client connection requests, the secure client chat system, case management tools, access to ratings and reviews, and eligibility for the Verified Badge. You also get priority support via live chat and email.</div></div>
+          <div class="faq-item" onclick="toggleFAQItem(this)"><div class="faq-q">What does the Lawyer Subscription include?</div><div class="faq-a">Your Lawyer Subscription ($24.99/month or $19.99/month billed yearly) includes: a profile listing in the global FORI directory, unlimited client connection requests, the secure client chat system, case management tools, access to ratings and reviews, and eligibility for the Verified Badge. You also get priority support via live chat and email.</div></div>
           <div class="faq-item" onclick="toggleFAQItem(this)"><div class="faq-q">How do Profile Boosts work?</div><div class="faq-a">A Profile Boost temporarily pins your listing to the top of the lawyer directory and search results, above all unverified and unboosted profiles. This dramatically increases your visibility to clients browsing the directory. A <strong>7-Day Boost</strong> costs $4.99 and a <strong>30-Day Boost</strong> costs $12.99 — both are one-time purchases. Boosted profiles display a <strong>⬆ Featured</strong> badge. You can purchase a boost from your Profile section at any time.</div></div>
           <div class="faq-item" onclick="toggleFAQItem(this)"><div class="faq-q">How do I cancel my subscription?</div><div class="faq-a">You can cancel anytime with no penalties. Your subscription is managed through Lemon Squeezy — the cancellation link is in your subscription confirmation email. Click <strong>Manage Subscription → Cancel Plan</strong>. Your access continues until the end of the current billing period, after which your profile is removed from the directory. Your account, case history, and ratings data are preserved.</div></div>
 
           <!-- PRIVACY & PLATFORM -->
-          <div class="faq-item" onclick="toggleFAQItem(this)"><div class="faq-q">Does LEX take a commission on cases?</div><div class="faq-a">No. LEX operates on a subscription model only — we never take a commission or percentage of any fees you charge your clients. What you earn from your clients is entirely yours. LEX's revenue comes solely from lawyer subscriptions, client Premium plans, Verified Badge purchases, and Profile Boosts.</div></div>
-          <div class="faq-item" onclick="toggleFAQItem(this)"><div class="faq-q">Is client and case data kept confidential?</div><div class="faq-a">Absolutely. All case conversations, documents, and client information are encrypted and stored securely on Google Firebase. LEX staff cannot read your case chats. Client data is never shared with third parties, advertisers, or other lawyers. LEX is fully GDPR-aware and built with privacy as a core principle.</div></div>
+          <div class="faq-item" onclick="toggleFAQItem(this)"><div class="faq-q">Does FORI take a commission on cases?</div><div class="faq-a">No. FORI operates on a subscription model only — we never take a commission or percentage of any fees you charge your clients. What you earn from your clients is entirely yours. FORI's revenue comes solely from lawyer subscriptions, client Premium plans, Verified Badge purchases, and Profile Boosts.</div></div>
+          <div class="faq-item" onclick="toggleFAQItem(this)"><div class="faq-q">Is client and case data kept confidential?</div><div class="faq-a">Absolutely. All case conversations, documents, and client information are encrypted and stored securely on Google Firebase. FORI staff cannot read your case chats. Client data is never shared with third parties, advertisers, or other lawyers. FORI is fully GDPR-aware and built with privacy as a core principle.</div></div>
           <div class="faq-item" onclick="toggleFAQItem(this)"><div class="faq-q">How do I get support if something goes wrong?</div><div class="faq-a">Use the <strong>Live Chat</strong> option at the top of this support panel for real-time help from our team. Alternatively, email <strong>support@lex-ai.com</strong> and we'll respond within 24 hours. For billing issues, include your account email and subscription ID. For technical bugs, describe what happened and we'll prioritise a fix.</div></div>
         </div>
       </div>
@@ -1277,12 +1277,12 @@
   function applyTheme(theme) {
     document.documentElement.setAttribute('data-theme', theme);
     document.querySelectorAll('.theme-btn').forEach(btn => btn.classList.toggle('active', btn.getAttribute('data-theme') === theme));
-    localStorage.setItem('lexTheme', theme);
+    localStorage.setItem('foriTheme', theme);
   }
   function toggleTheme() { applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'); }
-  applyTheme(localStorage.getItem('lexTheme') || 'dark');
+  applyTheme(localStorage.getItem('foriTheme') || 'dark');
 
-  const user = JSON.parse(localStorage.getItem('lexUser') || '{"role":"lawyer","name":"Firm","loginTime":' + Date.now() + '}');
+  const user = JSON.parse(localStorage.getItem('foriUser') || '{"role":"lawyer","name":"Firm","loginTime":' + Date.now() + '}');
   const isLawyerPremium = user.plan === 'premium' || user.plan === 'lawyer';
 
   // ── FIX 5: Payment success toast ──
@@ -1327,8 +1327,8 @@
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     document.getElementById('page-' + page).classList.add('active');
     if (navEl) navEl.classList.add('active');
-    const titles = { overview:'Overview', leads:'Client Leads', clients:'My Clients', cases:'Case Manager', aitool:'LEX AI Tool', aihistory:'Research History', contract:'Contract Review', clause:'Clause Library', outcome:'Case Outcome Prediction', compare:'Compare Documents', research:'Legal Research', profile:'My Profile', documents:'Documents', marketplace:'Marketplace', chatroom:'Chat', settings:'Settings' };
-    document.getElementById('topbarTitle').textContent = titles[page] || 'LEX';
+    const titles = { overview:'Overview', leads:'Client Leads', clients:'My Clients', cases:'Case Manager', aitool:'FORI AI Tool', aihistory:'Research History', contract:'Contract Review', clause:'Clause Library', outcome:'Case Outcome Prediction', compare:'Compare Documents', research:'Legal Research', profile:'My Profile', documents:'Documents', marketplace:'Marketplace', chatroom:'Chat', settings:'Settings' };
+    document.getElementById('topbarTitle').textContent = titles[page] || 'FORI';
     if (page === 'clients') loadClients();
     if (page === 'documents') loadDocs();
     if (page === 'aihistory') renderAIHistory();
@@ -1340,7 +1340,7 @@
   function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('sidebarOverlay').classList.remove('visible'); }
   function showUpgrade() { document.getElementById('upgradeModal').style.display = 'flex'; }
   function gatedPage(page, navEl) { if (!isLawyerPremium) { showUpgrade(); return; } showPage(page, navEl); }
-  function logout() { window.lexSignOut ? window.lexSignOut() : (localStorage.removeItem('lexUser'), localStorage.removeItem('lexRole'), window.location.href = 'auth.html'); }
+  function logout() { window.lexSignOut ? window.lexSignOut() : (localStorage.removeItem('foriUser'), localStorage.removeItem('foriRole'), window.location.href = 'auth.html'); }
 
   // ── LEADS ──
   function acceptLead(btn) {
@@ -1364,7 +1364,7 @@
     const wrap = document.getElementById('aiChatMessages');
     const bubble = document.createElement('div');
     bubble.className = 'chat-bubble ' + role;
-    const label = role === 'user' ? 'You' : 'LEX';
+    const label = role === 'user' ? 'You' : 'FORI';
     const labelClass = role === 'user' ? 'bubble-label user-label' : 'bubble-label';
     bubble.innerHTML = `<div class="${labelClass}">${label}</div><div class="bubble-content ${role}">${content.replace(/\n/g,'<br>')}</div>`;
     wrap.appendChild(bubble);
@@ -1396,7 +1396,7 @@
       const wrap = document.getElementById('aiChatMessages');
       const bubble = document.createElement('div');
       bubble.className = 'chat-bubble assistant';
-      bubble.innerHTML = `<div class="bubble-label">LEX</div><div class="bubble-content assistant" id="${msgId}" style="white-space:pre-wrap;"></div>`;
+      bubble.innerHTML = `<div class="bubble-label">FORI</div><div class="bubble-content assistant" id="${msgId}" style="white-space:pre-wrap;"></div>`;
       wrap.appendChild(bubble);
       wrap.scrollTop = wrap.scrollHeight;
       const reader = res.body.getReader(); const decoder = new TextDecoder();
@@ -1432,7 +1432,7 @@
   }
   function downloadAI(text) {
     const b = new Blob([text], {type:'text/plain'}); const a = document.createElement('a');
-    a.href = URL.createObjectURL(b); a.download = 'lex-business-analysis.txt'; a.click();
+    a.href = URL.createObjectURL(b); a.download = 'fori-business-analysis.txt'; a.click();
   }
 
   // ── CLIENTS + CHAT ──
@@ -1543,8 +1543,8 @@
 
   // ── LAWYER SETTINGS ──
   function initLawyerSettings() {
-    const stored = JSON.parse(localStorage.getItem('lexUser') || '{}');
-    const prefs = JSON.parse(localStorage.getItem('lexLawyerPrefs') || '{}');
+    const stored = JSON.parse(localStorage.getItem('foriUser') || '{}');
+    const prefs = JSON.parse(localStorage.getItem('foriLawyerPrefs') || '{}');
     if (document.getElementById('lwFirstName')) document.getElementById('lwFirstName').value = prefs.firstName || stored.name?.split(' ')[0] || '';
     if (document.getElementById('lwLastName')) document.getElementById('lwLastName').value = prefs.lastName || stored.name?.split(' ').slice(1).join(' ') || '';
     if (document.getElementById('lwFirm')) document.getElementById('lwFirm').value = prefs.firm || '';
@@ -1559,7 +1559,7 @@
   }
 
   async function saveLawyerProfile() {
-    const prefs = JSON.parse(localStorage.getItem('lexLawyerPrefs') || '{}');
+    const prefs = JSON.parse(localStorage.getItem('foriLawyerPrefs') || '{}');
     prefs.firstName = document.getElementById('lwFirstName')?.value.trim() || '';
     prefs.lastName = document.getElementById('lwLastName')?.value.trim() || '';
     prefs.firm = document.getElementById('lwFirm')?.value.trim() || '';
@@ -1567,11 +1567,11 @@
     prefs.country = document.getElementById('lwCountry')?.value.trim() || '';
     prefs.bar = document.getElementById('lwBar')?.value.trim() || '';
     prefs.bio = document.getElementById('lwBio')?.value.trim() || '';
-    localStorage.setItem('lexLawyerPrefs', JSON.stringify(prefs));
+    localStorage.setItem('foriLawyerPrefs', JSON.stringify(prefs));
     const fullName = (prefs.firstName + ' ' + prefs.lastName).trim();
-    const stored = JSON.parse(localStorage.getItem('lexUser') || '{}');
+    const stored = JSON.parse(localStorage.getItem('foriUser') || '{}');
     if (fullName) stored.name = fullName;
-    localStorage.setItem('lexUser', JSON.stringify(stored));
+    localStorage.setItem('foriUser', JSON.stringify(stored));
     if (window._lexUid && window.fsSaveLawyerProfile) {
       try { await window.fsSaveLawyerProfile(window._lexUid, { name: fullName, firm: prefs.firm, specialisation: prefs.spec, country: prefs.country, barNumber: prefs.bar, bio: prefs.bio }); } catch(e) {}
     }
@@ -1598,11 +1598,11 @@
   }
 
   function saveLawyerNotifSettings() {
-    const prefs = JSON.parse(localStorage.getItem('lexLawyerPrefs') || '{}');
+    const prefs = JSON.parse(localStorage.getItem('foriLawyerPrefs') || '{}');
     prefs.notifRequests = document.getElementById('lwNotifRequests').checked;
     prefs.notifMessages = document.getElementById('lwNotifMessages').checked;
     prefs.notifSystem = document.getElementById('lwNotifSystem').checked;
-    localStorage.setItem('lexLawyerPrefs', JSON.stringify(prefs));
+    localStorage.setItem('foriLawyerPrefs', JSON.stringify(prefs));
     const msg = document.getElementById('lwNotifMsg');
     msg.style.display = 'block'; setTimeout(() => msg.style.display = 'none', 3000);
   }
@@ -1612,7 +1612,7 @@
     if (!confirm('Last warning — all your data will be permanently deleted.')) return;
     try {
       await window.fsDeleteLawyerAccount(window._lexUid);
-      ['lexUser','lexRole','lexAIHistory','lexNotifs_lawyer','lexLawyerPrefs','lexCookieConsent'].forEach(k => localStorage.removeItem(k));
+      ['foriUser','foriRole','foriAIHistory','foriNotifs_lawyer','foriLawyerPrefs','foriCookieConsent'].forEach(k => localStorage.removeItem(k));
       window.location.href = '/';
     } catch(e) { alert(e.code === 'auth/requires-recent-login' ? 'Please log out and log back in before deleting your account.' : 'Failed to delete account. Please try again.'); }
   }
@@ -1621,15 +1621,15 @@
 
   // ── AI HISTORY ──
   function saveAIHistory(q, answer, country, category) {
-    const all = JSON.parse(localStorage.getItem('lexAIHistory') || '[]');
+    const all = JSON.parse(localStorage.getItem('foriAIHistory') || '[]');
     if (all.length && all[0].q === q) return;
     all.unshift({ q, answer, country, category: category || 'General Law', date: new Date().toLocaleDateString(), time: new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}), id: Date.now() });
-    localStorage.setItem('lexAIHistory', JSON.stringify(all.slice(0, 100)));
+    localStorage.setItem('foriAIHistory', JSON.stringify(all.slice(0, 100)));
     renderAIHistory();
   }
 
   function renderAIHistory() {
-    const all = JSON.parse(localStorage.getItem('lexAIHistory') || '[]');
+    const all = JSON.parse(localStorage.getItem('foriAIHistory') || '[]');
     const search = (document.getElementById('aiHistorySearch')?.value || '').toLowerCase();
     const list = document.getElementById('aiHistoryList');
     const countEl = document.getElementById('aiHistoryCount');
@@ -1637,7 +1637,7 @@
     let history = all;
     if (search) history = history.filter(h => h.q.toLowerCase().includes(search) || (h.answer||'').toLowerCase().includes(search));
     if (countEl) countEl.textContent = `${history.length} of ${all.length} session${all.length !== 1 ? 's' : ''}`;
-    if (!history.length) { list.innerHTML = `<div style="text-align:center;padding:60px 20px;color:var(--text-muted);"><div style="font-family:'Cormorant Garamond',serif;font-size:22px;margin-bottom:8px;color:var(--text-secondary);">${all.length ? 'No matches' : 'No research yet'}</div><div style="font-size:14px;">${all.length ? 'Try a different search.' : 'Your LEX AI Tool sessions will auto-save here.'}</div></div>`; return; }
+    if (!history.length) { list.innerHTML = `<div style="text-align:center;padding:60px 20px;color:var(--text-muted);"><div style="font-family:'Cormorant Garamond',serif;font-size:22px;margin-bottom:8px;color:var(--text-secondary);">${all.length ? 'No matches' : 'No research yet'}</div><div style="font-size:14px;">${all.length ? 'Try a different search.' : 'Your FORI AI Tool sessions will auto-save here.'}</div></div>`; return; }
     list.innerHTML = history.map(h => `
       <div class="history-item">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:8px;">
@@ -1655,8 +1655,8 @@
       </div>`).join('');
   }
   function toggleAIExpand(id) { const el = document.getElementById('aiexp-'+id); if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none'; }
-  function deleteAIHistoryItem(id) { let all = JSON.parse(localStorage.getItem('lexAIHistory')||'[]'); localStorage.setItem('lexAIHistory', JSON.stringify(all.filter(h=>h.id!==id))); renderAIHistory(); }
-  function clearAIHistory() { if (!confirm('Clear all research history?')) return; localStorage.removeItem('lexAIHistory'); renderAIHistory(); }
+  function deleteAIHistoryItem(id) { let all = JSON.parse(localStorage.getItem('foriAIHistory')||'[]'); localStorage.setItem('foriAIHistory', JSON.stringify(all.filter(h=>h.id!==id))); renderAIHistory(); }
+  function clearAIHistory() { if (!confirm('Clear all research history?')) return; localStorage.removeItem('foriAIHistory'); renderAIHistory(); }
 
   // ── DOCUMENTS ──
   let _docsUnsub = null;
@@ -1707,7 +1707,7 @@
   }
 
   // ── NOTIFICATIONS ──
-  const NOTIF_KEY = 'lexNotifs_lawyer';
+  const NOTIF_KEY = 'foriNotifs_lawyer';
   function getNotifs() { try { return JSON.parse(localStorage.getItem(NOTIF_KEY)||'[]'); } catch { return []; } }
   function saveNotifs(n) { localStorage.setItem(NOTIF_KEY, JSON.stringify(n)); }
   function addNotif(msg) {
@@ -1731,13 +1731,13 @@
     const wrap = document.getElementById('notifBtn')?.closest('.notif-wrap');
     if (wrap && !wrap.contains(e.target)) document.getElementById('notifDropdown').classList.remove('open');
   });
-  if (!localStorage.getItem('lexNotifSeeded_law')) { addNotif('Welcome to LEX for Lawyers. Your dashboard is ready.'); addNotif('You have 3 new client leads waiting.'); localStorage.setItem('lexNotifSeeded_law','1'); }
+  if (!localStorage.getItem('foriNotifSeeded_law')) { addNotif('Welcome to FORI for Lawyers. Your dashboard is ready.'); addNotif('You have 3 new client leads waiting.'); localStorage.setItem('foriNotifSeeded_law','1'); }
   renderNotifs();
 
   // ── COOKIES ──
-  function initCookieBanner() { if (!localStorage.getItem('lexCookieConsent')) document.getElementById('cookieBanner').classList.add('visible'); }
-  function acceptCookies() { localStorage.setItem('lexCookieConsent','all'); document.getElementById('cookieBanner').classList.remove('visible'); }
-  function declineCookies() { localStorage.setItem('lexCookieConsent','essential'); document.getElementById('cookieBanner').classList.remove('visible'); }
+  function initCookieBanner() { if (!localStorage.getItem('foriCookieConsent')) document.getElementById('cookieBanner').classList.add('visible'); }
+  function acceptCookies() { localStorage.setItem('foriCookieConsent','all'); document.getElementById('cookieBanner').classList.remove('visible'); }
+  function declineCookies() { localStorage.setItem('foriCookieConsent','essential'); document.getElementById('cookieBanner').classList.remove('visible'); }
   initCookieBanner();
 
   // ── MEMORY HELPERS ──
@@ -1788,7 +1788,7 @@
   async function runResearch() {
     const topic = document.getElementById('researchTopic').value.trim();
     if (!topic) return;
-    const country = JSON.parse(localStorage.getItem('lexLawyerPrefs')||'{}').country || detectedCountry;
+    const country = JSON.parse(localStorage.getItem('foriLawyerPrefs')||'{}').country || detectedCountry;
     document.getElementById('researchProcessing').style.display = 'block';
     document.getElementById('researchResults').style.display = 'none';
     researchResultText = ''; researchSources = [];
@@ -1826,7 +1826,7 @@
     if (!researchResultText) return;
     const topic = document.getElementById('researchTopic').value.replace(/[^a-z0-9]/gi,'_').slice(0,40);
     const blob = new Blob([researchResultText],{type:'text/plain'}); const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob); a.download = 'LEX_research_'+topic+'_'+new Date().toISOString().slice(0,10)+'.txt'; a.click(); URL.revokeObjectURL(a.href);
+    a.href = URL.createObjectURL(blob); a.download = 'FORI_research_'+topic+'_'+new Date().toISOString().slice(0,10)+'.txt'; a.click(); URL.revokeObjectURL(a.href);
   }
 
   // ── COMPARE ──
@@ -1851,7 +1851,7 @@
   function clearCompareResult() { compareResultText=''; document.getElementById('compareResults').style.display='none'; document.getElementById('compareOutput').textContent=''; document.getElementById('compareVerdictBadge').style.display='none'; }
   async function compareDocs() {
     if(!compareFileA||!compareFileB) return;
-    const country = JSON.parse(localStorage.getItem('lexLawyerPrefs')||'{}').country || detectedCountry;
+    const country = JSON.parse(localStorage.getItem('foriLawyerPrefs')||'{}').country || detectedCountry;
     document.getElementById('compareProcessing').style.display='block'; document.getElementById('compareResults').style.display='none'; document.getElementById('compareBtn').disabled=true; compareResultText='';
     const formData=new FormData(); formData.append('file_a',compareFileA); formData.append('file_b',compareFileB); formData.append('tier','business'); formData.append('country',country); formData.append('memories',JSON.stringify(getMemories()));
     try {
@@ -1870,14 +1870,14 @@
     badge.textContent=label;badge.style.background=bg;badge.style.color=color;badge.style.display='block';
   }
   function copyCompareResult(){if(!compareResultText)return;navigator.clipboard.writeText(compareResultText).then(()=>addNotif('Comparison report copied.'));}
-  function downloadCompareResult(){if(!compareResultText)return;const blob=new Blob([compareResultText],{type:'text/plain'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='LEX_comparison_'+new Date().toISOString().slice(0,10)+'.txt';a.click();URL.revokeObjectURL(a.href);}
+  function downloadCompareResult(){if(!compareResultText)return;const blob=new Blob([compareResultText],{type:'text/plain'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='FORI_comparison_'+new Date().toISOString().slice(0,10)+'.txt';a.click();URL.revokeObjectURL(a.href);}
 
   // ── CLAUSE LIBRARY ──
   let clauseResultText='';
   function setClauseQuery(q){document.getElementById('clauseQuery').value=q;searchClause();}
   async function searchClause(){
     const query=document.getElementById('clauseQuery').value.trim();if(!query)return;
-    const country=JSON.parse(localStorage.getItem('lexLawyerPrefs')||'{}').country||detectedCountry;
+    const country=JSON.parse(localStorage.getItem('foriLawyerPrefs')||'{}').country||detectedCountry;
     document.getElementById('clauseProcessing').style.display='block';document.getElementById('clauseResults').style.display='none';clauseResultText='';
     try{
       const response=await fetch('/clause-stream',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query,country,tier:'business',memories:getMemories()})});
@@ -1889,14 +1889,14 @@
   }
   function clearClauseResult(){clauseResultText='';document.getElementById('clauseResults').style.display='none';document.getElementById('clauseOutput').textContent='';}
   function copyClauseResult(){if(!clauseResultText)return;navigator.clipboard.writeText(clauseResultText).then(()=>addNotif('Clause copied.'));}
-  function downloadClauseResult(){if(!clauseResultText)return;const query=document.getElementById('clauseQuery').value.replace(/[^a-z0-9]/gi,'_').slice(0,40);const blob=new Blob([clauseResultText],{type:'text/plain'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='LEX_clause_'+query+'_'+new Date().toISOString().slice(0,10)+'.txt';a.click();URL.revokeObjectURL(a.href);}
+  function downloadClauseResult(){if(!clauseResultText)return;const query=document.getElementById('clauseQuery').value.replace(/[^a-z0-9]/gi,'_').slice(0,40);const blob=new Blob([clauseResultText],{type:'text/plain'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='FORI_clause_'+query+'_'+new Date().toISOString().slice(0,10)+'.txt';a.click();URL.revokeObjectURL(a.href);}
 
   // ── CASE OUTCOME ──
   let outcomeResultText='';
   async function predictOutcome(){
     const facts=document.getElementById('outcomeFacts').value.trim();const area=document.getElementById('outcomeArea').value;
     if(!facts||facts.length<30){alert('Please provide more case detail.');return;}
-    const country=JSON.parse(localStorage.getItem('lexLawyerPrefs')||'{}').country||detectedCountry;
+    const country=JSON.parse(localStorage.getItem('foriLawyerPrefs')||'{}').country||detectedCountry;
     document.getElementById('outcomeProcessing').style.display='block';document.getElementById('outcomeResults').style.display='none';outcomeResultText='';
     try{
       const response=await fetch('/outcome-stream',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({facts,area,country,tier:'business',memories:getMemories()})});
@@ -1916,7 +1916,7 @@
   }
   function clearOutcomeResult(){outcomeResultText='';document.getElementById('outcomeResults').style.display='none';document.getElementById('outcomeOutput').textContent='';document.getElementById('outcomeUrgencyBadge').style.display='none';}
   function copyOutcomeResult(){if(!outcomeResultText)return;navigator.clipboard.writeText(outcomeResultText).then(()=>addNotif('Assessment copied.'));}
-  function downloadOutcomeResult(){if(!outcomeResultText)return;const blob=new Blob([outcomeResultText],{type:'text/plain'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='LEX_outcome_'+new Date().toISOString().slice(0,10)+'.txt';a.click();URL.revokeObjectURL(a.href);}
+  function downloadOutcomeResult(){if(!outcomeResultText)return;const blob=new Blob([outcomeResultText],{type:'text/plain'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='FORI_outcome_'+new Date().toISOString().slice(0,10)+'.txt';a.click();URL.revokeObjectURL(a.href);}
 
   // ── CONTRACT REVIEW ──
   let contractFile=null, contractMode='review', contractResultText='';
@@ -1942,7 +1942,7 @@
   function clearContractResult(){contractResultText='';document.getElementById('contractResults').style.display='none';document.getElementById('contractOutput').textContent='';document.getElementById('contractRiskBadge').textContent='';}
   async function analyseContract(){
     if(!contractFile)return;
-    const country=JSON.parse(localStorage.getItem('lexLawyerPrefs')||'{}').country||detectedCountry;
+    const country=JSON.parse(localStorage.getItem('foriLawyerPrefs')||'{}').country||detectedCountry;
     const endpoint=contractMode==='redline'?'/redline-stream':'/review-stream';
     document.getElementById('contractProcessing').style.display='block';document.getElementById('contractProcessingLabel').textContent=contractMode==='redline'?'Redlining contract...':'Analysing contract...';
     document.getElementById('contractResults').style.display='none';document.getElementById('contractAnalyseBtn').disabled=true;
@@ -1969,7 +1969,7 @@
   function downloadContractResult(){
     if(!contractResultText)return;const filename=contractFile?contractFile.name.replace(/\.[^.]+$/,''):'contract';
     const mode=contractMode==='redline'?'redline':'review';const blob=new Blob([contractResultText],{type:'text/plain'});const a=document.createElement('a');
-    a.href=URL.createObjectURL(blob);a.download='LEX_'+mode+'_'+filename+'_'+new Date().toISOString().slice(0,10)+'.txt';a.click();URL.revokeObjectURL(a.href);
+    a.href=URL.createObjectURL(blob);a.download='FORI_'+mode+'_'+filename+'_'+new Date().toISOString().slice(0,10)+'.txt';a.click();URL.revokeObjectURL(a.href);
   }
 
   // ── LEMON SQUEEZY PAYMENTS ──
@@ -1987,7 +1987,7 @@
 
   async function initiateLawyerCheckout(){
     const btn=document.getElementById('lwUpgradeBtn');const txt=document.getElementById('lwUpgradeText');
-    const storedUser=JSON.parse(localStorage.getItem('lexUser')||'{}');const uid=storedUser.uid||'';const email=storedUser.email||'';
+    const storedUser=JSON.parse(localStorage.getItem('foriUser')||'{}');const uid=storedUser.uid||'';const email=storedUser.email||'';
     if(!uid){showToast('Please sign in to upgrade.','error');return;}
     txt.textContent='Loading...';btn.disabled=true;
     const variantKey=lwBilling==='yearly'?'lawyer_yearly':'lawyer_monthly';
@@ -2010,7 +2010,7 @@
 
   async function initiateBadgeCheckout(){
     const btn=document.getElementById('badgePurchaseBtn');const txt=document.getElementById('badgePurchaseText');
-    const storedUser=JSON.parse(localStorage.getItem('lexUser')||'{}');const uid=storedUser.uid||'';const email=storedUser.email||'';
+    const storedUser=JSON.parse(localStorage.getItem('foriUser')||'{}');const uid=storedUser.uid||'';const email=storedUser.email||'';
     if(!uid){showToast('Please sign in.');return;}
     txt.textContent='Loading...';btn.disabled=true;
     try{
@@ -2023,7 +2023,7 @@
 
   async function initiateBoostCheckout(){
     const btn=document.getElementById('boostPurchaseBtn');const txt=document.getElementById('boostPurchaseText');
-    const storedUser=JSON.parse(localStorage.getItem('lexUser')||'{}');const uid=storedUser.uid||'';const email=storedUser.email||'';
+    const storedUser=JSON.parse(localStorage.getItem('foriUser')||'{}');const uid=storedUser.uid||'';const email=storedUser.email||'';
     if(!uid){showToast('Please sign in.');return;}
     txt.textContent='Loading...';btn.disabled=true;
     try{
@@ -2037,7 +2037,7 @@
   // ── SUPPORT MODAL ──
   function openSupport(){
     document.getElementById('supportModal').style.display='flex';
-    const u=JSON.parse(localStorage.getItem('lexUser')||'{}');
+    const u=JSON.parse(localStorage.getItem('foriUser')||'{}');
     if(u.name&&window.smartsupp){try{smartsupp('name',u.name);if(u.email)smartsupp('email',u.email);}catch(e){}}
   }
   function closeSupport(){document.getElementById('supportModal').style.display='none';}
