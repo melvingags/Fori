@@ -1707,6 +1707,11 @@ async function askFori() {
     if (btn) btn.disabled = false;
   }
 }
+
+// ── INIT ──
+setTheme(localStorage.getItem('foriTheme') || 'dark');
+initCookieBanner();
+setTimeout(initSmartsuppWidget, 2000);
 </script>
 
 </body>
