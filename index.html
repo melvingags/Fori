@@ -4,7 +4,6 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<base href="/">
 <title>FORI — AI Global Legal Navigator</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 
@@ -14,8 +13,6 @@
 var _smartsupp = _smartsupp || {};
 _smartsupp.key = '99d6caca759541ed4edb4f3443bf5969a35e7845';
 _smartsupp.align = 'br';
-_smartsupp.offsetX = 0;
-_smartsupp.offsetY = 80;
 _smartsupp.style = 'default';
 _smartsupp.color = '#c9a86c';
 _smartsupp.language = 'en';
@@ -1447,9 +1444,8 @@ function initSmartsuppWidget() {
   }
   try {
     smartsupp('theme:colors', { primary: '#c9a86c', primaryText: '#0a0a0a' });
-  } catch (err) {
-    console.warn('Smartsupp init failed:', err);
-  }
+    smartsupp('chat:show');
+  } catch (err) {}
 }
 
 // ── SCROLL & NAVBAR ──
@@ -1708,10 +1704,6 @@ async function askFori() {
   }
 }
 
-// ── INIT ──
-setTheme(localStorage.getItem('foriTheme') || 'dark');
-initCookieBanner();
-setTimeout(initSmartsuppWidget, 2000);
 </script>
 
 </body>
