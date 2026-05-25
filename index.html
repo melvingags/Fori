@@ -1648,5 +1648,18 @@ async function askFori() {
 
 </script>
 
+<!-- TEMP SMARTSUPP DIAGNOSTIC - delete after testing -->
+<script>
+setTimeout(function(){
+  var v = typeof smartsupp;
+  var loaderTag = document.querySelector('script[src*="smartsuppchat.com"]') ? 'YES' : 'NO';
+  var widget = document.querySelector('[id*="smartsupp"],[class*="smartsupp"],iframe[src*="smartsupp"]') ? 'YES' : 'NO';
+  var bar = document.createElement('div');
+  bar.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999999;background:#c0392b;color:#fff;padding:12px;font:13px monospace;text-align:center;line-height:1.5';
+  bar.textContent='smartsupp='+v+' | loaderScript='+loaderTag+' | widget='+widget;
+  document.body.appendChild(bar);
+},7000);
+</script>
+
 </body>
 </html>
