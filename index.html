@@ -1652,12 +1652,23 @@ async function askFori() {
 <script>
 setTimeout(function(){
   var v = typeof smartsupp;
-  var loaderTag = document.querySelector('script[src*="smartsuppchat.com"]') ? 'YES' : 'NO';
+  var tag = document.querySelector('script[src*="smartsuppchat.com"]') ? 'YES' : 'NO';
   var widget = document.querySelector('[id*="smartsupp"],[class*="smartsupp"],iframe[src*="smartsupp"]') ? 'YES' : 'NO';
-  var bar = document.createElement('div');
-  bar.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999999;background:#c0392b;color:#fff;padding:12px;font:13px monospace;text-align:center;line-height:1.5';
-  bar.textContent='smartsupp='+v+' | loaderScript='+loaderTag+' | widget='+widget;
-  document.body.appendChild(bar);
+  var reach = 'testing...';
+  function show(){
+    var bar = document.getElementById('ssdiag');
+    if(!bar){ bar = document.createElement('div'); bar.id='ssdiag';
+      bar.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999999;background:#c0392b;color:#fff;padding:12px;font:12px monospace;text-align:center;line-height:1.6';
+      document.body.appendChild(bar); }
+    bar.textContent='ss='+v+' | tag='+tag+' | widget='+widget+' | loader.js='+reach;
+  }
+  show();
+  var t = document.createElement('script');
+  t.src = 'https://www.smartsuppchat.com/loader.js?';
+  t.onload = function(){ reach='LOADS-OK'; show(); };
+  t.onerror = function(){ reach='BLOCKED-or-FAILED'; show(); };
+  document.head.appendChild(t);
+  setTimeout(function(){ if(reach==='testing...'){ reach='TIMEOUT'; show(); } }, 8000);
 },7000);
 </script>
 
