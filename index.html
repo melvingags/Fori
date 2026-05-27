@@ -1650,26 +1650,27 @@ async function askFori() {
 
 <!-- TEMP SMARTSUPP DIAGNOSTIC - delete after testing -->
 <script>
-setTimeout(function(){
-  var v = typeof smartsupp;
-  var tag = document.querySelector('script[src*="smartsuppchat.com"]') ? 'YES' : 'NO';
-  var widget = document.querySelector('[id*="smartsupp"],[class*="smartsupp"],iframe[src*="smartsupp"]') ? 'YES' : 'NO';
-  var reach = 'testing...';
-  function show(){
+(function(){
+  var errs = [];
+  window.addEventListener('error', function(e){
+    errs.push((e.message||'error') + (e.filename ? (' @'+(''+e.filename).split('/').pop()) : ''));
+  }, true);
+  function snap(label){
+    var v = typeof smartsupp;
+    var ssScripts = document.querySelectorAll('script[src*="smartsupp"]').length;
+    var ssEls = document.querySelectorAll('[id*="smartsupp"],[class*="smartsupp"]').length;
+    var ssIframe = document.querySelector('iframe[src*="smartsupp"]') ? 'Y' : 'N';
     var bar = document.getElementById('ssdiag');
     if(!bar){ bar = document.createElement('div'); bar.id='ssdiag';
-      bar.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999999;background:#c0392b;color:#fff;padding:12px;font:12px monospace;text-align:center;line-height:1.6';
+      bar.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999999;background:#111;color:#0f0;padding:10px;font:11px monospace;line-height:1.5;white-space:pre-wrap';
       document.body.appendChild(bar); }
-    bar.textContent='ss='+v+' | tag='+tag+' | widget='+widget+' | loader.js='+reach;
+    bar.textContent='['+label+'] ss='+v+' ssScripts='+ssScripts+' ssEls='+ssEls+' ssIframe='+ssIframe
+      + '\nERR: ' + (errs.length ? errs.join(' | ') : 'none');
   }
-  show();
-  var t = document.createElement('script');
-  t.src = 'https://www.smartsuppchat.com/loader.js?';
-  t.onload = function(){ reach='LOADS-OK'; show(); };
-  t.onerror = function(){ reach='BLOCKED-or-FAILED'; show(); };
-  document.head.appendChild(t);
-  setTimeout(function(){ if(reach==='testing...'){ reach='TIMEOUT'; show(); } }, 8000);
-},7000);
+  setTimeout(function(){ snap('3s'); }, 3000);
+  setTimeout(function(){ snap('8s'); }, 8000);
+  setTimeout(function(){ snap('15s'); }, 15000);
+})();
 </script>
 
 </body>
