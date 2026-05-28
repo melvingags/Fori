@@ -71,6 +71,101 @@ if GEMINI_API_KEY:
     except Exception as e:
         logger.error(f"Gemini failed: {e}")
 
+# ── GROQ FALLBACK (silent, instant switch when Gemini fails) ──
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_MODEL = "llama-3.3-70b-versatile"
+
+def _groq_messages(prompt, system_prompt=None, ack=None, history=None):
+    msgs = []
+    if system_prompt:
+        msgs.append({"role": "system", "content": system_prompt})
+    if ack:
+        msgs.append({"role": "assistant", "content": ack})
+    if history:
+        for m in history:
+            r = "user" if m.get("role") == "user" else "assistant"
+            msgs.append({"role": r, "content": m.get("content", "")})
+    msgs.append({"role": "user", "content": prompt})
+    return msgs
+
+def _groq_generate(prompt, system_prompt=None, ack=None, history=None):
+    resp = requests.post(
+        GROQ_URL,
+        headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
+        json={"model": GROQ_MODEL, "max_tokens": 8000,
+              "messages": _groq_messages(prompt, system_prompt, ack, history)},
+        timeout=90,
+    )
+    resp.raise_for_status()
+    return resp.json()["choices"][0]["message"]["content"]
+
+def _groq_stream(prompt, system_prompt=None, ack=None, history=None):
+    resp = requests.post(
+        GROQ_URL,
+        headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
+        json={"model": GROQ_MODEL, "max_tokens": 8000, "stream": True,
+              "messages": _groq_messages(prompt, system_prompt, ack, history)},
+        timeout=90,
+        stream=True,
+    )
+    resp.raise_for_status()
+    for raw in resp.iter_lines():
+        if not raw:
+            continue
+        line = raw.decode("utf-8") if isinstance(raw, bytes) else raw
+        if line.startswith("data:"):
+            payload = line[5:].strip()
+            if payload == "[DONE]":
+                break
+            try:
+                delta = json.loads(payload)["choices"][0]["delta"].get("content", "")
+            except Exception:
+                continue
+            if delta:
+                yield delta
+
+def _gemini_history(system_prompt, ack, history):
+    gem = [
+        {"role": "user", "parts": [system_prompt]},
+        {"role": "model", "parts": [ack if ack else "Understood."]},
+    ]
+    if history:
+        for m in history:
+            role = "user" if m.get("role") == "user" else "model"
+            gem.append({"role": role, "parts": [m.get("content", "")]})
+    return gem
+
+def generate_answer(prompt, system_prompt=None, ack=None, history=None):
+    """Try Gemini; on ANY failure, silently fall back to Groq. Returns full text."""
+    if model:
+        try:
+            if system_prompt is None:
+                return model.generate_content(prompt).text
+            chat = model.start_chat(history=_gemini_history(system_prompt, ack, history))
+            return chat.send_message(prompt).text
+        except Exception as e:
+            logger.warning(f"Gemini failed -> Groq fallback: {str(e)[:120]}")
+    return _groq_generate(prompt, system_prompt, ack, history)
+
+def stream_answer(prompt, system_prompt=None, ack=None, history=None):
+    """Generator. Try Gemini streaming; if it fails before output, silently switch to Groq."""
+    if model:
+        emitted = False
+        try:
+            chat = model.start_chat(history=_gemini_history(system_prompt, ack, history))
+            for chunk in chat.send_message(prompt, stream=True):
+                if chunk.text:
+                    emitted = True
+                    yield chunk.text
+            return
+        except Exception as e:
+            logger.warning(f"Gemini stream failed -> Groq fallback: {str(e)[:120]}")
+            if emitted:
+                return
+    for delta in _groq_stream(prompt, system_prompt, ack, history):
+        yield delta
+
 usage_tracker = defaultdict(lambda: {"count": 0, "date": str(datetime.date.today())})
 
 FREE_PROMPT = """You are LEX, an AI legal information assistant. You provide clear, simple legal information to everyday people.
@@ -185,8 +280,7 @@ Rules:
 - Include relevant act/law names if you know them
 - Keep it under 15 words
 - Return ONLY the search query, nothing else"""
-        response = model_instance.generate_content(prompt)
-        optimised = response.text.strip().replace('"', '').replace("'", '')
+        optimised = generate_answer(prompt).strip().replace('"', '').replace("'", '')
         return optimised if optimised else f"{question} {country} law"
     except:
         return f"{question} {country} law legal"
@@ -388,13 +482,8 @@ Provide a comprehensive response based on the laws of {country}."""
             "free": "clear, simple legal information"
         }
 
-        chat = model.start_chat(history=[
-            {"role": "user", "parts": [system_prompt]},
-            {"role": "model", "parts": [f"Understood. I am LEX {'Business' if tier == 'business' else 'Premium' if tier == 'premium' else ''}. Ready to provide {tier_intro[tier]} based on the laws of {country}."]}
-        ])
-
-        response = chat.send_message(prompt)
-        answer = response.text
+        ack = f"Understood. I am LEX {'Business' if tier == 'business' else 'Premium' if tier == 'premium' else ''}. Ready to provide {tier_intro[tier]} based on the laws of {country}."
+        answer = generate_answer(prompt, system_prompt=system_prompt, ack=ack)
 
         result = {
             'answer': answer,
@@ -492,25 +581,14 @@ Provide a comprehensive response based on the laws of {country}."""
         }
 
         memory_intro = f" I have access to this user's previous interactions and will reference them naturally when relevant." if memories else ""
-        chat_history = [
-            {"role": "user", "parts": [system_prompt]},
-            {"role": "model", "parts": [f"Understood. I am LEX {'Business' if tier == 'business' else 'Premium' if tier == 'premium' else ''}. Ready to provide {tier_intro[tier]} based on the laws of {country}.{memory_intro}"]}
-        ]
-
-        for msg in history:
-            role = "user" if msg.get("role") == "user" else "model"
-            chat_history.append({"role": role, "parts": [msg.get("content", "")]})
-
-        chat = model.start_chat(history=chat_history)
+        ack = f"Understood. I am LEX {'Business' if tier == 'business' else 'Premium' if tier == 'premium' else ''}. Ready to provide {tier_intro[tier]} based on the laws of {country}.{memory_intro}"
 
         def generate():
             try:
                 full_answer = ""
-                response = chat.send_message(prompt, stream=True)
-                for chunk in response:
-                    if chunk.text:
-                        full_answer += chunk.text
-                        yield f"data: {json.dumps({'chunk': chunk.text})}\n\n"
+                for piece in stream_answer(prompt, system_prompt=system_prompt, ack=ack, history=history):
+                    full_answer += piece
+                    yield f"data: {json.dumps({'chunk': piece})}\n\n"
                 remaining = get_remaining_questions(ip) if tier == "free" else None
                 yield f"data: {json.dumps({'done': True, 'answer': full_answer, 'query_type': query_type, 'web_search_used': bool(search_context), 'sources': search_sources, 'remaining_questions': remaining})}\n\n"
                 if tier == "free":
@@ -553,13 +631,9 @@ Details: {details}
 Draft a complete, properly formatted {doc_type} legally appropriate for {country}.
 Include all necessary clauses, proper headings, signature blocks, and legal language."""
 
-        chat = model.start_chat(history=[
-            {"role": "user", "parts": [system_prompt]},
-            {"role": "model", "parts": ["Understood. I will draft a complete legal document."]}
-        ])
-
-        response = chat.send_message(prompt)
-        return jsonify({'document': response.text, 'doc_type': doc_type, 'country': country})
+        ack = "Understood. I will draft a complete legal document."
+        document = generate_answer(prompt, system_prompt=system_prompt, ack=ack)
+        return jsonify({'document': document, 'doc_type': doc_type, 'country': country})
 
     except Exception as e:
         logger.error(f"Draft error: {e}")
@@ -686,16 +760,12 @@ CONTRACT TEXT:
 
         def generate():
             try:
-                chat = model.start_chat(history=[
-                    {"role": "user", "parts": [BUSINESS_PROMPT if tier == 'business' else PREMIUM_PROMPT]},
-                    {"role": "model", "parts": ["Understood. I am LEX Contract Analyst. I will provide a thorough contract review."]}
-                ])
-                response = chat.send_message(prompt, stream=True)
+                ack = "Understood. I am LEX Contract Analyst. I will provide a thorough contract review."
+                sys_p = BUSINESS_PROMPT if tier == 'business' else PREMIUM_PROMPT
                 full = ""
-                for chunk in response:
-                    if chunk.text:
-                        full += chunk.text
-                        yield f"data: {json.dumps({'chunk': chunk.text})}\n\n"
+                for piece in stream_answer(prompt, system_prompt=sys_p, ack=ack):
+                    full += piece
+                    yield f"data: {json.dumps({'chunk': piece})}\n\n"
                 yield f"data: {json.dumps({'done': True, 'full': full})}\n\n"
             except Exception as e:
                 logger.error(f"Review stream error: {e}")
@@ -739,16 +809,12 @@ CONTRACT TEXT:
 
         def generate():
             try:
-                chat = model.start_chat(history=[
-                    {"role": "user", "parts": [BUSINESS_PROMPT if tier == 'business' else PREMIUM_PROMPT]},
-                    {"role": "model", "parts": ["Understood. I am LEX Redline Expert. I will produce a detailed redline report with specific revision suggestions."]}
-                ])
-                response = chat.send_message(prompt, stream=True)
+                ack = "Understood. I am LEX Redline Expert. I will produce a detailed redline report with specific revision suggestions."
+                sys_p = BUSINESS_PROMPT if tier == 'business' else PREMIUM_PROMPT
                 full = ""
-                for chunk in response:
-                    if chunk.text:
-                        full += chunk.text
-                        yield f"data: {json.dumps({'chunk': chunk.text})}\n\n"
+                for piece in stream_answer(prompt, system_prompt=sys_p, ack=ack):
+                    full += piece
+                    yield f"data: {json.dumps({'chunk': piece})}\n\n"
                 yield f"data: {json.dumps({'done': True, 'full': full})}\n\n"
             except Exception as e:
                 logger.error(f"Redline stream error: {e}")
@@ -866,16 +932,12 @@ Clause Request: {query}
 
     def generate():
         try:
-            chat = model.start_chat(history=[
-                {"role": "user", "parts": [BUSINESS_PROMPT if tier == 'business' else PREMIUM_PROMPT]},
-                {"role": "model", "parts": ["Understood. I am LEX Clause Library. I will provide comprehensive clause information including standard text, variations and negotiation notes."]}
-            ])
-            response = chat.send_message(prompt, stream=True)
+            ack = "Understood. I am LEX Clause Library. I will provide comprehensive clause information including standard text, variations and negotiation notes."
+            sys_p = BUSINESS_PROMPT if tier == 'business' else PREMIUM_PROMPT
             full = ""
-            for chunk in response:
-                if chunk.text:
-                    full += chunk.text
-                    yield f"data: {json.dumps({'chunk': chunk.text})}\n\n"
+            for piece in stream_answer(prompt, system_prompt=sys_p, ack=ack):
+                full += piece
+                yield f"data: {json.dumps({'chunk': piece})}\n\n"
             yield f"data: {json.dumps({'done': True, 'full': full})}\n\n"
         except Exception as e:
             logger.error(f"Clause stream error: {e}")
@@ -913,16 +975,12 @@ CASE FACTS:
 
     def generate():
         try:
-            chat = model.start_chat(history=[
-                {"role": "user", "parts": [BUSINESS_PROMPT if tier == 'business' else PREMIUM_PROMPT]},
-                {"role": "model", "parts": ["Understood. I am LEX Case Analyst. I will provide a thorough case assessment with outcome predictions and recommendations."]}
-            ])
-            response = chat.send_message(prompt, stream=True)
+            ack = "Understood. I am LEX Case Analyst. I will provide a thorough case assessment with outcome predictions and recommendations."
+            sys_p = BUSINESS_PROMPT if tier == 'business' else PREMIUM_PROMPT
             full = ""
-            for chunk in response:
-                if chunk.text:
-                    full += chunk.text
-                    yield f"data: {json.dumps({'chunk': chunk.text})}\n\n"
+            for piece in stream_answer(prompt, system_prompt=sys_p, ack=ack):
+                full += piece
+                yield f"data: {json.dumps({'chunk': piece})}\n\n"
             yield f"data: {json.dumps({'done': True, 'full': full})}\n\n"
         except Exception as e:
             logger.error(f"Outcome stream error: {e}")
@@ -1023,16 +1081,12 @@ def compare_stream():
         # FIX 2: compare_stream — fixed double-brace f-string bug
         def generate():
             try:
-                chat = model.start_chat(history=[
-                    {"role": "user", "parts": [BUSINESS_PROMPT if tier == 'business' else PREMIUM_PROMPT]},
-                    {"role": "model", "parts": ["Understood. I am LEX Document Comparison Expert. I will conduct a thorough side-by-side analysis of both documents."]}
-                ])
-                response = chat.send_message(prompt, stream=True)
+                ack = "Understood. I am LEX Document Comparison Expert. I will conduct a thorough side-by-side analysis of both documents."
+                sys_p = BUSINESS_PROMPT if tier == 'business' else PREMIUM_PROMPT
                 full = ""
-                for chunk in response:
-                    if chunk.text:
-                        full += chunk.text
-                        yield f"data: {json.dumps({'chunk': chunk.text})}\n\n"
+                for piece in stream_answer(prompt, system_prompt=sys_p, ack=ack):
+                    full += piece
+                    yield f"data: {json.dumps({'chunk': piece})}\n\n"
                 yield f"data: {json.dumps({'done': True, 'full': full})}\n\n"
             except Exception as e:
                 logger.error(f"Compare stream error: {e}")
@@ -1108,16 +1162,11 @@ Jurisdiction: {country}
     def generate():
         try:
             system = BUSINESS_PROMPT if tier == 'business' else PREMIUM_PROMPT
-            chat = model.start_chat(history=[
-                {"role": "user", "parts": [system]},
-                {"role": "model", "parts": [f"Understood. I am LEX Legal Research Engine. I will conduct thorough research on this topic for {country} jurisdiction."]}
-            ])
-            response = chat.send_message(prompt, stream=True)
+            ack = f"Understood. I am LEX Legal Research Engine. I will conduct thorough research on this topic for {country} jurisdiction."
             full = ""
-            for chunk in response:
-                if chunk.text:
-                    full += chunk.text
-                    yield f"data: {json.dumps({'chunk': chunk.text})}\n\n"
+            for piece in stream_answer(prompt, system_prompt=system, ack=ack):
+                full += piece
+                yield f"data: {json.dumps({'chunk': piece})}\n\n"
             yield f"data: {json.dumps({'done': True, 'full': full, 'sources': sources})}\n\n"
         except Exception as e:
             logger.error(f"Research stream error: {e}")
@@ -1166,8 +1215,7 @@ Rules:
 - No preamble, just the summary itself"""
 
     try:
-        response = model.generate_content(prompt)
-        summary = response.text.strip()
+        summary = generate_answer(prompt).strip()
         return jsonify({'summary': summary})
     except Exception as e:
         logger.error(f"Memory summarise error: {e}")
@@ -1362,10 +1410,12 @@ def lemonsqueezy_webhook():
 def health():
     return jsonify({
         'status': 'online',
-        'ai': 'online' if model else 'offline',
+        'ai': 'online' if (model or GROQ_API_KEY) else 'offline',
+        'ai_primary': 'gemini-2.5-flash' if model else 'offline',
+        'ai_fallback': 'groq:llama-3.3-70b-versatile' if GROQ_API_KEY else 'none',
         'web_search': 'online' if TAVILY_API_KEY else 'offline',
         'tiers': ['free', 'premium', 'business'],
-        'version': '2.1'
+        'version': '2.2'
     })
 
 if __name__ == '__main__':
