@@ -271,6 +271,13 @@
   .composer-meta .ctx-label { font-size:8px;letter-spacing:1.2px; }
   .chat-input-area { padding:10px 16px 12px !important; }
   .chat-disclaimer { padding:6px 18px 8px !important; }
+  /* Phone view: lock Ask FORI & lawyer chatroom to the *visible* viewport (dvh) so the composer is always on screen — no swiping */
+  @media (max-width:1023px){
+    body { min-height:100dvh; }
+    .main-content { min-height:100dvh; }
+    .chat-wrap, .chatroom-wrap { height:calc(100dvh - 68px); }
+    .chat-input-area { padding-bottom:calc(12px + env(safe-area-inset-bottom)) !important; }
+  }
 </style>
 <!-- Firebase SDK -->
 <script type="module">
