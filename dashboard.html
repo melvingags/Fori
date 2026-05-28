@@ -865,7 +865,9 @@
 <script type="text/javascript">
   var _smartsupp = _smartsupp || {};
   _smartsupp.key = '99d6caca759541ed4edb4f3443bf5969a35e7845';
-  _smartsupp.hideWidget = true;   // never show the floating launcher bubble — chat opens only via Live Chat
+  _smartsupp.hideWidget = true;   // hidden until opened via Live Chat
+  _smartsupp.offsetX = 16;        // small gap from the right edge
+  _smartsupp.offsetY = 120;       // lift bubble above the Ask FORI send button so it never overlaps
   window.smartsupp||(function(d){var s,c,o=smartsupp=function(){o._.push(arguments)};o._=[];s=d.getElementsByTagName('script')[0];c=d.createElement('script');c.type='text/javascript';c.charset='utf-8';c.async=true;c.src='https://www.smartsuppchat.com/loader.js?';s.parentNode.insertBefore(c,s);})(document);
 
   function initSmartsuppDash(){
