@@ -376,6 +376,7 @@
           <div class="ch-name">FORI</div>
           <div class="ch-status"><span class="ch-dot"></span>AI Legal Navigator · Online</div>
         </div>
+        <button onclick="startNewChat()" title="Start a new chat" style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;background:transparent;border:1px solid var(--border);color:var(--text-secondary);padding:7px 12px;border-radius:9px;font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;white-space:nowrap;flex-shrink:0;" onmouseover="this.style.borderColor='var(--accent-gold)';this.style.color='var(--accent-gold)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>New chat</button>
       </div>
       <div class="chat-messages" id="chatMessages">
         <div class="day-divider">Today</div>
@@ -624,6 +625,7 @@
   function saveQData(d){localStorage.setItem('foriQ_'+(user.role||'free'),JSON.stringify(d));}
 
   const chatHistory=[];
+  let currentChatId=null;
   function escapeHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
   // Simple renderer for user-typed text: escape + links + line breaks (no markdown styling).
   function renderRich(text){
@@ -700,20 +702,65 @@
         for(const line of lines){if(!line.startsWith('data: '))continue;try{const payload=JSON.parse(line.slice(6));
           if(payload.error){document.getElementById(msgId).textContent='⚠️ '+payload.error;if(!isPremium&&!payload.limit_reached){d.count=Math.min(MAX_Q,d.count+1);saveQData(d);}break;}
           if(payload.chunk){fullAnswer+=payload.chunk;const _b=document.getElementById(msgId);if(_b)_b.innerHTML=renderMarkdown(fullAnswer);messagesEl.scrollTop=messagesEl.scrollHeight;}
-          if(payload.done){const _el=document.getElementById(msgId);if(_el)_el.innerHTML=renderMarkdown(payload.answer);chatHistory.push({role:'assistant',content:payload.answer});saveToHistory(encodeURIComponent(question),encodeURIComponent(payload.answer),country,category);
+          if(payload.done){const _el=document.getElementById(msgId);if(_el)_el.innerHTML=renderMarkdown(payload.answer);chatHistory.push({role:'assistant',content:payload.answer});persistTurn(question,payload.answer,country,category);
             saveMemory('question',`Question: ${question}\n\nAnswer: ${payload.answer.slice(0,1500)}`);}
         }catch(e){}}}}
     catch(e){document.getElementById('chatTyping').classList.remove('visible');document.getElementById('askBtn').disabled=false;if(!isPremium){d.count=Math.min(MAX_Q,d.count+1);saveQData(d);}appendMessage('assistant','⚠️ Connection error. Please try again.');}
   }
 
-  function saveToHistory(qEnc,ansEnc,country,category){const q=decodeURIComponent(qEnc),answer=decodeURIComponent(ansEnc);const history=JSON.parse(localStorage.getItem('foriHistory')||'[]');if(history.length&&history[0].q===q)return;history.unshift({q,answer,country,category:category||'General Law',date:new Date().toLocaleDateString(),time:new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}),id:Date.now()});localStorage.setItem('foriHistory',JSON.stringify(history.slice(0,100)));renderHistory();}
+  // ── CONVERSATION THREADS (Claude-style: one history entry per chat, reopenable) ──
+  function getChats(){try{return JSON.parse(localStorage.getItem('foriChats')||'[]');}catch(e){return [];}}
+  function saveChats(a){try{localStorage.setItem('foriChats',JSON.stringify(a.slice(0,100)));}catch(e){}}
+  function migrateChatsOnce(){
+    if(localStorage.getItem('foriChats')!==null)return;
+    let old=[];try{old=JSON.parse(localStorage.getItem('foriHistory')||'[]');}catch(e){old=[];}
+    const chats=old.map((h,i)=>({id:h.id||(Date.now()+i),title:(h.q||'Chat').slice(0,70),country:h.country,category:h.category||'General Law',date:h.date,time:h.time,updatedAt:h.id||(Date.now()+i),messages:[{role:'user',content:h.q||''},{role:'assistant',content:h.answer||''}]}));
+    localStorage.setItem('foriChats',JSON.stringify(chats));
+  }
+  function persistTurn(question,answer,country,category){
+    let chats=getChats();let c=currentChatId?chats.find(x=>x.id===currentChatId):null;const now=Date.now();
+    if(!c){c={id:now,title:(question||'New chat').slice(0,70),country,category:category||'General Law',createdAt:now,messages:[]};currentChatId=c.id;}
+    c.messages.push({role:'user',content:question},{role:'assistant',content:answer});
+    c.updatedAt=now;c.date=new Date().toLocaleDateString();c.time=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+    chats=chats.filter(x=>x.id!==c.id);chats.unshift(c);saveChats(chats);renderHistory();
+  }
+  function startNewChat(){
+    currentChatId=null;chatHistory.length=0;
+    const wrap=document.getElementById('chatMessages');
+    if(wrap)wrap.innerHTML='<div class="day-divider">Today</div><div class="msg-row assistant"><div class="msg-avatar">F</div><div class="msg-col"><div class="msg-bubble assistant" id="lexWelcomeMsg">Good to have you here. I\'m FORI — your AI legal navigator. Ask me anything about law in your jurisdiction, upload a document for review, or request a draft. How can I help you today?</div><div class="msg-time">now</div></div></div>';
+    document.querySelectorAll('.chat-disclaimer').forEach(el=>el.style.display='');
+    showPage('ask',document.querySelectorAll('.nav-item')[0]);
+  }
+  function openChat(id){
+    const c=getChats().find(x=>String(x.id)===String(id));if(!c)return;
+    currentChatId=c.id;chatHistory.length=0;
+    const wrap=document.getElementById('chatMessages');
+    wrap.innerHTML='<div class="day-divider">'+(c.date||'Earlier')+'</div>';
+    (c.messages||[]).forEach(m=>{chatHistory.push({role:m.role,content:m.content});appendMessage(m.role,m.content);});
+    document.querySelectorAll('.chat-disclaimer').forEach(el=>el.style.display='none');
+    const cs=document.getElementById('countrySelect');if(cs&&c.country&&[...cs.options].some(o=>o.value===c.country))cs.value=c.country;
+    const ca=document.getElementById('categorySelect');if(ca&&c.category)ca.value=c.category;
+    showPage('ask',document.querySelectorAll('.nav-item')[0]);
+    wrap.scrollTop=wrap.scrollHeight;
+  }
+  function saveToHistory(){/* deprecated: replaced by persistTurn (conversation threads) */}
   function downloadText(text){const b=new Blob([text],{type:'text/plain'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='fori-analysis.txt';a.click();}
   function handleFileUpload(input){if(input.files[0]){document.getElementById('uploadNote').textContent=input.files[0].name;appendMessage('user','📎 Attached: '+input.files[0].name);}}
 
-  function renderHistory(){const all=JSON.parse(localStorage.getItem('foriHistory')||'[]');const search=(document.getElementById('historySearch')?.value||'').toLowerCase();const filter=document.getElementById('historyFilter')?.value||'';const list=document.getElementById('historyList');const countEl=document.getElementById('historyCount');let history=all;if(search)history=history.filter(h=>h.q.toLowerCase().includes(search)||(h.answer||'').toLowerCase().includes(search));if(filter)history=history.filter(h=>h.category===filter);if(countEl)countEl.textContent=`${history.length} of ${all.length} consultation${all.length!==1?'s':''}`;if(!history.length){list.innerHTML=`<div style="text-align:center;padding:60px 20px;color:var(--text-muted);"><div style="font-family:'Cormorant Garamond',serif;font-size:22px;margin-bottom:8px;color:var(--text-secondary);">${all.length?'No matches':'No history yet'}</div><div style="font-size:14px;">${all.length?'Try a different search or filter.':'Your consultations will auto-save here.'}</div></div>`;return;}list.innerHTML=history.map(h=>`<div class="history-item" id="hist-${h.id}"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:8px;"><div class="history-q" onclick="toggleHistoryExpand('${h.id}')" style="flex:1;cursor:pointer;">${h.q.substring(0,120)}${h.q.length>120?'...':''}</div><button onclick="deleteHistoryItem(${h.id})" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:16px;padding:0;flex-shrink:0;">×</button></div><div class="history-meta"><span>${h.date}${h.time?' · '+h.time:''}</span><span class="history-tag">${h.country||''}</span>${h.category?`<span class="history-tag" style="background:rgba(201,168,108,0.08);">${h.category}</span>`:''}</div><div id="hist-expand-${h.id}" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid var(--border);"><div style="font-size:13px;color:var(--text-secondary);line-height:1.8;white-space:pre-wrap;">${(h.answer||'').substring(0,1500)}${(h.answer||'').length>1500?'...\n\n[Tap Copy to get full answer]':''}</div><div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;"><button onclick="navigator.clipboard.writeText(decodeURIComponent('${encodeURIComponent(h.answer||'')}'))" style="padding:5px 12px;background:transparent;border:1px solid var(--border);color:var(--text-muted);font-size:10px;cursor:pointer;font-family:'Inter',sans-serif;letter-spacing:1px;text-transform:uppercase;" onmouseover="this.style.borderColor='var(--accent-gold)';this.style.color='var(--accent-gold)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-muted)'">Copy Answer</button><button onclick="downloadText(decodeURIComponent('${encodeURIComponent(h.answer||'')}'))" style="padding:5px 12px;background:transparent;border:1px solid var(--border);color:var(--text-muted);font-size:10px;cursor:pointer;font-family:'Inter',sans-serif;letter-spacing:1px;text-transform:uppercase;" onmouseover="this.style.borderColor='var(--accent-gold)';this.style.color='var(--accent-gold)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-muted)'">Download</button></div></div></div>`).join('');}
-  function toggleHistoryExpand(id){const el=document.getElementById('hist-expand-'+id);if(el)el.style.display=el.style.display==='none'?'block':'none';}
-  function deleteHistoryItem(id){let history=JSON.parse(localStorage.getItem('foriHistory')||'[]');history=history.filter(h=>h.id!==id);localStorage.setItem('foriHistory',JSON.stringify(history));renderHistory();}
-  function clearHistory(){if(!confirm('Clear all case history?'))return;localStorage.removeItem('foriHistory');renderHistory();}
+  function renderHistory(){
+    const all=getChats();
+    const search=(document.getElementById('historySearch')?.value||'').toLowerCase();
+    const filter=document.getElementById('historyFilter')?.value||'';
+    const list=document.getElementById('historyList');const countEl=document.getElementById('historyCount');
+    let chats=all;
+    if(search)chats=chats.filter(c=>(c.title||'').toLowerCase().includes(search)||(c.messages||[]).some(m=>(m.content||'').toLowerCase().includes(search)));
+    if(filter)chats=chats.filter(c=>c.category===filter);
+    if(countEl)countEl.textContent=`${chats.length} of ${all.length} conversation${all.length!==1?'s':''}`;
+    if(!chats.length){list.innerHTML=`<div style="text-align:center;padding:60px 20px;color:var(--text-muted);"><div style="font-family:'Cormorant Garamond',serif;font-size:22px;margin-bottom:8px;color:var(--text-secondary);">${all.length?'No matches':'No conversations yet'}</div><div style="font-size:14px;">${all.length?'Try a different search or filter.':'Your chats will appear here. Tap one to continue where you left off.'}</div></div>`;return;}
+    list.innerHTML=chats.map(c=>{const turns=Math.ceil((c.messages||[]).length/2);return `<div class="history-item" onclick="openChat('${c.id}')" style="cursor:pointer;"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:8px;"><div class="history-q" style="flex:1;">${escapeHtml(c.title||'Untitled chat').substring(0,120)}</div><button onclick="event.stopPropagation();deleteHistoryItem('${c.id}')" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:16px;padding:0;flex-shrink:0;">×</button></div><div class="history-meta"><span>${c.date||''}${c.time?' · '+c.time:''}</span><span class="history-tag">${c.country||''}</span>${c.category?`<span class="history-tag" style="background:rgba(201,168,108,0.08);">${c.category}</span>`:''}<span class="history-tag" style="background:rgba(255,255,255,0.05);">${turns} message${turns!==1?'s':''}</span></div></div>`;}).join('');
+  }
+  function deleteHistoryItem(id){let chats=getChats();chats=chats.filter(c=>String(c.id)!==String(id));saveChats(chats);if(String(currentChatId)===String(id)){currentChatId=null;chatHistory.length=0;}renderHistory();}
+  function clearHistory(){if(!confirm('Clear all chat history?'))return;localStorage.removeItem('foriChats');currentChatId=null;chatHistory.length=0;renderHistory();}
 
   let _allLawyers=[];
   async function initLawyerDirectory(){
@@ -804,6 +851,7 @@
   function handleDocDrop(e){e.preventDefault();document.getElementById('docDropZone').style.borderColor='var(--border)';handleDocUpload(e.dataTransfer.files);}
   async function deleteDoc(docId){if(!confirm('Delete this document?'))return;try{await window.fsDeleteDoc(docId);addNotif('Document deleted.');}catch(e){addNotif('Failed to delete document.');}}
   setTimeout(()=>{if(window.fsLoadDocs)loadDocs();},1500);
+  migrateChatsOnce();
   renderHistory();
 
   const NOTIF_KEY='foriNotifs_individual';
@@ -955,3 +1003,4 @@
 </script>
 </body>
 </html>
+                                                                         
