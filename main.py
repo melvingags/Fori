@@ -664,6 +664,114 @@ Provide a comprehensive response based on the laws of {country}."""
         return jsonify({'error': f'LEX encountered an error: {str(e)[:150]}'}), 500
 
 
+TAX_PROMPT = """You are FORI Tax Assistant, an AI that helps individuals understand and PREPARE their personal income tax for their own country. You are NOT a substitute for a licensed tax professional or accountant, and you NEVER file or submit anything to a tax authority — the user files it themselves.
+
+You work for ANY country. Always apply the tax rules, bands, reliefs, allowances and the correct tax year for the user's stated country, in the user's currency. If you are not fully certain a rate is current, say so plainly and tell the user to confirm with their official tax authority.
+
+For an ESTIMATE request (the user gives figures), respond in clean markdown:
+## Tax Estimate — [country], [year]
+First, briefly state any assumptions you had to make.
+1. Gross income (and any other income).
+2. Allowable deductions, pre-tax contributions and reliefs that apply in THIS country — name each one (e.g. pension, statutory allowances/reliefs) with amounts.
+3. Taxable income after reliefs.
+4. The tax bands applied, step by step, showing the tax in each band.
+5. Total estimated tax and the effective tax rate.
+6. Tax already withheld/paid (if given) and the estimated balance to pay or refund.
+
+## Ready-to-File Summary
+A clean list of the exact figures the user enters on their official return/portal (taxable income, total reliefs, total tax due, balance), so they can file it themselves.
+
+## Before You File
+- Reliefs or deductions they may have missed and should check.
+- The official authority/portal for their country if you know it (e.g. FIRS TaxPro-Max for Nigeria, IRS for the US, HMRC for the UK).
+
+Rules:
+- Be accurate and conservative; show your working so the user can verify every number.
+- Use the user's currency throughout.
+- If the country or a needed figure is missing or unclear, briefly ask for that specific item instead of guessing.
+- When you rely on a provided research source for a rate or rule, cite it inline as a markdown link [Source](URL). Never output a separate Sources list.
+- End with: "This is an estimate for guidance only — not tax advice or a filed return. Confirm the figures with a licensed tax professional or your tax authority before filing."
+
+For a general TAX QUESTION (no figures), answer clearly for the user's country, with the same accuracy standards and the same closing disclaimer."""
+
+TAX_PROMPT += STYLE_RULES
+
+
+@app.route('/tax-stream', methods=['POST'])
+def tax_stream():
+    data = request.json or {}
+    mode = data.get('mode', 'estimate')
+    country = (data.get('country') or 'the user\'s country').strip()
+    year = (data.get('year') or '').strip()
+    currency = (data.get('currency') or '').strip()
+    tier = data.get('tier', 'free').lower()
+    question = (data.get('question') or '').strip()
+
+    if not model and not FALLBACK_CHAIN:
+        return jsonify({'error': 'FORI AI engine is offline. Please try again later.'}), 503
+
+    if mode == 'qa':
+        if not question:
+            return jsonify({'error': 'No question provided'}), 400
+        user_request = f"General personal-tax question for {country}:\n{question}"
+        search_query = f"{country} personal income tax {question}"
+    else:
+        fields = {
+            'Income type': data.get('status'),
+            'Tax year': year,
+            'Currency': currency,
+            'Gross annual income': data.get('gross'),
+            'Other income': data.get('otherIncome'),
+            'Pension / pre-tax contributions': data.get('deductions'),
+            'Allowable expenses': data.get('expenses'),
+            'Tax already paid / withheld': data.get('withheld'),
+            'Dependents': data.get('dependents'),
+            'Additional details': data.get('notes'),
+        }
+        lines = [f"- {k}: {v}" for k, v in fields.items() if v not in (None, '', 'undefined')]
+        user_request = (f"Prepare a personal income tax estimate and ready-to-file summary for an individual in {country}"
+                        + (f" for tax year {year}" if year else "") + ".\n\nFigures provided:\n" + "\n".join(lines)
+                        + (f"\n\nUser's note: {question}" if question else ""))
+        search_query = f"{country} personal income tax rates bands reliefs {year}".strip()
+
+    search_context, search_sources = "", []
+    try:
+        search_context, search_sources = search_legal_info(search_query, country, optimise=False)
+        if not search_context:
+            search_context = ""
+    except Exception as e:
+        logger.warning(f"tax search failed: {str(e)[:80]}")
+
+    prompt = f"""Country/Jurisdiction: {country}
+Currency: {currency or 'use the local currency of ' + country}
+Mode: {'General tax Q&A' if mode == 'qa' else 'Tax estimate & preparation'}
+
+{user_request}
+{search_context}
+
+Respond using the structure and rules in your instructions, applying the tax laws of {country}."""
+
+    ack = f"Understood. I am FORI Tax Assistant. I will prepare a clear, accurate personal tax estimate for {country}, show my working, and never file anything on the user's behalf."
+
+    def generate():
+        try:
+            full_answer = ""
+            for piece in stream_answer(prompt, system_prompt=TAX_PROMPT, ack=ack, history=[]):
+                full_answer += piece
+                yield f"data: {json.dumps({'chunk': piece})}\n\n"
+            yield f"data: {json.dumps({'done': True, 'answer': full_answer, 'sources': search_sources})}\n\n"
+        except Exception as e:
+            logger.error(f"Tax stream error: {e}")
+            busy = ('429' in str(e)) or ('too many requests' in str(e).lower()) or ('rate limit' in str(e).lower())
+            msg = "FORI is experiencing very high demand right now. Please wait a few seconds and try again." if busy else "FORI ran into a problem preparing that. Please try again."
+            yield f"data: {json.dumps({'error': msg})}\n\n"
+
+    return Response(generate(), mimetype='text/event-stream', headers={
+        'Cache-Control': 'no-cache',
+        'X-Accel-Buffering': 'no'
+    })
+
+
 @app.route('/draft', methods=['POST'])
 def draft_document():
     data = request.json
