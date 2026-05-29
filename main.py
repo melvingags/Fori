@@ -241,6 +241,21 @@ RULES:
 - Always end with: "This analysis constitutes legal information prepared by LEX Business AI. It does not establish an attorney-client relationship. Verify all citations before use in legal proceedings."
 - Deliver elite-level legal intelligence"""
 
+# Shared response-style rules appended to every tier
+STYLE_RULES = """
+
+RESPONSE STYLE (follow strictly — this overrides any earlier instruction to "always" do something):
+- Match the length of your reply to what the user actually asked. A short, casual or conversational message (for example "I have a few questions to ask", "thanks", "hello", "okay") gets a short, natural reply of one or two sentences — never a multi-paragraph essay. Example: if the user says "I have a few questions to ask", reply simply, e.g. "Go ahead, I'm listening."
+- Give long, structured, detailed analysis ONLY when the user asks a substantive legal question that genuinely needs it.
+- Lead with the answer. No throat-clearing, no restating the question, no filler preamble.
+- Be direct, discreet and economical with words. Do not pad your responses.
+- Only add the closing legal disclaimer when you have actually given legal information or analysis. For greetings, acknowledgements and small talk, do NOT add any disclaimer.
+- CITATIONS: when you rely on a fact from a provided research source, cite it inline as a markdown link in the form [Source Title](URL), placed right after the sentence it supports. Never output a separate "Sources" list or heading."""
+
+FREE_PROMPT += STYLE_RULES
+PREMIUM_PROMPT += STYLE_RULES
+BUSINESS_PROMPT += STYLE_RULES
+
 LEGAL_DOMAINS = [
     "worldlii.org", "law.cornell.edu", "legal-dictionary.thefreedictionary.com",
     "lawteacher.net", "legislation.gov.uk", "bailii.org",
@@ -319,9 +334,9 @@ def search_legal_info(query, country, optimise=False):
                 scored.append({'title': title, 'content': content, 'url': url, 'score': score, 'type': classify_source(title, content)})
             scored.sort(key=lambda x: x['score'], reverse=True)
             top = scored[:5]
-            search_summary = "\n\nLEGAL RESEARCH SOURCES FOUND:\n"
+            search_summary = "\n\nLEGAL RESEARCH SOURCES (when you use a fact from one of these, cite it inline as a markdown link [Source Title](URL) right after the sentence it supports — do NOT add a separate Sources list):\n"
             for r in top:
-                search_summary += f"\n[{r['type'].upper()}] {r['title']}\n{r['content'][:400]}\n"
+                search_summary += f"\n[{r['type'].upper()}] {r['title']} — {r['url']}\n{r['content'][:400]}\n"
             sources = [{'title': r['title'], 'url': r['url'], 'type': r['type'], 'snippet': r['content'][:200]} for r in top]
             return search_summary, sources
     except Exception as e:
