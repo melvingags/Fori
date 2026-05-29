@@ -414,6 +414,7 @@
       </div>
       <div class="chat-disclaimer">FORI provides legal information, not legal advice. Always consult a qualified lawyer for your specific situation.</div>
       <div class="chat-input-area">
+        <div id="chatAttachment" style="display:none;align-items:center;gap:8px;margin:0 4px 8px;padding:8px 11px;background:rgba(201,168,108,0.10);border:1px solid rgba(201,168,108,0.28);border-radius:10px;font-family:'Inter',sans-serif;font-size:12px;color:var(--text-secondary);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent-gold)" stroke-width="1.6" style="flex-shrink:0;"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg><span id="chatAttachmentName" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span><button onclick="clearChatAttachment()" title="Remove" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:16px;line-height:1;padding:0 2px;flex-shrink:0;">×</button></div>
         <div class="composer">
           <div class="composer-input-wrap">
             <textarea class="chat-input" id="questionInput" placeholder="Ask a legal question..." rows="1" onkeydown="handleChatKey(event)" oninput="autoResize(this)"></textarea>
@@ -640,6 +641,8 @@
 
   const chatHistory=[];
   let currentChatId=null;
+  let attachedFileText='';
+  let attachedFileName='';
   function escapeHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
   // Simple renderer for user-typed text: escape + links + line breaks (no markdown styling).
   function renderRich(text){
@@ -695,14 +698,17 @@
   async function askLex(){
     const d=getQData();
     if(d.count<=0){appendMessage('assistant','⚠️ You\'ve used all your free questions for today. They reset at midnight. <a href="#" onclick="showUpgrade();return false;" style="color:var(--accent-gold)">Upgrade to Premium</a> for unlimited access.',null,true);return;}
-    const input=document.getElementById('questionInput');const question=input.value.trim();if(!question)return;
+    const input=document.getElementById('questionInput');const typed=input.value.trim();if(!typed&&!attachedFileText)return;
     const country=document.getElementById('countrySelect').value;const category=document.getElementById('categorySelect').value;
+    const question=attachedFileName?('📎 '+attachedFileName+(typed?'\n\n'+typed:'')):typed;
+    let sendQuestion=typed;
+    if(attachedFileText){sendQuestion='The user attached a document named "'+attachedFileName+'". Read it carefully and use it to answer.\n\n--- DOCUMENT START ---\n'+attachedFileText+'\n--- DOCUMENT END ---\n\nUser\'s message: '+(typed||'Please review this document and explain what it means and the key points.');}
     document.querySelectorAll('.chat-disclaimer').forEach(el=>el.style.display='none');
-    appendMessage('user',question);chatHistory.push({role:'user',content:question});input.value='';input.style.height='auto';
+    appendMessage('user',question);chatHistory.push({role:'user',content:question});input.value='';input.style.height='auto';clearChatAttachment();
     document.getElementById('askBtn').disabled=true;document.getElementById('chatTyping').classList.add('visible');document.getElementById('chatMessages').scrollTop=document.getElementById('chatMessages').scrollHeight;
     if(!isPremium){d.count=Math.max(0,d.count-1);saveQData(d);}
     try{
-      const res=await fetch('/ask-stream',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question,country,category,tier:isPremium?'premium':'free',history:chatHistory.slice(-6),memories:getMemories()})});
+      const res=await fetch('/ask-stream',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:sendQuestion,country,category,tier:isPremium?'premium':'free',history:chatHistory.slice(-6),memories:getMemories()})});
       document.getElementById('chatTyping').classList.remove('visible');document.getElementById('askBtn').disabled=false;
       if(!res.ok)throw new Error('Network error');
       const msgId='stream-'+Date.now();const messagesEl=document.getElementById('chatMessages');
@@ -759,7 +765,27 @@
   }
   function saveToHistory(){/* deprecated: replaced by persistTurn (conversation threads) */}
   function downloadText(text){const b=new Blob([text],{type:'text/plain'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='fori-analysis.txt';a.click();}
-  function handleFileUpload(input){if(input.files[0]){document.getElementById('uploadNote').textContent=input.files[0].name;appendMessage('user','📎 Attached: '+input.files[0].name);}}
+  async function handleFileUpload(input){
+    const file=input.files&&input.files[0];if(!file)return;
+    const ext=file.name.toLowerCase().split('.').pop();
+    if(!['pdf','docx','txt'].includes(ext)){appendMessage('assistant','I can read PDF, Word (.docx) and text files. Please upload one of those, or paste the text directly.');input.value='';return;}
+    const pill=document.getElementById('chatAttachment');const nameEl=document.getElementById('chatAttachmentName');
+    if(nameEl)nameEl.textContent='Reading '+file.name+'…';if(pill)pill.style.display='flex';
+    try{
+      const fd=new FormData();fd.append('file',file);
+      const res=await fetch('/extract-file',{method:'POST',body:fd});
+      const data=await res.json().catch(()=>null);
+      if(data&&data.text){
+        attachedFileText=data.text;attachedFileName=file.name;
+        if(nameEl)nameEl.textContent=file.name+(data.truncated?'  (long file — first part attached)':'');
+      }else{
+        clearChatAttachment();
+        appendMessage('assistant','⚠️ '+((data&&data.error)||'I couldn\'t read that file. Try a PDF, Word (.docx) or text file.'));
+      }
+    }catch(e){clearChatAttachment();appendMessage('assistant','⚠️ I couldn\'t read that file. Please try again.');}
+    input.value='';
+  }
+  function clearChatAttachment(){attachedFileText='';attachedFileName='';const pill=document.getElementById('chatAttachment');if(pill)pill.style.display='none';const nameEl=document.getElementById('chatAttachmentName');if(nameEl)nameEl.textContent='';const note=document.getElementById('uploadNote');if(note)note.textContent='Attach';const fi=document.getElementById('fileInput');if(fi)fi.value='';}
 
   function chatBucket(ts){
     const d=new Date(ts||Date.now());const now=new Date();
