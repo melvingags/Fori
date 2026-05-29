@@ -75,6 +75,9 @@ if GEMINI_API_KEY:
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_MODEL = "llama-3.3-70b-versatile"
+GROQ_MODEL_FALLBACK = "llama-3.1-8b-instant"   # far higher free limits; used if the 70B is rate-limited
+GROQ_MODELS = [GROQ_MODEL, GROQ_MODEL_FALLBACK]
+GROQ_MAX_TOKENS = 4000
 
 def _groq_messages(prompt, system_prompt=None, ack=None, history=None):
     msgs = []
@@ -90,40 +93,60 @@ def _groq_messages(prompt, system_prompt=None, ack=None, history=None):
     return msgs
 
 def _groq_generate(prompt, system_prompt=None, ack=None, history=None):
-    resp = requests.post(
-        GROQ_URL,
-        headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
-        json={"model": GROQ_MODEL, "max_tokens": 8000,
-              "messages": _groq_messages(prompt, system_prompt, ack, history)},
-        timeout=90,
-    )
-    resp.raise_for_status()
-    return resp.json()["choices"][0]["message"]["content"]
+    last = None
+    for gm in GROQ_MODELS:
+        try:
+            resp = requests.post(
+                GROQ_URL,
+                headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
+                json={"model": gm, "max_tokens": GROQ_MAX_TOKENS,
+                      "messages": _groq_messages(prompt, system_prompt, ack, history)},
+                timeout=90,
+            )
+            resp.raise_for_status()
+            return resp.json()["choices"][0]["message"]["content"]
+        except Exception as e:
+            last = e
+            logger.warning(f"Groq {gm} failed: {str(e)[:100]}")
+    raise last
 
 def _groq_stream(prompt, system_prompt=None, ack=None, history=None):
-    resp = requests.post(
-        GROQ_URL,
-        headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
-        json={"model": GROQ_MODEL, "max_tokens": 8000, "stream": True,
-              "messages": _groq_messages(prompt, system_prompt, ack, history)},
-        timeout=90,
-        stream=True,
-    )
-    resp.raise_for_status()
-    for raw in resp.iter_lines():
-        if not raw:
-            continue
-        line = raw.decode("utf-8") if isinstance(raw, bytes) else raw
-        if line.startswith("data:"):
-            payload = line[5:].strip()
-            if payload == "[DONE]":
-                break
-            try:
-                delta = json.loads(payload)["choices"][0]["delta"].get("content", "")
-            except Exception:
-                continue
-            if delta:
-                yield delta
+    last = None
+    for gm in GROQ_MODELS:
+        emitted = False
+        try:
+            resp = requests.post(
+                GROQ_URL,
+                headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
+                json={"model": gm, "max_tokens": GROQ_MAX_TOKENS, "stream": True,
+                      "messages": _groq_messages(prompt, system_prompt, ack, history)},
+                timeout=90,
+                stream=True,
+            )
+            resp.raise_for_status()
+            for raw in resp.iter_lines():
+                if not raw:
+                    continue
+                line = raw.decode("utf-8") if isinstance(raw, bytes) else raw
+                if line.startswith("data:"):
+                    payload = line[5:].strip()
+                    if payload == "[DONE]":
+                        break
+                    try:
+                        delta = json.loads(payload)["choices"][0]["delta"].get("content", "")
+                    except Exception:
+                        continue
+                    if delta:
+                        emitted = True
+                        yield delta
+            return
+        except Exception as e:
+            last = e
+            logger.warning(f"Groq {gm} stream failed: {str(e)[:100]}")
+            if emitted:
+                return
+    if last:
+        raise last
 
 def _gemini_history(system_prompt, ack, history):
     gem = [
@@ -295,7 +318,7 @@ Rules:
 - Include relevant act/law names if you know them
 - Keep it under 15 words
 - Return ONLY the search query, nothing else"""
-        optimised = generate_answer(prompt).strip().replace('"', '').replace("'", '')
+        optimised = model_instance.generate_content(prompt).text.strip().replace('"', '').replace("'", '')
         return optimised if optimised else f"{question} {country} law"
     except:
         return f"{question} {country} law legal"
@@ -610,7 +633,9 @@ Provide a comprehensive response based on the laws of {country}."""
                     usage_tracker[ip]["count"] = max(0, usage_tracker[ip]["count"] - 1)
             except Exception as e:
                 logger.error(f"Stream error: {e}")
-                yield f"data: {json.dumps({'error': f'LEX encountered an error: {str(e)[:150]}'})}\n\n"
+                busy = ('429' in str(e)) or ('Too Many Requests' in str(e).lower()) or ('rate limit' in str(e).lower())
+                msg = "FORI is experiencing very high demand right now. Please wait a few seconds and try again." if busy else "FORI ran into a problem with that request. Please try again."
+                yield f"data: {json.dumps({'error': msg})}\n\n"
 
         return Response(generate(), mimetype='text/event-stream', headers={
             'Cache-Control': 'no-cache',
