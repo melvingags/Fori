@@ -423,12 +423,6 @@
 
   <!-- HISTORY PAGE -->
   <div class="page" id="page-history"><div class="page-area"><div class="page-label">Records</div><h1 class="page-title">Case <em>History</em></h1>
-    <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
-      <input type="text" id="historySearch" placeholder="Search questions..." oninput="renderHistory()" style="flex:1;min-width:180px;background:var(--bg-card);border:1px solid var(--border);color:var(--text-primary);padding:10px 14px;font-family:'Inter',sans-serif;font-size:13px;" onfocus="this.style.borderColor='var(--accent-gold)'" onblur="this.style.borderColor='var(--border)'">
-      <select id="historyFilter" onchange="renderHistory()" style="background:var(--bg-card);border:1px solid var(--border);color:var(--text-secondary);padding:10px 14px;font-family:'Inter',sans-serif;font-size:13px;cursor:pointer;"><option value="">All Areas</option><option value="General Law">General</option><option value="Criminal Law">Criminal</option><option value="Civil Rights">Civil Rights</option><option value="Employment Law">Employment</option><option value="Property &amp; Tenancy Law">Property</option><option value="Family Law">Family</option><option value="Business &amp; Corporate Law">Corporate</option><option value="Immigration Law">Immigration</option><option value="Contract Law">Contract</option></select>
-      <button onclick="clearHistory()" style="padding:10px 16px;background:transparent;border:1px solid var(--border);color:var(--text-muted);font-family:'Inter',sans-serif;font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;cursor:pointer;" onmouseover="this.style.borderColor='#e74c3c';this.style.color='#e74c3c'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-muted)'">Clear All</button>
-    </div>
-    <div style="font-size:11px;color:var(--text-muted);margin-bottom:16px;" id="historyCount"></div>
     <div class="history-list" id="historyList"></div>
   </div></div>
 
@@ -749,17 +743,19 @@
 
   function renderHistory(){
     const all=getChats();
-    const search=(document.getElementById('historySearch')?.value||'').toLowerCase();
-    const filter=document.getElementById('historyFilter')?.value||'';
-    const list=document.getElementById('historyList');const countEl=document.getElementById('historyCount');
-    let chats=all;
-    if(search)chats=chats.filter(c=>(c.title||'').toLowerCase().includes(search)||(c.messages||[]).some(m=>(m.content||'').toLowerCase().includes(search)));
-    if(filter)chats=chats.filter(c=>c.category===filter);
-    if(countEl)countEl.textContent=`${chats.length} of ${all.length} conversation${all.length!==1?'s':''}`;
-    if(!chats.length){list.innerHTML=`<div style="text-align:center;padding:60px 20px;color:var(--text-muted);"><div style="font-family:'Cormorant Garamond',serif;font-size:22px;margin-bottom:8px;color:var(--text-secondary);">${all.length?'No matches':'No conversations yet'}</div><div style="font-size:14px;">${all.length?'Try a different search or filter.':'Your chats will appear here. Tap one to continue where you left off.'}</div></div>`;return;}
-    list.innerHTML=chats.map(c=>{const turns=Math.ceil((c.messages||[]).length/2);return `<div class="history-item" onclick="openChat('${c.id}')" style="cursor:pointer;"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:8px;"><div class="history-q" style="flex:1;">${escapeHtml(c.title||'Untitled chat').substring(0,120)}</div><button onclick="event.stopPropagation();deleteHistoryItem('${c.id}')" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:16px;padding:0;flex-shrink:0;">×</button></div><div class="history-meta"><span>${c.date||''}${c.time?' · '+c.time:''}</span><span class="history-tag">${c.country||''}</span>${c.category?`<span class="history-tag" style="background:rgba(201,168,108,0.08);">${c.category}</span>`:''}<span class="history-tag" style="background:rgba(255,255,255,0.05);">${turns} message${turns!==1?'s':''}</span></div></div>`;}).join('');
+    const list=document.getElementById('historyList');
+    if(!list)return;
+    if(!all.length){list.innerHTML=`<div style="text-align:center;padding:60px 20px;color:var(--text-muted);"><div style="font-family:'Cormorant Garamond',serif;font-size:22px;margin-bottom:8px;color:var(--text-secondary);">No conversations yet</div><div style="font-size:14px;">Your chats will appear here. Tap one to continue where you left off.</div></div>`;return;}
+    list.innerHTML=all.map(c=>`<div class="history-item" onclick="openChat('${c.id}')" style="cursor:pointer;"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:6px;"><div class="history-q" style="flex:1;">${escapeHtml(c.title||'Untitled chat').substring(0,120)}</div><button onclick="event.stopPropagation();deleteHistoryItem('${c.id}')" title="Delete conversation" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:18px;padding:0 4px;flex-shrink:0;line-height:1;">×</button></div><div class="history-meta"><span>${c.date||''}${c.time?' · '+c.time:''}</span></div></div>`).join('');
   }
-  function deleteHistoryItem(id){let chats=getChats();chats=chats.filter(c=>String(c.id)!==String(id));saveChats(chats);if(String(currentChatId)===String(id)){currentChatId=null;chatHistory.length=0;}renderHistory();}
+  function deleteHistoryItem(id){
+    const chats=getChats();const c=chats.find(x=>String(x.id)===String(id));
+    const name=c&&c.title?c.title:'this conversation';
+    if(!confirm('Delete "'+name+'"?\n\nThis permanently removes the entire conversation and cannot be undone.'))return;
+    const next=chats.filter(x=>String(x.id)!==String(id));saveChats(next);
+    if(String(currentChatId)===String(id)){currentChatId=null;chatHistory.length=0;}
+    renderHistory();
+  }
   function clearHistory(){if(!confirm('Clear all chat history?'))return;localStorage.removeItem('foriChats');currentChatId=null;chatHistory.length=0;renderHistory();}
 
   let _allLawyers=[];
@@ -1003,4 +999,3 @@
 </script>
 </body>
 </html>
-                                                                         
