@@ -294,6 +294,26 @@
   .msg-bubble.assistant em{font-style:italic;}
   .msg-bubble.assistant .md-code{background:rgba(255,255,255,0.09);padding:1px 5px;border-radius:4px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.88em;}
   .msg-bubble.assistant .md-hr{border:none;border-top:1px solid rgba(201,168,108,0.25);margin:13px 0;}
+  .chat-group-label{font-family:'Inter',sans-serif;font-size:11px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:var(--text-muted);margin:20px 4px 6px;}
+  .chat-group-label:first-child{margin-top:0;}
+  .chat-row{display:flex;align-items:center;gap:8px;padding:11px 12px;border-radius:10px;cursor:pointer;transition:background .15s;}
+  .chat-row:hover{background:rgba(255,255,255,0.05);}
+  .chat-row-title{flex:1;min-width:0;font-family:'Inter',sans-serif;font-size:14.5px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .chat-row-del{flex-shrink:0;background:none;border:none;color:var(--text-muted);cursor:pointer;padding:6px;border-radius:8px;display:inline-flex;opacity:.5;transition:opacity .15s,background .15s,color .15s;}
+  .chat-row:hover .chat-row-del{opacity:1;}
+  .chat-row-del:hover{color:#e74c3c;background:rgba(231,76,60,0.12);}
+  .fori-confirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.62);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:99999;padding:24px;animation:foriFadeIn .15s ease;}
+  @keyframes foriFadeIn{from{opacity:0}to{opacity:1}}
+  .fori-confirm-box{background:var(--bg-card,#15110c);border:1px solid var(--border,rgba(201,168,108,0.22));border-radius:16px;max-width:340px;width:100%;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,0.5);animation:foriPop .18s ease;}
+  @keyframes foriPop{from{transform:scale(.95);opacity:0}to{transform:scale(1);opacity:1}}
+  .fori-confirm-title{font-family:'Cormorant Garamond',serif;font-size:23px;color:var(--text-primary,#fff);margin-bottom:8px;}
+  .fori-confirm-msg{font-family:'Inter',sans-serif;font-size:13.5px;line-height:1.55;color:var(--text-secondary,#b9b2a6);margin-bottom:22px;word-break:break-word;}
+  .fori-confirm-actions{display:flex;gap:10px;}
+  .fori-confirm-actions button{flex:1;padding:11px 0;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--border,rgba(201,168,108,0.25));transition:all .15s;}
+  .fori-confirm-cancel{background:transparent;color:var(--text-secondary,#b9b2a6);}
+  .fori-confirm-cancel:hover{border-color:var(--accent-gold,#c9a86c);color:var(--accent-gold,#c9a86c);}
+  .fori-confirm-delete{background:#e74c3c;border-color:#e74c3c;color:#fff;}
+  .fori-confirm-delete:hover{background:#c0392b;border-color:#c0392b;}
 </style>
 <!-- Firebase SDK -->
 <script type="module">
@@ -741,21 +761,34 @@
   function downloadText(text){const b=new Blob([text],{type:'text/plain'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='fori-analysis.txt';a.click();}
   function handleFileUpload(input){if(input.files[0]){document.getElementById('uploadNote').textContent=input.files[0].name;appendMessage('user','📎 Attached: '+input.files[0].name);}}
 
+  function chatBucket(ts){
+    const d=new Date(ts||Date.now());const now=new Date();
+    const startToday=new Date(now.getFullYear(),now.getMonth(),now.getDate()).getTime();const day=86400000;const t=d.getTime();
+    if(t>=startToday)return 'Today';
+    if(t>=startToday-day)return 'Yesterday';
+    if(t>=startToday-7*day)return 'Previous 7 Days';
+    if(t>=startToday-30*day)return 'Previous 30 Days';
+    return d.toLocaleDateString(undefined,{month:'long',year:'numeric'});
+  }
   function renderHistory(){
-    const all=getChats();
-    const list=document.getElementById('historyList');
-    if(!list)return;
+    const list=document.getElementById('historyList');if(!list)return;
+    const all=getChats().slice().sort((a,b)=>(b.updatedAt||b.id||0)-(a.updatedAt||a.id||0));
     if(!all.length){list.innerHTML=`<div style="text-align:center;padding:60px 20px;color:var(--text-muted);"><div style="font-family:'Cormorant Garamond',serif;font-size:22px;margin-bottom:8px;color:var(--text-secondary);">No conversations yet</div><div style="font-size:14px;">Your chats will appear here. Tap one to continue where you left off.</div></div>`;return;}
-    list.innerHTML=all.map(c=>`<div class="history-item" onclick="openChat('${c.id}')" style="cursor:pointer;"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:6px;"><div class="history-q" style="flex:1;">${escapeHtml(c.title||'Untitled chat').substring(0,120)}</div><button onclick="event.stopPropagation();deleteHistoryItem('${c.id}')" title="Delete conversation" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:18px;padding:0 4px;flex-shrink:0;line-height:1;">×</button></div><div class="history-meta"><span>${c.date||''}${c.time?' · '+c.time:''}</span></div></div>`).join('');
+    let html='',lastBucket=null;
+    all.forEach(c=>{const b=chatBucket(c.updatedAt||c.id);if(b!==lastBucket){html+=`<div class="chat-group-label">${b}</div>`;lastBucket=b;}html+=`<div class="chat-row" onclick="openChat('${c.id}')"><div class="chat-row-title">${escapeHtml(c.title||'Untitled chat')}</div><button class="chat-row-del" title="Delete chat" onclick="event.stopPropagation();confirmDeleteChat('${c.id}')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></div>`;});
+    list.innerHTML=html;
   }
-  function deleteHistoryItem(id){
-    const chats=getChats();const c=chats.find(x=>String(x.id)===String(id));
-    const name=c&&c.title?c.title:'this conversation';
-    if(!confirm('Delete "'+name+'"?\n\nThis permanently removes the entire conversation and cannot be undone.'))return;
-    const next=chats.filter(x=>String(x.id)!==String(id));saveChats(next);
-    if(String(currentChatId)===String(id)){currentChatId=null;chatHistory.length=0;}
-    renderHistory();
+  function confirmDeleteChat(id){
+    const c=getChats().find(x=>String(x.id)===String(id));const name=c&&c.title?c.title:'this conversation';
+    closeForiConfirm();
+    const ov=document.createElement('div');ov.id='foriConfirmOverlay';ov.className='fori-confirm-overlay';
+    ov.innerHTML=`<div class="fori-confirm-box"><div class="fori-confirm-title">Delete chat?</div><div class="fori-confirm-msg">"${escapeHtml(name)}" will be permanently deleted. This can't be undone.</div><div class="fori-confirm-actions"><button class="fori-confirm-cancel" onclick="closeForiConfirm()">Cancel</button><button class="fori-confirm-delete" onclick="closeForiConfirm();doDeleteChat('${c?c.id:id}')">Delete</button></div></div>`;
+    ov.addEventListener('click',e=>{if(e.target===ov)closeForiConfirm();});
+    document.body.appendChild(ov);
   }
+  function closeForiConfirm(){const ov=document.getElementById('foriConfirmOverlay');if(ov)ov.remove();}
+  function doDeleteChat(id){const next=getChats().filter(x=>String(x.id)!==String(id));saveChats(next);if(String(currentChatId)===String(id)){currentChatId=null;chatHistory.length=0;}renderHistory();}
+  function deleteHistoryItem(id){confirmDeleteChat(id);}
   function clearHistory(){if(!confirm('Clear all chat history?'))return;localStorage.removeItem('foriChats');currentChatId=null;chatHistory.length=0;renderHistory();}
 
   let _allLawyers=[];
