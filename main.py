@@ -721,6 +721,25 @@ def extract_text_from_file(file):
         return content.decode('utf-8', errors='ignore')
 
 
+@app.route('/extract-file', methods=['POST'])
+def extract_file():
+    file = request.files.get('file')
+    if not file or not file.filename:
+        return jsonify({'error': 'No file provided'}), 400
+    try:
+        text = (extract_text_from_file(file) or '').strip()
+        if not text:
+            return jsonify({'error': 'No readable text found in that file. If it is a scanned image, try a text-based PDF or paste the text instead.'}), 200
+        MAX = 12000
+        truncated = len(text) > MAX
+        if truncated:
+            text = text[:MAX]
+        return jsonify({'text': text, 'filename': file.filename, 'truncated': truncated}), 200
+    except Exception as e:
+        logger.error(f"extract-file error: {e}")
+        return jsonify({'error': 'Could not read that file. Please try a PDF, Word (.docx) or text file.'}), 200
+
+
 CONTRACT_REVIEW_PROMPT = """You are LEX Contract Analyst, an expert legal AI specialising in contract review across all jurisdictions worldwide.
 
 Analyse the contract below and provide a thorough review structured exactly as follows:
