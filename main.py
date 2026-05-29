@@ -71,15 +71,30 @@ if GEMINI_API_KEY:
     except Exception as e:
         logger.error(f"Gemini failed: {e}")
 
-# ── GROQ FALLBACK (silent, instant switch when Gemini fails) ──
+# ── FALLBACK CHAIN (silent, instant switch when Gemini fails) ──
+# OpenAI-compatible providers tried in order; higher-quality models first.
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+CEREBRAS_API_KEY = os.environ.get("CEREBRAS_API_KEY")
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = "llama-3.3-70b-versatile"
-GROQ_MODEL_FALLBACK = "llama-3.1-8b-instant"   # far higher free limits; used if the 70B is rate-limited
-GROQ_MODELS = [GROQ_MODEL, GROQ_MODEL_FALLBACK]
-GROQ_MAX_TOKENS = 4000
+CEREBRAS_URL = "https://api.cerebras.ai/v1/chat/completions"
+# NOTE: confirm this id at cloud.cerebras.ai -> Models. If it differs, change this ONE line.
+# (llama-3.3-70b was deprecated on Cerebras in Feb 2026, so we use a current model.)
+CEREBRAS_MODEL = "llama-4-scout"
+FALLBACK_MAX_TOKENS = 4000
 
-def _groq_messages(prompt, system_prompt=None, ack=None, history=None):
+def _build_fallback_chain():
+    chain = []
+    if GROQ_API_KEY:
+        chain.append({"name": "groq-70b", "url": GROQ_URL, "key": GROQ_API_KEY, "model": "llama-3.3-70b-versatile"})
+    if CEREBRAS_API_KEY:
+        chain.append({"name": "cerebras", "url": CEREBRAS_URL, "key": CEREBRAS_API_KEY, "model": CEREBRAS_MODEL})
+    if GROQ_API_KEY:
+        chain.append({"name": "groq-8b", "url": GROQ_URL, "key": GROQ_API_KEY, "model": "llama-3.1-8b-instant"})
+    return chain
+
+FALLBACK_CHAIN = _build_fallback_chain()
+
+def _oai_messages(prompt, system_prompt=None, ack=None, history=None):
     msgs = []
     if system_prompt:
         msgs.append({"role": "system", "content": system_prompt})
@@ -92,34 +107,36 @@ def _groq_messages(prompt, system_prompt=None, ack=None, history=None):
     msgs.append({"role": "user", "content": prompt})
     return msgs
 
-def _groq_generate(prompt, system_prompt=None, ack=None, history=None):
+def _fallback_generate(prompt, system_prompt=None, ack=None, history=None):
     last = None
-    for gm in GROQ_MODELS:
+    msgs = _oai_messages(prompt, system_prompt, ack, history)
+    for p in FALLBACK_CHAIN:
         try:
             resp = requests.post(
-                GROQ_URL,
-                headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
-                json={"model": gm, "max_tokens": GROQ_MAX_TOKENS,
-                      "messages": _groq_messages(prompt, system_prompt, ack, history)},
+                p["url"],
+                headers={"Authorization": f"Bearer {p['key']}", "Content-Type": "application/json"},
+                json={"model": p["model"], "max_tokens": FALLBACK_MAX_TOKENS, "messages": msgs},
                 timeout=90,
             )
             resp.raise_for_status()
             return resp.json()["choices"][0]["message"]["content"]
         except Exception as e:
             last = e
-            logger.warning(f"Groq {gm} failed: {str(e)[:100]}")
-    raise last
+            logger.warning(f"Fallback {p['name']} ({p['model']}) failed: {str(e)[:100]}")
+    if last:
+        raise last
+    raise RuntimeError("No fallback providers configured")
 
-def _groq_stream(prompt, system_prompt=None, ack=None, history=None):
+def _fallback_stream(prompt, system_prompt=None, ack=None, history=None):
     last = None
-    for gm in GROQ_MODELS:
+    msgs = _oai_messages(prompt, system_prompt, ack, history)
+    for p in FALLBACK_CHAIN:
         emitted = False
         try:
             resp = requests.post(
-                GROQ_URL,
-                headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
-                json={"model": gm, "max_tokens": GROQ_MAX_TOKENS, "stream": True,
-                      "messages": _groq_messages(prompt, system_prompt, ack, history)},
+                p["url"],
+                headers={"Authorization": f"Bearer {p['key']}", "Content-Type": "application/json"},
+                json={"model": p["model"], "max_tokens": FALLBACK_MAX_TOKENS, "stream": True, "messages": msgs},
                 timeout=90,
                 stream=True,
             )
@@ -142,7 +159,7 @@ def _groq_stream(prompt, system_prompt=None, ack=None, history=None):
             return
         except Exception as e:
             last = e
-            logger.warning(f"Groq {gm} stream failed: {str(e)[:100]}")
+            logger.warning(f"Fallback {p['name']} ({p['model']}) stream failed: {str(e)[:100]}")
             if emitted:
                 return
     if last:
@@ -169,7 +186,7 @@ def generate_answer(prompt, system_prompt=None, ack=None, history=None):
             return chat.send_message(prompt).text
         except Exception as e:
             logger.warning(f"Gemini failed -> Groq fallback: {str(e)[:120]}")
-    return _groq_generate(prompt, system_prompt, ack, history)
+    return _fallback_generate(prompt, system_prompt, ack, history)
 
 def stream_answer(prompt, system_prompt=None, ack=None, history=None):
     """Generator. Try Gemini streaming; if it fails before output, silently switch to Groq."""
@@ -186,7 +203,7 @@ def stream_answer(prompt, system_prompt=None, ack=None, history=None):
             logger.warning(f"Gemini stream failed -> Groq fallback: {str(e)[:120]}")
             if emitted:
                 return
-    for delta in _groq_stream(prompt, system_prompt, ack, history):
+    for delta in _fallback_stream(prompt, system_prompt, ack, history):
         yield delta
 
 usage_tracker = defaultdict(lambda: {"count": 0, "date": str(datetime.date.today())})
@@ -1450,9 +1467,9 @@ def lemonsqueezy_webhook():
 def health():
     return jsonify({
         'status': 'online',
-        'ai': 'online' if (model or GROQ_API_KEY) else 'offline',
+        'ai': 'online' if (model or FALLBACK_CHAIN) else 'offline',
         'ai_primary': 'gemini-2.5-flash' if model else 'offline',
-        'ai_fallback': 'groq:llama-3.3-70b-versatile' if GROQ_API_KEY else 'none',
+        'ai_fallback': ' -> '.join(f"{p['name']}:{p['model']}" for p in FALLBACK_CHAIN) or 'none',
         'web_search': 'online' if TAVILY_API_KEY else 'offline',
         'tiers': ['free', 'premium', 'business'],
         'version': '2.2'
