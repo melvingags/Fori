@@ -314,6 +314,23 @@
   .fori-confirm-cancel:hover{border-color:var(--accent-gold,#c9a86c);color:var(--accent-gold,#c9a86c);}
   .fori-confirm-delete{background:#e74c3c;border-color:#e74c3c;color:#fff;}
   .fori-confirm-delete:hover{background:#c0392b;border-color:#c0392b;}
+  .tax-lbl{display:block;font-family:'Inter',sans-serif;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted);margin-bottom:5px;}
+  .tax-in{width:100%;background:var(--bg-card);border:1px solid var(--border);color:var(--text-primary);padding:11px 13px;font-family:'Inter',sans-serif;font-size:14px;border-radius:8px;box-sizing:border-box;margin-bottom:12px;}
+  .tax-in:focus{outline:none;border-color:var(--accent-gold);}
+  .tax-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 12px;}
+  @media (max-width:600px){.tax-grid{grid-template-columns:1fr;}}
+  #taxOutput .md-h{font-weight:700;line-height:1.3;margin:15px 0 7px;color:#f3ead6;}
+  #taxOutput > .md-h:first-child{margin-top:0;}
+  #taxOutput .md-h1{font-size:19px;} #taxOutput .md-h2{font-size:16.5px;} #taxOutput .md-h3{font-size:15px;color:var(--accent-gold);}
+  #taxOutput .md-h4,#taxOutput .md-h5,#taxOutput .md-h6{font-size:13.5px;text-transform:uppercase;letter-spacing:.3px;color:var(--accent-gold);}
+  #taxOutput p{margin:9px 0;line-height:1.6;} #taxOutput > p:first-child{margin-top:0;}
+  #taxOutput ul,#taxOutput ol{margin:9px 0;padding-left:21px;} #taxOutput ul{list-style:disc;} #taxOutput ol{list-style:decimal;}
+  #taxOutput li{margin:5px 0;line-height:1.55;} #taxOutput li::marker{color:var(--accent-gold);}
+  #taxOutput strong{font-weight:700;color:#fff;} #taxOutput em{font-style:italic;}
+  #taxOutput .md-code{background:rgba(255,255,255,0.09);padding:1px 5px;border-radius:4px;font-family:ui-monospace,Menlo,monospace;font-size:.88em;}
+  #taxOutput .md-hr{border:none;border-top:1px solid rgba(201,168,108,0.25);margin:13px 0;}
+  #taxOutput .cite-chip{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;width:23px;height:18px;margin:0 1px;border-radius:6px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.14);color:var(--accent-gold);text-decoration:none;}
+  #taxOutput .cite-chip:hover{background:rgba(201,168,108,0.22);}
 </style>
 <!-- Firebase SDK -->
 <script type="module">
@@ -361,6 +378,7 @@
     <a class="nav-item" onclick="showPage('documents',this)"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>Documents</a>
     <a class="nav-item" onclick="showPage('lawyers',this)"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>Find a Lawyer<span class="nav-badge">NEW</span></a>
     <a class="nav-item" onclick="gatedPage('contract',this)"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Contract Review<span class="nav-badge" style="background:var(--accent-gold);color:var(--bg-primary);">AI</span></a>
+    <a class="nav-item" onclick="gatedPage('tax',this)"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>AI Tax Filing<span class="nav-badge" style="background:var(--accent-gold);color:var(--bg-primary);">AI</span></a>
     <a class="nav-item" onclick="gatedPage('clause',this)"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6h16M4 10h16M4 14h10M4 18h7"/></svg>Clause Library<span class="nav-badge" style="background:var(--accent-gold);color:var(--bg-primary);">AI</span></a>
     <a class="nav-item" onclick="gatedPage('outcome',this)"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Case Outcome<span class="nav-badge" style="background:var(--accent-gold);color:var(--bg-primary);">AI</span></a>
     <a class="nav-item" onclick="gatedPage('compare',this)"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="8" height="18" rx="1"/><rect x="13" y="3" width="8" height="18" rx="1"/></svg>Compare Docs<span class="nav-badge" style="background:var(--accent-gold);color:var(--bg-primary);">AI</span></a>
@@ -532,6 +550,38 @@
     <button id="contractAnalyseBtn" onclick="analyseContract()" style="width:100%;padding:14px;background:var(--accent-gold);color:var(--bg-primary);border:none;font-family:'Inter',sans-serif;font-size:11px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-weight:600;margin-bottom:24px;opacity:0.5;pointer-events:none;">Analyse Contract</button>
     <div id="contractProcessing" style="display:none;text-align:center;padding:40px 20px;"><div style="font-size:36px;margin-bottom:16px;">&#9878;</div><div style="font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--text-primary);margin-bottom:8px;" id="contractProcessingLabel">Analysing contract...</div><div style="font-size:13px;color:var(--text-secondary);">FORI is reviewing every clause. This may take 30-60 seconds.</div></div>
     <div id="contractResults" style="display:none;"><div id="contractRiskBadge" style="padding:10px 16px;margin-bottom:16px;font-size:12px;letter-spacing:1px;text-transform:uppercase;font-weight:600;text-align:center;"></div><div id="contractOutput" style="background:var(--bg-secondary);border:1px solid var(--border);padding:24px;line-height:1.9;font-size:14px;color:var(--text-primary);white-space:pre-wrap;min-height:200px;"></div><div style="display:flex;gap:10px;margin-top:16px;"><button onclick="copyContractResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-secondary);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Copy</button><button onclick="downloadContractResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--accent-gold);color:var(--accent-gold);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Download Report</button><button onclick="clearContractResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-muted);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Clear</button></div></div>
+  </div></div>
+
+  <div class="page" id="page-tax"><div class="page-area"><div class="page-label">AI Tools</div><h1 class="page-title">AI Tax <em>Filing</em></h1>
+    <p style="font-size:13px;color:var(--text-secondary);margin:-6px 0 18px;line-height:1.6;">Enter your figures and FORI estimates your personal income tax for your country, lists the reliefs you can claim, and prepares a ready-to-file summary. FORI does not submit anything — you file it yourself on your tax authority's portal.</p>
+    <div style="display:flex;gap:8px;margin-bottom:20px;">
+      <button id="taxTabEstimate" onclick="switchTaxTab('estimate')" style="flex:1;padding:10px;background:var(--accent-gold);color:var(--bg-primary);border:none;font-family:'Inter',sans-serif;font-size:11px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-weight:600;">Estimate &amp; Prepare</button>
+      <button id="taxTabQa" onclick="switchTaxTab('qa')" style="flex:1;padding:10px;background:transparent;color:var(--text-secondary);border:1px solid var(--border);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;">Tax Q&amp;A</button>
+    </div>
+    <div id="taxEstimateForm">
+      <div class="tax-grid">
+        <div><label class="tax-lbl">Country</label><input id="taxCountry" class="tax-in" placeholder="e.g. Nigeria"></div>
+        <div><label class="tax-lbl">Tax year</label><input id="taxYear" class="tax-in" placeholder="2026"></div>
+        <div><label class="tax-lbl">Income type</label><select id="taxStatus" class="tax-in"><option value="Employed (salaried)">Employed (salaried)</option><option value="Self-employed / freelancer">Self-employed / freelancer</option><option value="Business owner">Business owner</option><option value="Mixed income">Mixed income</option><option value="Other">Other</option></select></div>
+        <div><label class="tax-lbl">Currency</label><input id="taxCurrency" class="tax-in" placeholder="e.g. NGN, USD"></div>
+        <div><label class="tax-lbl">Gross annual income</label><input id="taxGross" class="tax-in" inputmode="decimal" placeholder="0"></div>
+        <div><label class="tax-lbl">Other income</label><input id="taxOther" class="tax-in" inputmode="decimal" placeholder="0"></div>
+        <div><label class="tax-lbl">Pension / pre-tax contributions</label><input id="taxDeductions" class="tax-in" inputmode="decimal" placeholder="0"></div>
+        <div><label class="tax-lbl">Allowable expenses</label><input id="taxExpenses" class="tax-in" inputmode="decimal" placeholder="0"></div>
+        <div><label class="tax-lbl">Tax already paid / withheld</label><input id="taxWithheld" class="tax-in" inputmode="decimal" placeholder="0"></div>
+        <div><label class="tax-lbl">Dependents</label><input id="taxDependents" class="tax-in" inputmode="numeric" placeholder="0"></div>
+      </div>
+      <label class="tax-lbl">Anything else relevant (optional)</label>
+      <textarea id="taxNotes" class="tax-in" rows="2" placeholder="e.g. mortgage interest, charitable donations, multiple jobs, foreign income…" style="resize:vertical;"></textarea>
+    </div>
+    <div id="taxQaForm" style="display:none;">
+      <label class="tax-lbl">Your tax question</label>
+      <textarea id="taxQuestion" class="tax-in" rows="4" placeholder="e.g. How is rental income taxed for individuals in my country? What reliefs can I claim as a freelancer?" style="resize:vertical;"></textarea>
+    </div>
+    <button id="taxRunBtn" onclick="runTax()" style="width:100%;padding:14px;background:var(--accent-gold);color:var(--bg-primary);border:none;font-family:'Inter',sans-serif;font-size:11px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-weight:600;margin:16px 0 8px;border-radius:8px;">Prepare Estimate</button>
+    <div style="font-size:11px;color:var(--text-muted);text-align:center;margin-bottom:24px;line-height:1.5;">Estimate only — not tax advice or a filed return. Confirm with a licensed tax professional before filing.</div>
+    <div id="taxProcessing" style="display:none;text-align:center;padding:40px 20px;"><div style="font-size:36px;margin-bottom:16px;">&#129518;</div><div style="font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--text-primary);margin-bottom:8px;">Preparing your tax estimate…</div><div style="font-size:13px;color:var(--text-secondary);">FORI is applying your country's current rules. This may take 20-40 seconds.</div></div>
+    <div id="taxResults" style="display:none;"><div id="taxOutput" style="background:var(--bg-secondary);border:1px solid var(--border);padding:22px;border-radius:10px;font-size:14px;color:var(--text-primary);min-height:160px;"></div><div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;"><button onclick="copyTaxResult()" style="flex:1;min-width:90px;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-secondary);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;border-radius:8px;">Copy</button><button onclick="downloadTaxPDF()" style="flex:1;min-width:90px;padding:10px;background:transparent;border:1px solid var(--accent-gold);color:var(--accent-gold);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;border-radius:8px;">Download PDF</button><button onclick="clearTaxResult()" style="flex:1;min-width:90px;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-muted);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;border-radius:8px;">Clear</button></div></div>
   </div></div>
 
   <!-- SETTINGS PAGE -->
@@ -858,13 +908,14 @@
     document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
     document.getElementById('page-'+page).classList.add('active');
     if(navEl)navEl.classList.add('active');
-    const titles={ask:'Ask FORI',history:'Case History',documents:'Documents',lawyers:'Find a Lawyer',mylawyers:'My Lawyers',chatroom:'Chat',settings:'Settings',contract:'Contract Review',clause:'Clause Library',outcome:'Case Outcome Prediction',compare:'Compare Documents',research:'Legal Research'};
+    const titles={ask:'Ask FORI',history:'Case History',documents:'Documents',lawyers:'Find a Lawyer',mylawyers:'My Lawyers',chatroom:'Chat',settings:'Settings',contract:'Contract Review',clause:'Clause Library',outcome:'Case Outcome Prediction',compare:'Compare Documents',research:'Legal Research',tax:'AI Tax Filing'};
     document.getElementById('topbarTitle').textContent=titles[page]||'FORI';
     if(page==='lawyers'){const banner=document.getElementById('lawyerPremiumBanner');if(banner)banner.style.display=isPremium?'none':'flex';if(_allLawyers.length)filterLawyers();else initLawyerDirectory();}
     if(page==='mylawyers')loadMyLawyers();
     if(page==='documents')loadDocs();
     if(page==='history')renderHistory();
     if(page==='settings')initSettings();
+    if(page==='tax')initTax();
     closeSidebar();
   }
 
@@ -965,6 +1016,33 @@
   function setRiskBadge(text){const badge=document.getElementById('contractRiskBadge');const upper=text.toUpperCase();let label,color,bg;if(upper.includes('VERY HIGH')||upper.includes('OVERALL RISK RATING: VERY HIGH')){label='⚠ OVERALL RISK: VERY HIGH';color='#fff';bg='#c0392b';}else if(upper.includes('OVERALL RISK RATING: HIGH')){label='⚠ OVERALL RISK: HIGH';color='#fff';bg='#e74c3c';}else if(upper.includes('OVERALL RISK RATING: MEDIUM')){label='◆ OVERALL RISK: MEDIUM';color='#000';bg='#f39c12';}else if(upper.includes('OVERALL RISK RATING: LOW')){label='✓ OVERALL RISK: LOW';color='#fff';bg='#27ae60';}else{label='⚖ REVIEW COMPLETE';color='var(--text-primary)';bg='var(--bg-secondary)';}badge.textContent=label;badge.style.background=bg;badge.style.color=color;badge.style.display='block';}
   function copyContractResult(){if(!contractResultText)return;navigator.clipboard.writeText(contractResultText).then(()=>addNotif('Report copied to clipboard.'));}
   function downloadContractResult(){if(!contractResultText)return;const filename=contractFile?contractFile.name.replace(/\.[^.]+$/,''):'contract';const mode=contractMode==='redline'?'redline':'review';const blob=new Blob([contractResultText],{type:'text/plain'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`FORI_${mode}_${filename}_${new Date().toISOString().slice(0,10)}.txt`;a.click();URL.revokeObjectURL(a.href);}
+
+  // ── AI TAX FILING ──
+  let taxMode='estimate',taxResultText='';
+  function switchTaxTab(mode){taxMode=mode;const e=mode==='estimate';const te=document.getElementById('taxTabEstimate'),tq=document.getElementById('taxTabQa');if(te){te.style.background=e?'var(--accent-gold)':'transparent';te.style.color=e?'var(--bg-primary)':'var(--text-secondary)';te.style.border=e?'none':'1px solid var(--border)';}if(tq){tq.style.background=!e?'var(--accent-gold)':'transparent';tq.style.color=!e?'var(--bg-primary)':'var(--text-secondary)';tq.style.border=!e?'none':'1px solid var(--border)';}document.getElementById('taxEstimateForm').style.display=e?'block':'none';document.getElementById('taxQaForm').style.display=e?'none':'block';document.getElementById('taxRunBtn').textContent=e?'Prepare Estimate':'Ask FORI Tax';clearTaxResult();}
+  function initTax(){const u=JSON.parse(localStorage.getItem('foriUser')||'{}');const c=document.getElementById('taxCountry');if(c&&!c.value)c.value=u.jurisdiction||'';const y=document.getElementById('taxYear');if(y&&!y.value)y.value=String(new Date().getFullYear());}
+  async function runTax(){
+    const tier=isPremium?'premium':'free';
+    const u=JSON.parse(localStorage.getItem('foriUser')||'{}');
+    const country=(document.getElementById('taxCountry').value||u.jurisdiction||'Nigeria').trim();
+    const year=document.getElementById('taxYear').value.trim();
+    const currency=document.getElementById('taxCurrency').value.trim();
+    const payload={mode:taxMode,country,year,currency,tier};
+    if(taxMode==='qa'){const q=document.getElementById('taxQuestion').value.trim();if(!q){addNotif('Type a tax question first.');return;}payload.question=q;}
+    else{payload.status=document.getElementById('taxStatus').value;payload.gross=document.getElementById('taxGross').value.trim();payload.otherIncome=document.getElementById('taxOther').value.trim();payload.deductions=document.getElementById('taxDeductions').value.trim();payload.expenses=document.getElementById('taxExpenses').value.trim();payload.withheld=document.getElementById('taxWithheld').value.trim();payload.dependents=document.getElementById('taxDependents').value.trim();payload.notes=document.getElementById('taxNotes').value.trim();if(!payload.gross){addNotif('Enter your gross income to get an estimate.');return;}}
+    document.getElementById('taxProcessing').style.display='block';document.getElementById('taxResults').style.display='none';const btn=document.getElementById('taxRunBtn');if(btn)btn.disabled=true;
+    try{
+      const res=await fetch('/tax-stream',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      const reader=res.body.getReader();const dec=new TextDecoder();let buf='';taxResultText='';
+      document.getElementById('taxProcessing').style.display='none';document.getElementById('taxResults').style.display='block';
+      const out=document.getElementById('taxOutput');out.innerHTML='';
+      while(true){const{done,value}=await reader.read();if(done)break;buf+=dec.decode(value,{stream:true});const lines=buf.split('\n');buf=lines.pop();for(const line of lines){if(!line.startsWith('data: '))continue;try{const data=JSON.parse(line.slice(6));if(data.chunk){taxResultText+=data.chunk;out.innerHTML=renderMarkdown(taxResultText);out.scrollTop=out.scrollHeight;}if(data.error){out.innerHTML=renderMarkdown('⚠️ '+data.error);}if(data.done){out.innerHTML=renderMarkdown(taxResultText);addNotif('Tax estimate ready.');try{saveMemory('tax','Tax '+(taxMode==='qa'?'question':'estimate')+' for '+country+'\n\n'+taxResultText.slice(0,1500));}catch(e){}}}catch(e){}}}
+    }catch(e){document.getElementById('taxProcessing').style.display='none';document.getElementById('taxResults').style.display='block';document.getElementById('taxOutput').innerHTML=renderMarkdown('Connection error. Please try again.');}
+    finally{const b=document.getElementById('taxRunBtn');if(b)b.disabled=false;}
+  }
+  function copyTaxResult(){if(!taxResultText)return;navigator.clipboard.writeText(taxResultText).then(()=>addNotif('Copied to clipboard.'));}
+  function clearTaxResult(){taxResultText='';const r=document.getElementById('taxResults');if(r)r.style.display='none';const o=document.getElementById('taxOutput');if(o)o.innerHTML='';}
+  function downloadTaxPDF(){if(!taxResultText)return;const w=window.open('','_blank');if(!w){addNotif('Allow pop-ups to download the PDF.');return;}const body=renderMarkdown(taxResultText);w.document.write('<html><head><title>FORI Tax Estimate</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,sans-serif;max-width:720px;margin:24px auto;padding:0 18px;color:#1a1a1a;line-height:1.55;}h1.brand{font-family:Georgia,serif;color:#9a7b3f;margin:0 0 4px;font-size:26px;}.sub{color:#666;font-size:12px;margin-bottom:22px;}.md-h{font-weight:700;margin:16px 0 6px;}.md-h3,.md-h4{color:#9a7b3f;}ul,ol{padding-left:22px;}li{margin:4px 0;}strong{color:#000;}.cite-chip{display:none;}hr{border:none;border-top:1px solid #ddd;margin:14px 0;}.foot{margin-top:26px;font-size:11px;color:#888;border-top:1px solid #eee;padding-top:10px;}</style></head><body><h1 class="brand">FORI — Tax Estimate</h1><div class="sub">Generated '+new Date().toLocaleString()+' · Prepared for self-filing. This is not a filed return.</div>'+body+'<div class="foot">This is an estimate for guidance only — not tax advice or a filed return. Confirm the figures with a licensed tax professional or your tax authority before filing.</div></body></html>');w.document.close();setTimeout(()=>{try{w.focus();w.print();}catch(e){}},500);}
 </script>
 
 <!-- SUPPORT MODAL — FIX 2: email links corrected (no Cloudflare encoding) -->
