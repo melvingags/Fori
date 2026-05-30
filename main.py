@@ -454,8 +454,12 @@ def _get_firestore_client():
     import firebase_admin
     from firebase_admin import credentials, firestore as fs
     if not firebase_admin._apps:
+        sa_json = os.environ.get('FIREBASE_SERVICE_ACCOUNT')
         cred_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
-        if cred_path:
+        if sa_json:
+            import json as _json
+            firebase_admin.initialize_app(credentials.Certificate(_json.loads(sa_json)))
+        elif cred_path and os.path.exists(cred_path):
             firebase_admin.initialize_app(credentials.Certificate(cred_path))
         else:
             firebase_admin.initialize_app()
@@ -488,7 +492,7 @@ def lawyers_directory():
         return jsonify({'lawyers': out})
     except Exception as e:
         logger.error(f"/lawyers error: {e}")
-        return jsonify({'lawyers': [], 'error': 'directory_unavailable'}), 200
+        return jsonify({'lawyers': [], 'error': 'directory_unavailable', 'detail': str(e)[:300]}), 200
 
 
 # ── MEMORY SYSTEM ──
@@ -1608,18 +1612,7 @@ def lemonsqueezy_webhook():
 
         if update_payload and user_uid:
             try:
-                import firebase_admin
-                from firebase_admin import credentials, firestore as fs
-
-                if not firebase_admin._apps:
-                    cred_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
-                    if cred_path:
-                        cred = credentials.Certificate(cred_path)
-                        firebase_admin.initialize_app(cred)
-                    else:
-                        firebase_admin.initialize_app()
-
-                db = fs.client()
+                db = _get_firestore_client()
                 db.collection('users').document(user_uid).update(update_payload)
                 logger.info(f"Firestore updated for uid={user_uid}: {update_payload}")
             except Exception as fe:
