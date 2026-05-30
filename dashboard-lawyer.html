@@ -38,6 +38,10 @@
   .firm-name { font-size:14px; font-weight:600; color:var(--text-primary); margin-bottom:2px; }
   .firm-type { font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:var(--accent-gold); margin-bottom:8px; }
   .verified-badge { display:inline-flex; align-items:center; gap:4px; background:rgba(39,174,96,0.08); border:1px solid rgba(39,174,96,0.25); color:#27ae60; font-size:10px; padding:3px 8px; }
+  .verify-pill { display:inline-flex; align-items:center; gap:5px; font-size:11px; letter-spacing:1px; text-transform:uppercase; padding:5px 12px; border-radius:20px; font-family:'Inter',sans-serif; font-weight:600; }
+  .verify-pill.none { background:rgba(255,255,255,0.04); border:1px solid var(--border); color:var(--text-muted); }
+  .verify-pill.pending { background:rgba(201,168,108,0.10); border:1px solid rgba(201,168,108,0.40); color:var(--accent-gold); }
+  .verify-pill.verified { background:rgba(39,174,96,0.10); border:1px solid rgba(39,174,96,0.35); color:#27ae60; }
 
   .sidebar-nav { flex:1; padding:12px 0; overflow-y:auto; }
   .nav-section-label { font-size:9px; letter-spacing:2px; text-transform:uppercase; color:var(--text-muted); padding:16px 20px 8px; }
@@ -557,6 +561,11 @@
 
   window.fsSaveLawyerProfile = async function(uid, data) {
     await updateDoc(doc(db, 'users', uid), data);
+  };
+
+  window.fsRequestVerification = async function(uid, data) {
+    await updateDoc(doc(db, 'users', uid), { verificationStatus: 'pending', verificationBar: data.barNumber || '', verificationSubmittedAt: serverTimestamp(), role: 'lawyer' });
+    try { await addDoc(collection(db, 'verificationRequests'), { lawyerId: uid, name: data.name || '', email: data.email || '', barNumber: data.barNumber || '', country: data.country || '', firm: data.firm || '', specialisation: data.specialisation || '', status: 'pending', createdAt: serverTimestamp() }); } catch(e) {}
   };
 
   window.fsDeleteLawyerAccount = async function(uid) {
@@ -1147,6 +1156,13 @@
         <div class="form-group"><label class="form-label">Bio</label><textarea class="form-textarea" id="lwBio" placeholder="Brief professional bio..."></textarea></div>
         <button class="submit-btn" onclick="saveLawyerProfile()">Save Profile</button>
         <div id="lwProfileMsg" style="display:none;margin-top:12px;font-size:12px;color:#27ae60;letter-spacing:1px;">✓ Profile saved.</div>
+      </div>
+      <div class="form-box" id="verifyCard" style="margin-bottom:24px;">
+        <div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--accent-gold);margin-bottom:16px;">Verification</div>
+        <div style="margin-bottom:14px;"><span id="verifyStatusBadge" class="verify-pill none">Not verified</span></div>
+        <div style="font-size:13px;color:var(--text-secondary);line-height:1.7;margin-bottom:18px;">The <strong style="color:#27ae60;">&#10003; Verified</strong> badge tells clients you're a qualified, licensed professional reviewed by the FORI team. Fill in your <strong>Bar Number / License</strong> above and tap Save Profile, then request verification. Reviews are typically completed within 48 hours, and verified lawyers rank above unverified ones in the directory.</div>
+        <button class="submit-btn" id="verifyBtn" onclick="requestVerification()">Get Verified</button>
+        <div id="verifyMsg" style="display:none;margin-top:12px;font-size:12px;color:#27ae60;letter-spacing:1px;line-height:1.6;"></div>
       </div>
     </div>
   </div>
@@ -1745,6 +1761,8 @@
     if (document.getElementById('lwNotifRequests')) document.getElementById('lwNotifRequests').checked = prefs.notifRequests !== false;
     if (document.getElementById('lwNotifMessages')) document.getElementById('lwNotifMessages').checked = prefs.notifMessages !== false;
     if (document.getElementById('lwNotifSystem')) document.getElementById('lwNotifSystem').checked = prefs.notifSystem !== false;
+    setVerifyBadge(prefs.verificationStatus || 'none');
+    if (window._lexUid && window.fsLoadMarketplace) { window.fsLoadMarketplace(window._lexUid).then(d => { if (d && d.verified) { setVerifyBadge('verified'); } else if (d && d.verificationStatus) { setVerifyBadge(d.verificationStatus); prefs.verificationStatus = d.verificationStatus; localStorage.setItem('foriLawyerPrefs', JSON.stringify(prefs)); } }).catch(() => {}); }
   }
 
   async function saveLawyerProfile() {
@@ -1762,10 +1780,32 @@
     if (fullName) stored.name = fullName;
     localStorage.setItem('foriUser', JSON.stringify(stored));
     if (window._lexUid && window.fsSaveLawyerProfile) {
-      try { await window.fsSaveLawyerProfile(window._lexUid, { name: fullName, firm: prefs.firm, specialisation: prefs.spec, country: prefs.country, barNumber: prefs.bar, bio: prefs.bio }); } catch(e) {}
+      try { await window.fsSaveLawyerProfile(window._lexUid, { name: fullName, firm: prefs.firm, specialisation: prefs.spec, country: prefs.country, barNumber: prefs.bar, bio: prefs.bio, role: 'lawyer' }); } catch(e) {}
     }
     const msg = document.getElementById('lwProfileMsg');
     if (msg) { msg.style.display = 'block'; setTimeout(() => msg.style.display = 'none', 3000); }
+  }
+
+  async function requestVerification() {
+    const bar = (document.getElementById('lwBar')?.value || '').trim();
+    if (!bar) { addNotif('Add your Bar Number / License above and tap Save Profile first, then request verification.'); const el = document.getElementById('lwBar'); if (el) el.focus(); return; }
+    const stored = JSON.parse(localStorage.getItem('foriUser') || '{}');
+    const prefs = JSON.parse(localStorage.getItem('foriLawyerPrefs') || '{}');
+    const btn = document.getElementById('verifyBtn'); if (btn) { btn.disabled = true; btn.textContent = 'Submitting…'; }
+    try {
+      if (window._lexUid && window.fsRequestVerification) {
+        await window.fsRequestVerification(window._lexUid, { name: stored.name || ((prefs.firstName || '') + ' ' + (prefs.lastName || '')).trim(), email: stored.email || '', barNumber: bar, country: prefs.country || '', firm: prefs.firm || '', specialisation: prefs.spec || '' });
+      }
+      prefs.verificationStatus = 'pending'; localStorage.setItem('foriLawyerPrefs', JSON.stringify(prefs));
+      setVerifyBadge('pending');
+      const vmsg = document.getElementById('verifyMsg'); if (vmsg) { vmsg.textContent = '✓ Verification requested. The FORI team will review your details within 48 hours.'; vmsg.style.display = 'block'; }
+    } catch(e) { if (btn) { btn.disabled = false; btn.textContent = 'Get Verified'; } addNotif('Could not submit verification. Please try again.'); }
+  }
+  function setVerifyBadge(status) {
+    const badge = document.getElementById('verifyStatusBadge'); const btn = document.getElementById('verifyBtn'); if (!badge) return;
+    if (status === 'verified') { badge.className = 'verify-pill verified'; badge.innerHTML = '&#10003; Verified'; if (btn) btn.style.display = 'none'; }
+    else if (status === 'pending') { badge.className = 'verify-pill pending'; badge.textContent = 'Pending review'; if (btn) { btn.style.display = ''; btn.disabled = true; btn.textContent = 'Verification pending'; } }
+    else { badge.className = 'verify-pill none'; badge.textContent = 'Not verified'; if (btn) { btn.style.display = ''; btn.disabled = false; btn.textContent = 'Get Verified'; } }
   }
 
   async function changeLawyerPassword() {
