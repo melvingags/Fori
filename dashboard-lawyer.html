@@ -516,7 +516,7 @@
       fileUrl: fileUrl || null, fileName: fileName || null,
       createdAt: serverTimestamp()
     });
-    await updateDoc(doc(db, 'connections', connId), { lastMessage: text || fileName, lastAt: serverTimestamp() });
+    await updateDoc(doc(db, 'connections', connId), { lastMessage: text || fileName, lastAt: serverTimestamp(), lastSenderId: uid });
   };
 
   window.fsCloseCase = async function(connId) {
@@ -1648,10 +1648,12 @@
     if (!uid || !window.fsLoadClients) return;
     window.fsLoadClients(uid, (snap) => {
       const conns = []; snap.forEach(d => conns.push({ id: d.id, ...d.data() }));
+      _clientConns = conns;
+      const cr = document.getElementById('page-chatroom');
+      const chatOpen = cr && cr.classList.contains('active');
+      if (chatOpen && _activeConnId) { const oc = conns.find(c => c.id === _activeConnId); if (oc) { const ms = (oc.lastAt && oc.lastAt.toMillis) ? oc.lastAt.toMillis() : Date.now(); markConnSeen(_activeConnId, ms); } }
       renderClients(conns);
-      const pending = conns.filter(c => c.status === 'pending').length;
-      const badge = document.getElementById('clientsBadge');
-      if (pending > 0) { badge.style.display = 'inline'; badge.textContent = pending; } else badge.style.display = 'none';
+      refreshUnreadBadges();
       renderOverviewLeads(conns.filter(c => c.status === 'pending'));
     });
   }
@@ -1664,7 +1666,7 @@
         <div style="display:flex;align-items:center;gap:12px;">
           <div style="width:40px;height:40px;border-radius:50%;background:rgba(201,168,108,0.1);border:1px solid var(--accent-gold);display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-size:18px;color:var(--accent-gold);">${(c.userName||'C')[0]}</div>
           <div style="flex:1;"><div class="conn-name">${c.userName||'Client'}</div><div class="conn-spec">${(c.description||'').substring(0,80)}${(c.description||'').length>80?'...':''}</div></div>
-          <span class="conn-status ${c.status}">${c.status}</span>
+          <span class="conn-status ${c.status}">${connHasUnread(c)?'<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#e74c3c;margin-right:7px;vertical-align:middle;box-shadow:0 0 0 3px rgba(231,76,60,0.18);"></span>':''}${c.status}</span>
         </div>
         ${c.status === 'pending' ? `<div style="display:flex;gap:8px;margin-top:12px;"><button class="lead-btn decline" onclick="event.stopPropagation();declineConn('${c.id}')">Decline</button><button class="lead-btn accept" onclick="event.stopPropagation();acceptConn('${c.id}')">Accept</button></div>` : ''}
         ${c.lastMessage ? `<div style="font-size:12px;color:var(--text-muted);margin-top:10px;padding-top:8px;border-top:1px solid var(--border);">Last: ${c.lastMessage}</div>` : ''}
@@ -1689,10 +1691,18 @@
   async function acceptConn(connId) { await window.fsAcceptConnection(connId); addNotif('Connection accepted. Chat is now open.'); }
   async function declineConn(connId) { await window.fsDeclineConnection(connId); addNotif('Connection declined.'); }
 
+  let _clientConns = [];
+  function getConnSeen(){try{return JSON.parse(localStorage.getItem('foriConnSeen')||'{}');}catch(e){return {};}}
+  function markConnSeen(connId,ms){if(!connId||!ms)return;const s=getConnSeen();if((s[connId]||0)<ms){s[connId]=ms;try{localStorage.setItem('foriConnSeen',JSON.stringify(s));}catch(e){}}}
+  function connHasUnread(c){const me=window._lexUid||user.uid||'';const ms=(c.lastAt&&c.lastAt.toMillis)?c.lastAt.toMillis():0;return !!c.lastSenderId&&c.lastSenderId!==me&&ms>(getConnSeen()[c.id]||0);}
+  function refreshUnreadBadges(){const badge=document.getElementById('clientsBadge');if(!badge)return;const n=(_clientConns||[]).filter(connHasUnread).length;if(n>0){badge.style.display='inline';badge.textContent=n;}else{badge.style.display='none';}}
   function openClientChat(connId, clientName, clientId, status) {
     if (status === 'pending') { addNotif('Accept this lead first to open chat.'); return; }
     if (status === 'declined') return;
     _activeConnId = connId; _activeClientName = clientName; _activeClientId = clientId;
+    const _oc = (_clientConns||[]).find(x=>x.id===connId);
+    if (_oc) { const _ms=(_oc.lastAt&&_oc.lastAt.toMillis)?_oc.lastAt.toMillis():Date.now(); markConnSeen(connId,_ms); }
+    refreshUnreadBadges();
     document.getElementById('chatroomName').textContent = clientName;
     document.getElementById('chatroomStatus').textContent = status === 'closed' ? 'Case Closed' : 'Active Case';
     const closeBtn = document.getElementById('closeCaseBtn');
@@ -1711,11 +1721,17 @@
     const uid = window._lexUid || user.uid;
     if (!msgs.length) { wrap.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-muted);font-size:13px;">No messages yet. Start the conversation.</div>`; return; }
     wrap.innerHTML = msgs.map(m => {
-      const isMe = m.senderId === uid; const side = isMe ? 'me' : 'them';
-      if (m.fileUrl) return `<div class="chatroom-bubble ${side}"><div class="chatroom-bubble-label ${isMe?'me':''}">${isMe?'You':m.senderName}</div><div class="chatroom-file-msg"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent-gold)" stroke-width="1.5"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg><a href="${m.fileUrl}" target="_blank" style="color:var(--accent-gold);font-size:13px;">${m.fileName||'File'}</a></div></div>`;
-      return `<div class="chatroom-bubble ${side}"><div class="chatroom-bubble-label ${isMe?'me':''}">${isMe?'You':m.senderName}</div><div class="chatroom-bubble-content ${side}">${m.text.replace(/\n/g,'<br>')}</div><div class="chatroom-bubble-actions"><button class="chatroom-bubble-action" onclick="navigator.clipboard.writeText(decodeURIComponent('${encodeURIComponent(m.text)}'))">Copy</button></div></div>`;
+      const isMe = m.senderId === uid; const role = isMe ? 'user' : 'assistant';
+      const t = (m.createdAt && m.createdAt.toDate) ? m.createdAt.toDate().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
+      const meta = isMe ? t : `${m.senderName||'Client'}${t?' · '+t:''}`;
+      let inner;
+      if (m.fileUrl) { inner = `<div class="msg-bubble ${role}"><a href="${m.fileUrl}" target="_blank" style="text-decoration:underline;display:inline-flex;align-items:center;gap:6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>${m.fileName||'File'}</a></div>`; }
+      else { inner = `<div class="msg-bubble ${role}">${escapeHtml(m.text||'').replace(/\n/g,'<br>')}</div>`; }
+      return `<div class="msg-row ${role}"><div class="msg-col">${inner}<div class="msg-time">${meta}</div></div></div>`;
     }).join('');
     wrap.scrollTop = wrap.scrollHeight;
+    try { const last = msgs[msgs.length-1]; const ms = (last && last.createdAt && last.createdAt.toMillis) ? last.createdAt.toMillis() : Date.now(); markConnSeen(_activeConnId, ms); } catch(e) {}
+    refreshUnreadBadges();
   }
 
   async function sendChatroomMsg() {
