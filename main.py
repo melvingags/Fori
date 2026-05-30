@@ -449,6 +449,48 @@ def admin():
     return "Not found", 404
 
 
+# ── LAWYER DIRECTORY (server-side; admin SDK bypasses client security rules) ──
+def _get_firestore_client():
+    import firebase_admin
+    from firebase_admin import credentials, firestore as fs
+    if not firebase_admin._apps:
+        cred_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
+        if cred_path:
+            firebase_admin.initialize_app(credentials.Certificate(cred_path))
+        else:
+            firebase_admin.initialize_app()
+    return fs.client()
+
+
+@app.route('/lawyers')
+def lawyers_directory():
+    """Return all real registered lawyers from Firestore. Uses the admin SDK so it
+    works regardless of client-side security rules, and never returns dummy data."""
+    try:
+        db = _get_firestore_client()
+        out = []
+        for d in db.collection('users').where('role', '==', 'lawyer').stream():
+            data = d.to_dict() or {}
+            out.append({
+                'id': d.id,
+                'name': data.get('name', ''),
+                'specialisation': data.get('specialisation') or data.get('spec') or '',
+                'city': data.get('city', ''),
+                'country': data.get('country', ''),
+                'firm': data.get('firm', ''),
+                'bio': data.get('bio', ''),
+                'avgRating': data.get('avgRating'),
+                'ratingCount': data.get('ratingCount', 0),
+                'caseCount': data.get('caseCount'),
+                'verified': bool(data.get('verified', False)),
+                'boosted': bool(data.get('profileBoost', False)),
+            })
+        return jsonify({'lawyers': out})
+    except Exception as e:
+        logger.error(f"/lawyers error: {e}")
+        return jsonify({'lawyers': [], 'error': 'directory_unavailable'}), 200
+
+
 # ── MEMORY SYSTEM ──
 def build_memory_context(memories):
     """Build a memory context string from saved memories to inject into prompts."""
