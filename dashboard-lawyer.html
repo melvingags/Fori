@@ -351,6 +351,17 @@
   .msg-bubble.user a { color:#1a1208;text-decoration:underline;font-weight:500; }
   .msg-time { font-size:10px;color:var(--text-muted);margin-top:5px;padding:0 10px;letter-spacing:.3px;display:flex;align-items:center;gap:5px; }
   .msg-receipt { color:var(--accent-gold);font-weight:500; }
+  .msg-file-card { display:flex;align-items:center;gap:11px;padding:11px 14px;border-radius:18px;max-width:270px;text-decoration:none; }
+  .msg-row.user .msg-file-card { background:linear-gradient(135deg,var(--accent-gold),var(--accent-gold-light));color:#1a1208;border-bottom-right-radius:6px;box-shadow:0 2px 14px rgba(201,168,108,0.22); }
+  .msg-row.assistant .msg-file-card { background:var(--bg-card);border:1px solid var(--border);color:var(--text-secondary);border-bottom-left-radius:6px; }
+  .mf-icon { width:36px;height:36px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:rgba(26,18,8,0.13);border-radius:10px; }
+  .msg-row.assistant .mf-icon { background:rgba(201,168,108,0.12);color:var(--accent-gold); }
+  .mf-meta { min-width:0; }
+  .mf-name { font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+  .mf-type { font-size:10px;opacity:.72;letter-spacing:.5px;text-transform:uppercase;margin-top:2px; }
+  .msg-img-thumb { max-width:230px;max-height:270px;border-radius:18px;cursor:pointer;display:block;object-fit:cover; }
+  .msg-row.user .msg-img-thumb { border-bottom-right-radius:6px; }
+  .msg-row.assistant .msg-img-thumb { border-bottom-left-radius:6px;border:1px solid var(--border); }
   @keyframes msgPop { from { opacity:0;transform:translateY(8px) scale(0.96); } to { opacity:1;transform:translateY(0) scale(1); } }
 
   .bubble-actions { display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;padding:0 4px; }
@@ -532,13 +543,18 @@
     return onSnapshot(q, callback);
   };
 
-  window.fsSendMessage = async function(connId, uid, name, text, fileUrl, fileName) {
+  function fileToDataURL(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file);});}
+  async function compressImageToDataURL(file,maxDim,quality){const dataUrl=await fileToDataURL(file);return await new Promise((res)=>{const img=new Image();img.onload=()=>{let w=img.width,h=img.height;if(w>maxDim||h>maxDim){if(w>=h){h=Math.round(h*maxDim/w);w=maxDim;}else{w=Math.round(w*maxDim/h);h=maxDim;}}const c=document.createElement('canvas');c.width=w;c.height=h;try{c.getContext('2d').drawImage(img,0,0,w,h);res(c.toDataURL('image/jpeg',quality||0.72));}catch(e){res(dataUrl);}};img.onerror=()=>res(dataUrl);img.src=dataUrl;});}
+  function fileCardInner(fileName,ext){const types={pdf:'PDF Document',docx:'Word Document',doc:'Word Document',txt:'Text File',xls:'Spreadsheet',xlsx:'Spreadsheet'};const label=types[ext]||'Document';return '<div class="mf-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div><div class="mf-meta"><div class="mf-name">'+escapeHtml(fileName||'File')+'</div><div class="mf-type">'+label+'</div></div>';}
+  function openImageView(src){const w=window.open('','_blank');if(w&&w.document){w.document.write('<title>Image</title><body style="margin:0;background:#0a0a0a;display:flex;align-items:center;justify-content:center;min-height:100vh;"><img src="'+src+'" style="max-width:100%;max-height:100vh;"></body>');}else{const a=document.createElement('a');a.href=src;a.target='_blank';a.click();}}
+  window.fsSendMessage = async function(connId, uid, name, text, fileUrl, fileName, fileData, fileType) {
     await addDoc(collection(db, 'connections', connId, 'messages'), {
       senderId: uid, senderName: name, text: text || '',
       fileUrl: fileUrl || null, fileName: fileName || null,
+      fileData: fileData || null, fileType: fileType || null,
       createdAt: serverTimestamp()
     });
-    await updateDoc(doc(db, 'connections', connId), { lastMessage: text || fileName, lastAt: serverTimestamp(), lastSenderId: uid });
+    await updateDoc(doc(db, 'connections', connId), { lastMessage: text || fileName || 'Attachment', lastAt: serverTimestamp(), lastSenderId: uid });
   };
 
   window.fsCloseCase = async function(connId) {
@@ -1737,7 +1753,11 @@
       const t = (m.createdAt && m.createdAt.toDate) ? m.createdAt.toDate().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
       const meta = isMe ? t : `${m.senderName||'Client'}${t?' · '+t:''}`;
       let inner;
-      if (m.fileUrl) { inner = `<div class="msg-bubble ${role}"><a href="${m.fileUrl}" target="_blank" style="text-decoration:underline;display:inline-flex;align-items:center;gap:6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>${m.fileName||'File'}</a></div>`; }
+      const src = m.fileData || m.fileUrl || '';
+      const ext = (m.fileName||'').toLowerCase().split('.').pop();
+      const isImg = !!src && (((m.fileType||'').indexOf('image')===0) || /^data:image/.test(src) || /^(png|jpe?g|webp|gif)$/.test(ext));
+      if (src && isImg) { inner = `<img class="msg-img-thumb" src="${src}" alt="${escapeHtml(m.fileName||'image')}" onclick="openImageView(this.src)">`; }
+      else if (src) { const dl = m.fileData ? `download="${escapeHtml(m.fileName||'file')}"` : 'target="_blank" rel="noopener"'; inner = `<a class="msg-file-card" href="${src}" ${dl}>${fileCardInner(m.fileName,ext)}</a>`; }
       else { inner = `<div class="msg-bubble ${role}">${escapeHtml(m.text||'').replace(/\n/g,'<br>')}</div>`; }
       return `<div class="msg-row ${role}"><div class="msg-col">${inner}<div class="msg-time">${meta}</div></div></div>`;
     }).join('');
@@ -1758,8 +1778,20 @@
   async function handleChatroomFile(input) {
     if (!input.files[0] || !_activeConnId) return;
     const file = input.files[0]; const uid = window._lexUid || user.uid;
-    try { const url = await window.fsUploadFile(_activeConnId, file); await window.fsSendMessage(_activeConnId, uid, user.name||'Lawyer', '', url, file.name); addNotif(`File "${file.name}" sent.`); }
-    catch(e) { addNotif('File upload failed.'); }
+    const ext = (file.name||'').toLowerCase().split('.').pop();
+    const isImg = ['png','jpg','jpeg','webp','gif'].includes(ext) || (file.type||'').startsWith('image/');
+    addNotif(`Sending "${file.name}"…`);
+    try {
+      let dataUrl, mime;
+      if (isImg) { dataUrl = await compressImageToDataURL(file,1280,0.72); mime='image/jpeg'; }
+      else {
+        if (file.size > 700*1024) { addNotif('That file is too large to send in chat (max ~700KB). Please send a smaller or compressed file.'); input.value=''; return; }
+        dataUrl = await fileToDataURL(file); mime = file.type || 'application/octet-stream';
+      }
+      if (!dataUrl || dataUrl.length > 980000) { addNotif('That file is too large to send in chat. Please use a smaller or more compressed file.'); input.value=''; return; }
+      await window.fsSendMessage(_activeConnId, uid, user.name||'Lawyer', '', null, file.name, dataUrl, mime);
+    }
+    catch(e) { addNotif('Could not send that file. Please try again.'); }
     input.value = '';
   }
 
