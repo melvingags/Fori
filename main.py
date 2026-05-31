@@ -3,6 +3,7 @@ import json
 import logging
 import datetime
 import io
+import base64
 import hmac
 import hashlib
 from collections import defaultdict
@@ -188,13 +189,15 @@ def generate_answer(prompt, system_prompt=None, ack=None, history=None):
             logger.warning(f"Gemini failed -> Groq fallback: {str(e)[:120]}")
     return _fallback_generate(prompt, system_prompt, ack, history)
 
-def stream_answer(prompt, system_prompt=None, ack=None, history=None):
-    """Generator. Try Gemini streaming; if it fails before output, silently switch to Groq."""
+def stream_answer(prompt, system_prompt=None, ack=None, history=None, image=None):
+    """Generator. Try Gemini streaming; if it fails before output, silently switch to Groq.
+    `image`, if provided, is a dict {"mime_type":..., "data": bytes} passed to Gemini (multimodal)."""
     if model:
         emitted = False
         try:
             chat = model.start_chat(history=_gemini_history(system_prompt, ack, history))
-            for chunk in chat.send_message(prompt, stream=True):
+            content = [prompt, image] if image else prompt
+            for chunk in chat.send_message(content, stream=True):
                 if chunk.text:
                     emitted = True
                     yield chunk.text
@@ -202,6 +205,9 @@ def stream_answer(prompt, system_prompt=None, ack=None, history=None):
         except Exception as e:
             logger.warning(f"Gemini stream failed -> Groq fallback: {str(e)[:120]}")
             if emitted:
+                return
+            if image:
+                yield "I couldn't analyse that image just now. Please try again in a moment, or describe what it shows and I'll help."
                 return
     for delta in _fallback_stream(prompt, system_prompt, ack, history):
         yield delta
@@ -625,6 +631,16 @@ def ask_stream():
     memories = data.get('memories', [])
     memory_context = build_memory_context(memories)
 
+    image_part = None
+    img_b64 = data.get('imageData')
+    img_mime = data.get('imageMime')
+    if img_b64 and img_mime:
+        try:
+            image_part = {"mime_type": img_mime, "data": base64.b64decode(img_b64)}
+        except Exception as e:
+            logger.warning(f"ask-stream image decode failed: {str(e)[:120]}")
+            image_part = None
+
     if not question:
         return jsonify({'error': 'No question provided'}), 400
 
@@ -687,7 +703,7 @@ Provide a comprehensive response based on the laws of {country}."""
         def generate():
             try:
                 full_answer = ""
-                for piece in stream_answer(prompt, system_prompt=system_prompt, ack=ack, history=history):
+                for piece in stream_answer(prompt, system_prompt=system_prompt, ack=ack, history=history, image=image_part):
                     full_answer += piece
                     yield f"data: {json.dumps({'chunk': piece})}\n\n"
                 remaining = get_remaining_questions(ip) if tier == "free" else None
