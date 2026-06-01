@@ -362,6 +362,10 @@
   .msg-img-thumb { max-width:230px;max-height:270px;border-radius:18px;cursor:pointer;display:block;object-fit:cover; }
   .msg-row.user .msg-img-thumb { border-bottom-right-radius:6px; }
   .msg-row.assistant .msg-img-thumb { border-bottom-left-radius:6px;border:1px solid var(--border); }
+  .img-lightbox { position:fixed;inset:0;background:rgba(0,0,0,0.93);z-index:99998;display:none;align-items:center;justify-content:center;padding:20px;cursor:zoom-out; }
+  .img-lightbox.open { display:flex; }
+  .img-lightbox img { max-width:100%;max-height:90vh;border-radius:8px;box-shadow:0 12px 50px rgba(0,0,0,0.6); }
+  .ilb-close { position:absolute;top:18px;right:18px;width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,0.14);border:none;color:#fff;font-size:24px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center; }
   @keyframes msgPop { from { opacity:0;transform:translateY(8px) scale(0.96); } to { opacity:1;transform:translateY(0) scale(1); } }
 
   .bubble-actions { display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;padding:0 4px; }
@@ -546,7 +550,8 @@
   function fileToDataURL(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file);});}
   async function compressImageToDataURL(file,maxDim,quality){const dataUrl=await fileToDataURL(file);return await new Promise((res)=>{const img=new Image();img.onload=()=>{let w=img.width,h=img.height;if(w>maxDim||h>maxDim){if(w>=h){h=Math.round(h*maxDim/w);w=maxDim;}else{w=Math.round(w*maxDim/h);h=maxDim;}}const c=document.createElement('canvas');c.width=w;c.height=h;try{c.getContext('2d').drawImage(img,0,0,w,h);res(c.toDataURL('image/jpeg',quality||0.72));}catch(e){res(dataUrl);}};img.onerror=()=>res(dataUrl);img.src=dataUrl;});}
   function fileCardInner(fileName,ext){const types={pdf:'PDF Document',docx:'Word Document',doc:'Word Document',txt:'Text File',xls:'Spreadsheet',xlsx:'Spreadsheet'};const label=types[ext]||'Document';return '<div class="mf-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div><div class="mf-meta"><div class="mf-name">'+escapeHtml(fileName||'File')+'</div><div class="mf-type">'+label+'</div></div>';}
-  function openImageView(src){const w=window.open('','_blank');if(w&&w.document){w.document.write('<title>Image</title><body style="margin:0;background:#0a0a0a;display:flex;align-items:center;justify-content:center;min-height:100vh;"><img src="'+src+'" style="max-width:100%;max-height:100vh;"></body>');}else{const a=document.createElement('a');a.href=src;a.target='_blank';a.click();}}
+  function openImageView(src){const ov=document.getElementById('imgLightbox');const im=document.getElementById('imgLightboxImg');if(ov&&im){im.src=src;ov.classList.add('open');}}
+  function closeImageLightbox(){const ov=document.getElementById('imgLightbox');if(ov)ov.classList.remove('open');const im=document.getElementById('imgLightboxImg');if(im)im.src='';}
   window.fsSendMessage = async function(connId, uid, name, text, fileUrl, fileName, fileData, fileType) {
     await addDoc(collection(db, 'connections', connId, 'messages'), {
       senderId: uid, senderName: name, text: text || '',
@@ -1758,6 +1763,7 @@
       const isImg = !!src && (((m.fileType||'').indexOf('image')===0) || /^data:image/.test(src) || /^(png|jpe?g|webp|gif)$/.test(ext));
       if (src && isImg) { inner = `<img class="msg-img-thumb" src="${src}" alt="${escapeHtml(m.fileName||'image')}" onclick="openImageView(this.src)">`; }
       else if (src) { const dl = m.fileData ? `download="${escapeHtml(m.fileName||'file')}"` : 'target="_blank" rel="noopener"'; inner = `<a class="msg-file-card" href="${src}" ${dl}>${fileCardInner(m.fileName,ext)}</a>`; }
+      else if (m.fileName) { inner = `<div class="msg-file-card">${fileCardInner(m.fileName,ext)}</div>`; }
       else { inner = `<div class="msg-bubble ${role}">${escapeHtml(m.text||'').replace(/\n/g,'<br>')}</div>`; }
       return `<div class="msg-row ${role}"><div class="msg-col">${inner}<div class="msg-time">${meta}</div></div></div>`;
     }).join('');
@@ -2407,5 +2413,7 @@
     setTimeout(initSmartsupp, 1500);
   });
 </script>
+<!-- Image lightbox (in-chat image viewer) -->
+<div class="img-lightbox" id="imgLightbox" onclick="closeImageLightbox()"><button class="ilb-close" onclick="closeImageLightbox()" aria-label="Close">&times;</button><img id="imgLightboxImg" src="" alt=""></div>
 </body>
 </html>
