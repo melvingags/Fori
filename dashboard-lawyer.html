@@ -562,7 +562,9 @@
   async function _lightboxBlob(){const im=document.getElementById('imgLightboxImg');if(!im||!im.src)return null;try{const r=await fetch(im.src);return await r.blob();}catch(e){return null;}}
   function _imgExt(type){type=type||'';if(type.indexOf('png')>-1)return '.png';if(type.indexOf('webp')>-1)return '.webp';if(type.indexOf('gif')>-1)return '.gif';return '.jpg';}
   async function saveLightboxImg(){const blob=await _lightboxBlob();if(!blob){_ilbToast('Image unavailable');return;}const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='FORI-image-'+Date.now()+_imgExt(blob.type);document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);_ilbToast('Saving image…');}
-  async function copyLightboxImg(){const blob=await _lightboxBlob();if(!blob){_ilbToast('Image unavailable');return;}try{if(navigator.clipboard&&window.ClipboardItem){await navigator.clipboard.write([new ClipboardItem({[blob.type||'image/png']:blob})]);_ilbToast('Image copied');}else{_ilbToast('Copy not supported here');}}catch(e){_ilbToast('Couldn\'t copy image');}}
+  function _toPng(blob){return new Promise((res,rej)=>{const url=URL.createObjectURL(blob);const img=new Image();img.onload=()=>{const c=document.createElement('canvas');c.width=img.naturalWidth||img.width;c.height=img.naturalHeight||img.height;try{c.getContext('2d').drawImage(img,0,0);c.toBlob(b=>{URL.revokeObjectURL(url);b?res(b):rej(new Error('png'));},'image/png');}catch(e){URL.revokeObjectURL(url);rej(e);}};img.onerror=()=>{URL.revokeObjectURL(url);rej(new Error('load'));};img.src=url;});}
+  async function copyLightboxImg(){const im=document.getElementById('imgLightboxImg');if(!im||!im.src){_ilbToast('Image unavailable');return;}if(!(navigator.clipboard&&window.ClipboardItem)){_ilbToast('Copy not supported on this browser');return;}try{const pngPromise=fetch(im.src).then(r=>r.blob()).then(b=>(b.type==='image/png'?b:_toPng(b)));await navigator.clipboard.write([new ClipboardItem({'image/png':pngPromise})]);_ilbToast('Image copied');}catch(e){try{const blob=await fetch(im.src).then(r=>r.blob());const png=blob.type==='image/png'?blob:await _toPng(blob);await navigator.clipboard.write([new ClipboardItem({'image/png':png})]);_ilbToast('Image copied');}catch(e2){_ilbToast('Couldn\'t copy — try Share');}}}
+  document.addEventListener('paste',function(e){const items=(e.clipboardData&&e.clipboardData.items)||[];let file=null;for(let i=0;i<items.length;i++){const it=items[i];if(it.type&&it.type.indexOf('image')===0){file=it.getAsFile();break;}}if(!file)return;const a=document.activeElement;const id=a&&a.id;if(id==='chatroomInput'){e.preventDefault();handleChatroomFile({files:[file],value:''});}else if(id==='aiInput'){e.preventDefault();handleAIFileUpload({files:[file],value:''});}});
   async function shareLightboxImg(){const blob=await _lightboxBlob();if(!blob){_ilbToast('Image unavailable');return;}const file=new File([blob],'FORI-image-'+Date.now()+_imgExt(blob.type),{type:blob.type||'image/jpeg'});try{if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file]});}else if(navigator.share){await navigator.share({title:'FORI image'});}else{saveLightboxImg();}}catch(e){}}
   async function prepareImageDataURL(file,limitChars){const original=await fileToDataURL(file);if(original.length<=limitChars)return {dataUrl:original,mime:file.type||'image/jpeg'};const steps=[[2200,0.92],[1800,0.88],[1400,0.82],[1100,0.75],[850,0.66]];for(const s of steps){const out=await compressImageToDataURL(file,s[0],s[1]);if(out.length<=limitChars)return {dataUrl:out,mime:'image/jpeg'};}const last=await compressImageToDataURL(file,800,0.55);return {dataUrl:last,mime:'image/jpeg',tooBig:last.length>limitChars};}
   window.fsSendMessage = async function(connId, uid, name, text, fileUrl, fileName, fileData, fileType) {
@@ -1631,7 +1633,8 @@
     let sendQuestion = typed;
     if (fileText) { sendQuestion = 'The user attached a document named "' + fileName + '". Read it carefully and use it to answer.\n\n--- DOCUMENT START ---\n' + fileText + '\n--- DOCUMENT END ---\n\nUser\'s message: ' + (typed || 'Please review this document and explain the key points.'); }
     else if (imgData) { sendQuestion = (typed || 'Please analyse this image and explain what it shows, including anything legally relevant.'); }
-    if (fileName) { appendAIUserFile(fileName, imgPreview, typed); } else { appendAIMessage('user', question); }
+    let persistUserMeta=null;
+    if (fileName) { appendAIUserFile(fileName, imgPreview, typed); persistUserMeta = imgPreview ? {kind:'image',fileName:fileName,thumb:await shrinkDataURL(imgPreview,260,0.6)} : {kind:'file',fileName:fileName}; } else { appendAIMessage('user', question); }
     aiHistory.push({ role: 'user', content: imgData ? (typed || '[Image attached for analysis]') : question });
     document.querySelectorAll('.chat-disclaimer').forEach(el => el.style.display = 'none');
     input.value = ''; input.style.height = 'auto';
@@ -1675,7 +1678,7 @@
               const colEl = bubble.querySelector('.msg-col'); const timeEl = bubble.querySelector('.msg-time');
               if (colEl && timeEl) colEl.insertBefore(actionsEl, timeEl); else bubble.appendChild(actionsEl);
               aiHistory.push({ role: 'assistant', content: payload.answer });
-              persistAiTurn(question, payload.answer, country, category);
+              persistAiTurn(question, payload.answer, country, category, persistUserMeta);
               saveMemory('question', `Question: ${question}\n\nAnswer: ${payload.answer.slice(0, 1500)}`);
             }
           } catch(e) {}
@@ -1779,7 +1782,7 @@
     const wrap = document.getElementById('chatroomMsgs');
     const uid = window._lexUid || user.uid;
     if (!msgs.length) { wrap.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-muted);font-size:13px;">No messages yet. Start the conversation.</div>`; return; }
-    wrap.innerHTML = msgs.map(m => {
+    wrap.innerHTML = msgs.map(m => { try {
       const isMe = m.senderId === uid; const role = isMe ? 'user' : 'assistant';
       const t = (m.createdAt && m.createdAt.toDate) ? m.createdAt.toDate().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
       const meta = isMe ? t : `${m.senderName||'Client'}${t?' · '+t:''}`;
@@ -1792,6 +1795,7 @@
       else if (m.fileName) { inner = `<div class="msg-file-card">${fileCardInner(m.fileName,ext)}</div>`; }
       else { inner = `<div class="msg-bubble ${role}">${escapeHtml(m.text||'').replace(/\n/g,'<br>')}</div>`; }
       return `<div class="msg-row ${role}"><div class="msg-col">${inner}<div class="msg-time">${meta}</div></div></div>`;
+    } catch(_e){ return `<div class="msg-row assistant"><div class="msg-col"><div class="msg-bubble assistant">📎 ${String((m&&m.fileName)||'Attachment').replace(/[<>&]/g,'')}</div></div></div>`; }
     }).join('');
     wrap.scrollTop = wrap.scrollHeight;
     try { const last = msgs[msgs.length-1]; const ms = (last && last.createdAt && last.createdAt.toMillis) ? last.createdAt.toMillis() : Date.now(); markConnSeen(_activeConnId, ms); } catch(e) {}
@@ -1949,16 +1953,19 @@
     const chats=old.map((h,i)=>({id:h.id||(Date.now()+i),title:(h.q||'Session').slice(0,70),country:h.country,category:h.category,date:h.date,time:h.time,updatedAt:h.id||(Date.now()+i),messages:[{role:'user',content:h.q||''},{role:'assistant',content:h.answer||''}]}));
     localStorage.setItem('foriLawyerAIChats',JSON.stringify(chats));
   }
-  function persistAiTurn(question,answer,country,category){
+  function shrinkDataURL(dataUrl,maxDim,q){return new Promise((res)=>{const img=new Image();img.onload=()=>{let w=img.width,h=img.height;if(w>maxDim||h>maxDim){if(w>=h){h=Math.round(h*maxDim/w);w=maxDim;}else{w=Math.round(w*maxDim/h);h=maxDim;}}const c=document.createElement('canvas');c.width=w;c.height=h;try{c.getContext('2d').drawImage(img,0,0,w,h);res(c.toDataURL('image/jpeg',q||0.6));}catch(e){res(dataUrl);}};img.onerror=()=>res(dataUrl);img.src=dataUrl;});}
+  function _captionFromSaved(content){if(content&&content.indexOf('📎 ')===0){const i=content.indexOf('\n\n');return i>-1?content.slice(i+2):'';}return content||'';}
+  function persistAiTurn(question,answer,country,category,userMeta){
     let chats=getAiChats();let c=currentAiChatId?chats.find(x=>String(x.id)===String(currentAiChatId)):null;const now=Date.now();
     if(!c){c={id:now,title:(question||'New session').slice(0,70),country,category:category||'General Law',createdAt:now,messages:[]};currentAiChatId=c.id;}
-    c.messages.push({role:'user',content:question},{role:'assistant',content:answer});
+    const um=userMeta||{};
+    c.messages.push({role:'user',content:question,kind:um.kind,fileName:um.fileName,thumb:um.thumb},{role:'assistant',content:answer});
     c.updatedAt=now;c.date=new Date().toLocaleDateString();c.time=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
     chats=chats.filter(x=>String(x.id)!==String(c.id));chats.unshift(c);saveAiChats(chats);renderAIHistory();
   }
   const _AI_WELCOME='<div class="day-divider">Today</div><div class="msg-row assistant"><div class="msg-avatar">F</div><div class="msg-col"><div class="msg-bubble assistant">Good to have you, Counsellor. I\'m your FORI Business AI — running on elite analysis mode with unlimited access. Ask me to research case law, draft documents, analyse contracts, check compliance, or find precedents. How can I assist you today?</div><div class="msg-time">now</div></div></div>';
   function startNewAiChat(){currentAiChatId=null;aiHistory.length=0;const wrap=document.getElementById('aiChatMessages');if(wrap)wrap.innerHTML=_AI_WELCOME;clearAiAttachment();showPage('aitool',document.getElementById('navAiTool'));}
-  function openAiChat(id){const c=getAiChats().find(x=>String(x.id)===String(id));if(!c)return;currentAiChatId=c.id;aiHistory.length=0;const wrap=document.getElementById('aiChatMessages');if(wrap)wrap.innerHTML='';(c.messages||[]).forEach(m=>{aiHistory.push({role:m.role,content:m.content});appendAIMessage(m.role,m.content);});const cs=document.getElementById('aiCountry');if(cs&&c.country&&[...cs.options].some(o=>o.value===c.country))cs.value=c.country;const ca=document.getElementById('aiTask');if(ca&&c.category)ca.value=c.category;showPage('aitool',document.getElementById('navAiTool'));if(wrap)wrap.scrollTop=wrap.scrollHeight;}
+  function openAiChat(id){const c=getAiChats().find(x=>String(x.id)===String(id));if(!c)return;currentAiChatId=c.id;aiHistory.length=0;const wrap=document.getElementById('aiChatMessages');if(wrap)wrap.innerHTML='';(c.messages||[]).forEach(m=>{aiHistory.push({role:m.role,content:m.content});if(m.role==='user'&&(m.kind==='image'||m.kind==='file')){appendAIUserFile(m.fileName||'File',m.kind==='image'?(m.thumb||''):'',_captionFromSaved(m.content));}else{appendAIMessage(m.role,m.content);}});const cs=document.getElementById('aiCountry');if(cs&&c.country&&[...cs.options].some(o=>o.value===c.country))cs.value=c.country;const ca=document.getElementById('aiTask');if(ca&&c.category)ca.value=c.category;showPage('aitool',document.getElementById('navAiTool'));if(wrap)wrap.scrollTop=wrap.scrollHeight;}
   function chatBucket(ts){const d=new Date(ts||Date.now());const now=new Date();const s=new Date(now.getFullYear(),now.getMonth(),now.getDate()).getTime();const day=86400000;const t=d.getTime();if(t>=s)return 'Today';if(t>=s-day)return 'Yesterday';if(t>=s-7*day)return 'Previous 7 Days';if(t>=s-30*day)return 'Previous 30 Days';return d.toLocaleDateString(undefined,{month:'long',year:'numeric'});}
   function renderAIHistory(){
     migrateAiChatsOnce();
