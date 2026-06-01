@@ -682,7 +682,11 @@
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
       Overview
     </a>
-    <a class="nav-item" onclick="showPage('leads', this)">
+    <a class="nav-item" onclick="openNotifModal(this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+      Notifications<span class="nav-badge" id="notifNavBadge" style="display:none;background:#e74c3c;">0</span>
+    </a>
+    <a class="nav-item" onclick="showPage('leads', this)" id="navLeads">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 8.63a19.79 19.79 0 01-3.07-8.67A2 2 0 012.18 0h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.91 8.09a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>
       Client Leads
       <span class="nav-badge" id="leadsBadge">3</span>
@@ -735,10 +739,6 @@
     <a class="nav-item" onclick="showPage('profile', this)">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
       My Profile
-    </a>
-    <a class="nav-item" onclick="openNotifModal(this)">
-      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
-      Notifications<span class="nav-badge" id="notifNavBadge" style="display:none;background:#e74c3c;">0</span>
     </a>
     <a class="nav-item" onclick="showPage('marketplace', this)">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
@@ -799,7 +799,7 @@
       </div>
       <div style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;">
         <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);">Recent Leads</div>
-        <a onclick="showPage('leads',document.querySelectorAll('.nav-item')[1])" style="font-size:11px;color:var(--accent-gold);cursor:pointer;letter-spacing:1px;text-transform:uppercase;">View All →</a>
+        <a onclick="showPage('leads',document.getElementById('navLeads'))" style="font-size:11px;color:var(--accent-gold);cursor:pointer;letter-spacing:1px;text-transform:uppercase;">View All →</a>
       </div>
       <div class="leads-list">
         <div class="lead-card">
