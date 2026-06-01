@@ -240,8 +240,14 @@
   .msg-row.assistant .msg-img-thumb { border-bottom-left-radius:6px;border:1px solid var(--border); }
   .img-lightbox { position:fixed;inset:0;background:rgba(0,0,0,0.93);z-index:99998;display:none;align-items:center;justify-content:center;padding:20px;cursor:zoom-out; }
   .img-lightbox.open { display:flex; }
-  .img-lightbox img { max-width:100%;max-height:90vh;border-radius:8px;box-shadow:0 12px 50px rgba(0,0,0,0.6); }
-  .ilb-close { position:absolute;top:18px;right:18px;width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,0.14);border:none;color:#fff;font-size:24px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center; }
+  .img-lightbox img { max-width:100%;max-height:68vh;border-radius:8px;box-shadow:0 12px 50px rgba(0,0,0,0.6);margin-bottom:30px; }
+  .ilb-close { position:absolute;top:18px;right:18px;width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,0.14);border:none;color:#fff;font-size:24px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2; }
+  .ilb-bar { position:absolute;left:0;right:0;bottom:0;background:#141414;border-top:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:space-around;padding:16px 10px calc(16px + env(safe-area-inset-bottom,0px)); }
+  .ilb-act { flex:1;background:none;border:none;color:#fff;display:flex;flex-direction:column;align-items:center;gap:7px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;padding:6px 0; }
+  .ilb-act:active { opacity:.55; }
+  .ilb-act svg { width:25px;height:25px;stroke:#fff;fill:none;stroke-linecap:round;stroke-linejoin:round; }
+  .ilb-toast { position:absolute;bottom:130px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.88);color:#fff;padding:9px 18px;border-radius:22px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap; }
+  .ilb-toast.show { opacity:1; }
   @keyframes msgPop { from { opacity:0;transform:translateY(8px) scale(0.96); } to { opacity:1;transform:translateY(0) scale(1); } }
 
   .bubble-actions { display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;padding:0 4px; }
@@ -742,6 +748,13 @@
   function fileCardHtml(fileName,ext){return '<div class="msg-file-card">'+fileCardInner(fileName,ext)+'</div>';}
   function openImageView(src){const ov=document.getElementById('imgLightbox');const im=document.getElementById('imgLightboxImg');if(ov&&im){im.src=src;ov.classList.add('open');}}
   function closeImageLightbox(){const ov=document.getElementById('imgLightbox');if(ov)ov.classList.remove('open');const im=document.getElementById('imgLightboxImg');if(im)im.src='';}
+  function _ilbToast(msg){const t=document.getElementById('ilbToast');if(!t)return;t.textContent=msg;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),1600);}
+  async function _lightboxBlob(){const im=document.getElementById('imgLightboxImg');if(!im||!im.src)return null;try{const r=await fetch(im.src);return await r.blob();}catch(e){return null;}}
+  function _imgExt(type){type=type||'';if(type.indexOf('png')>-1)return '.png';if(type.indexOf('webp')>-1)return '.webp';if(type.indexOf('gif')>-1)return '.gif';return '.jpg';}
+  async function saveLightboxImg(){const blob=await _lightboxBlob();if(!blob){_ilbToast('Image unavailable');return;}const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='FORI-image-'+Date.now()+_imgExt(blob.type);document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);_ilbToast('Saving image…');}
+  async function copyLightboxImg(){const blob=await _lightboxBlob();if(!blob){_ilbToast('Image unavailable');return;}try{if(navigator.clipboard&&window.ClipboardItem){await navigator.clipboard.write([new ClipboardItem({[blob.type||'image/png']:blob})]);_ilbToast('Image copied');}else{_ilbToast('Copy not supported here');}}catch(e){_ilbToast('Couldn\'t copy image');}}
+  async function shareLightboxImg(){const blob=await _lightboxBlob();if(!blob){_ilbToast('Image unavailable');return;}const file=new File([blob],'FORI-image-'+Date.now()+_imgExt(blob.type),{type:blob.type||'image/jpeg'});try{if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file]});}else if(navigator.share){await navigator.share({title:'FORI image'});}else{saveLightboxImg();}}catch(e){}}
+  async function prepareImageDataURL(file,limitChars){const original=await fileToDataURL(file);if(original.length<=limitChars)return {dataUrl:original,mime:file.type||'image/jpeg'};const steps=[[2200,0.92],[1800,0.88],[1400,0.82],[1100,0.75],[850,0.66]];for(const s of steps){const out=await compressImageToDataURL(file,s[0],s[1]);if(out.length<=limitChars)return {dataUrl:out,mime:'image/jpeg'};}const last=await compressImageToDataURL(file,800,0.55);return {dataUrl:last,mime:'image/jpeg',tooBig:last.length>limitChars};}
   function appendUserFile(fileName,previewDataUrl,caption){
     const wrap=document.getElementById('chatMessages');const row=document.createElement('div');row.className='msg-row user';
     const t=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
@@ -816,7 +829,7 @@
     else if(imgData){sendQuestion=(typed||'Please analyse this image and explain what it shows, including anything legally relevant.');}
     document.querySelectorAll('.chat-disclaimer').forEach(el=>el.style.display='none');
     if(fileName){appendUserFile(fileName,imgPreview,typed);}else{appendMessage('user',question);}
-    chatHistory.push({role:'user',content:question});input.value='';input.style.height='auto';clearChatAttachment();
+    chatHistory.push({role:'user',content: imgData ? (typed || '[Image attached for analysis]') : question});input.value='';input.style.height='auto';clearChatAttachment();
     document.getElementById('askBtn').disabled=true;document.getElementById('chatTyping').classList.add('visible');document.getElementById('chatMessages').scrollTop=document.getElementById('chatMessages').scrollHeight;
     if(!isPremium){d.count=Math.max(0,d.count-1);saveQData(d);}
     try{
@@ -885,8 +898,8 @@
       if(file.size>8*1024*1024){appendMessage('assistant','That image is quite large. Please upload one under 8MB.');input.value='';return;}
       if(nameEl)nameEl.textContent='Reading '+file.name+'…';if(pill)pill.style.display='flex';
       try{
-        const preview=await compressImageToDataURL(file,1280,0.72);
-        attachedImagePreview=preview;attachedImageData=(preview.split(',')[1]||'');attachedImageMime='image/jpeg';
+        const r=await prepareImageDataURL(file,3800000);
+        attachedImagePreview=r.dataUrl;attachedImageData=(r.dataUrl.split(',')[1]||'');attachedImageMime=r.mime;
         attachedFileName=file.name;attachedFileText='';
         if(nameEl)nameEl.textContent=file.name;
       }catch(e){clearChatAttachment();appendMessage('assistant','⚠️ I couldn\'t read that image. Please try again.');}
@@ -1014,7 +1027,7 @@
     addNotif('Sending "'+file.name+'"…');
     try{
       let dataUrl,mime;
-      if(isImg){dataUrl=await compressImageToDataURL(file,1280,0.72);mime='image/jpeg';}
+      if(isImg){const r=await prepareImageDataURL(file,950000);if(r.tooBig){addNotif('That image is too large to send in chat. Please send a smaller one.');input.value='';return;}dataUrl=r.dataUrl;mime=r.mime;}
       else{
         if(file.size>700*1024){addNotif('That file is too large to send in chat (max ~700KB). Please send a smaller or compressed file.');input.value='';return;}
         dataUrl=await fileToDataURL(file);mime=file.type||'application/octet-stream';
@@ -1217,6 +1230,6 @@
   document.addEventListener('keydown',function(e){if(e.key==='Escape')closeSupport();});
 </script>
 <!-- Image lightbox (in-chat image viewer) -->
-<div class="img-lightbox" id="imgLightbox" onclick="closeImageLightbox()"><button class="ilb-close" onclick="closeImageLightbox()" aria-label="Close">&times;</button><img id="imgLightboxImg" src="" alt=""></div>
+<div class="img-lightbox" id="imgLightbox" onclick="closeImageLightbox()"><button class="ilb-close" onclick="event.stopPropagation();closeImageLightbox()" aria-label="Close">&times;</button><img id="imgLightboxImg" src="" alt="" onclick="event.stopPropagation()"><div class="ilb-toast" id="ilbToast"></div><div class="ilb-bar" onclick="event.stopPropagation()"><button class="ilb-act" onclick="shareLightboxImg()"><svg viewBox="0 0 24 24"><path d="M12 3l-4 4M12 3l4 4M12 3v12"/><path d="M5 13v6a1 1 0 001 1h12a1 1 0 001-1v-6"/></svg><span>Share</span></button><button class="ilb-act" onclick="copyLightboxImg()"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 012-2h8"/></svg><span>Copy</span></button><button class="ilb-act" onclick="saveLightboxImg()"><svg viewBox="0 0 24 24"><path d="M12 4v11"/><path d="M8 11l4 4 4-4"/><path d="M5 20h14"/></svg><span>Save</span></button></div></div>
 </body>
 </html>
