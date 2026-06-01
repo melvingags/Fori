@@ -250,6 +250,15 @@
   .notif-dot { position:absolute; top:6px; right:6px; width:7px; height:7px; background:#e74c3c; border-radius:50%; display:none; }
   .notif-dropdown { display:none; position:absolute; right:0; top:calc(100% + 8px); width:300px; background:var(--bg-card); border:1px solid var(--border); z-index:300; box-shadow:0 8px 32px rgba(0,0,0,0.35); }
   .notif-dropdown.open { display:block; }
+  .fori-toast { position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:rgba(20,20,20,0.95);color:#fff;padding:11px 20px;border-radius:24px;font-size:13.5px;z-index:99999;opacity:0;transition:opacity .25s;pointer-events:none;max-width:82%;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,0.4); }
+  .fori-toast.show { opacity:1; }
+  .notif-modal-overlay { position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:99990;display:none;align-items:flex-start;justify-content:center;padding:74px 16px; }
+  .notif-modal-overlay.open { display:flex; }
+  .notif-modal { width:100%;max-width:420px;background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:hidden;max-height:76vh;display:flex;flex-direction:column;box-shadow:0 16px 50px rgba(0,0,0,0.5); }
+  .notif-modal-head { padding:15px 18px;border-bottom:1px solid var(--border);font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);display:flex;align-items:center;gap:12px; }
+  .notif-modal-head .nm-title { flex:1; }
+  .notif-modal-x { background:none;border:none;color:var(--text-secondary);font-size:22px;line-height:1;cursor:pointer;padding:0; }
+  .notif-modal .notif-list { overflow-y:auto; }
   .notif-header { padding:13px 16px; border-bottom:1px solid var(--border); font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--text-muted); display:flex; justify-content:space-between; align-items:center; }
   .notif-clear { cursor:pointer; font-size:10px; color:var(--accent-gold); background:none; border:none; letter-spacing:1px; }
   .notif-list { max-height:320px; overflow-y:auto; }
@@ -727,9 +736,9 @@
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
       My Profile
     </a>
-    <a class="nav-item" onclick="showPage('documents', this)">
-      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
-      Documents
+    <a class="nav-item" onclick="openNotifModal(this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+      Notifications<span class="nav-badge" id="notifNavBadge" style="display:none;background:#e74c3c;">0</span>
     </a>
     <a class="nav-item" onclick="showPage('marketplace', this)">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
@@ -773,17 +782,7 @@
     </button>
     <div class="topbar-title" id="topbarTitle">Overview</div>
     <div class="topbar-right">
-      <div class="notif-wrap">
-        <button class="notif-btn" id="notifBtn" onclick="toggleNotif()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
-          <div class="notif-dot" id="notifDot"></div>
-        </button>
-        <div class="notif-dropdown" id="notifDropdown">
-          <div class="notif-header">Notifications<button class="notif-clear" onclick="clearNotifs()">Clear all</button></div>
-          <div class="notif-list" id="notifList"></div>
-          <div class="notif-empty" id="notifEmpty">No notifications yet</div>
-        </div>
-      </div>
+      <div class="notif-wrap"></div>
     </div>
   </div>
 
@@ -1750,8 +1749,8 @@
       </div>`).join('');
   }
 
-  async function acceptConn(connId) { await window.fsAcceptConnection(connId); addNotif('Connection accepted. Chat is now open.'); }
-  async function declineConn(connId) { await window.fsDeclineConnection(connId); addNotif('Connection declined.'); }
+  async function acceptConn(connId) { await window.fsAcceptConnection(connId); addNotif('Connection accepted. Chat is now open.','success','high'); }
+  async function declineConn(connId) { await window.fsDeclineConnection(connId); addNotif('Connection declined.','info','high'); }
 
   let _clientConns = [];
   function getConnSeen(){try{return JSON.parse(localStorage.getItem('foriConnSeen')||'{}');}catch(e){return {};}}
@@ -1838,7 +1837,7 @@
     await window.fsCloseCase(_activeConnId);
     document.getElementById('chatroomStatus').textContent = 'Case Closed';
     document.getElementById('closeCaseBtn').style.display = 'none';
-    addNotif('Case closed. Client will be prompted to rate their experience.');
+    addNotif('Case closed. Client will be prompted to rate their experience.','success','high');
   }
 
   setTimeout(() => { if (window.fsLoadClients) loadClients(); }, 1500);
@@ -2058,28 +2057,26 @@
   const NOTIF_KEY = 'foriNotifs_lawyer';
   function getNotifs() { try { return JSON.parse(localStorage.getItem(NOTIF_KEY)||'[]'); } catch { return []; } }
   function saveNotifs(n) { localStorage.setItem(NOTIF_KEY, JSON.stringify(n)); }
-  function addNotif(msg) {
+  function toast(msg){let t=document.getElementById('foriToast');if(!t){t=document.createElement('div');t.id='foriToast';t.className='fori-toast';document.body.appendChild(t);}t.textContent=msg;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),2300);}
+  function addNotif(msg, type, priority) {
+    if (priority !== 'high') { toast(msg); return; }
     const n = getNotifs();
-    n.unshift({ id: Date.now(), msg, time: new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}), read: false });
+    n.unshift({ id: Date.now(), msg, type: type||'info', time: new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}), read: false });
     if (n.length > 30) n.pop(); saveNotifs(n); renderNotifs();
   }
   function renderNotifs() {
-    const n = getNotifs(); const list = document.getElementById('notifList'); const empty = document.getElementById('notifEmpty'); const dot = document.getElementById('notifDot');
-    const unread = n.filter(x=>!x.read).length; dot.style.display = unread > 0 ? 'block' : 'none';
-    if (!n.length) { list.innerHTML = ''; empty.style.display = 'block'; return; }
-    empty.style.display = 'none';
+    const n = getNotifs(); const list = document.getElementById('notifList'); const empty = document.getElementById('notifEmpty'); const badge = document.getElementById('notifNavBadge');
+    const unread = n.filter(x=>!x.read).length;
+    if (badge) { badge.style.display = unread>0?'inline-block':'none'; badge.textContent = unread>9?'9+':String(unread); }
+    if (!list) return;
+    if (!n.length) { list.innerHTML = ''; if(empty) empty.style.display = 'block'; return; }
+    if(empty) empty.style.display = 'none';
     list.innerHTML = n.map(x => `<div class="notif-item ${x.read?'read':'unread'}"><div class="notif-item-msg">${x.msg}</div><div class="notif-item-time">${x.time}</div></div>`).join('');
   }
-  function toggleNotif() {
-    const dd = document.getElementById('notifDropdown'); dd.classList.toggle('open');
-    if (dd.classList.contains('open')) { const n = getNotifs().map(x=>({...x,read:true})); saveNotifs(n); renderNotifs(); }
-  }
+  function openNotifModal() { const m = document.getElementById('notifModal'); if(m) m.classList.add('open'); const n = getNotifs().map(x=>({...x,read:true})); saveNotifs(n); renderNotifs(); }
+  function closeNotifModal() { const m = document.getElementById('notifModal'); if(m) m.classList.remove('open'); }
   function clearNotifs() { saveNotifs([]); renderNotifs(); }
-  document.addEventListener('click', e => {
-    const wrap = document.getElementById('notifBtn')?.closest('.notif-wrap');
-    if (wrap && !wrap.contains(e.target)) document.getElementById('notifDropdown').classList.remove('open');
-  });
-  if (!localStorage.getItem('foriNotifSeeded_law')) { addNotif('Welcome to FORI for Lawyers. Your dashboard is ready.'); addNotif('You have 3 new client leads waiting.'); localStorage.setItem('foriNotifSeeded_law','1'); }
+  if (!localStorage.getItem('foriNotifSeeded_law')) { addNotif('Welcome to FORI for Lawyers. Your dashboard is ready.','info','high'); addNotif('You have 3 new client leads waiting.','info','high'); localStorage.setItem('foriNotifSeeded_law','1'); }
   renderNotifs();
 
   // ── COOKIES ── (cookie banner removed)
@@ -2456,5 +2453,7 @@
 </script>
 <!-- Image lightbox (in-chat image viewer) -->
 <div class="img-lightbox" id="imgLightbox" onclick="closeImageLightbox()"><button class="ilb-close" onclick="event.stopPropagation();closeImageLightbox()" aria-label="Close">&times;</button><img id="imgLightboxImg" src="" alt="" onclick="event.stopPropagation()"><div class="ilb-toast" id="ilbToast"></div><div class="ilb-bar" onclick="event.stopPropagation()"><button class="ilb-act" onclick="shareLightboxImg()"><svg viewBox="0 0 24 24"><path d="M12 3l-4 4M12 3l4 4M12 3v12"/><path d="M5 13v6a1 1 0 001 1h12a1 1 0 001-1v-6"/></svg><span>Share</span></button><button class="ilb-act" onclick="copyLightboxImg()"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 012-2h8"/></svg><span>Copy</span></button><button class="ilb-act" onclick="saveLightboxImg()"><svg viewBox="0 0 24 24"><path d="M12 4v11"/><path d="M8 11l4 4 4-4"/><path d="M5 20h14"/></svg><span>Save</span></button></div></div>
+<!-- Notifications modal -->
+<div class="notif-modal-overlay" id="notifModal" onclick="if(event.target===this)closeNotifModal()"><div class="notif-modal"><div class="notif-modal-head"><span class="nm-title">Notifications</span><button class="notif-clear" onclick="clearNotifs()">Clear all</button><button class="notif-modal-x" onclick="closeNotifModal()" aria-label="Close">&times;</button></div><div class="notif-list" id="notifList"></div><div class="notif-empty" id="notifEmpty" style="padding:34px 16px;text-align:center;color:var(--text-muted);font-size:13px;">No notifications yet</div></div></div>
 </body>
 </html>
