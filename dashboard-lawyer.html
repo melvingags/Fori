@@ -329,9 +329,9 @@
   /* ===== FORI MESSENGER (ported chat interface design) ===== */
   /* ── FORI MESSENGER (chat redesign) ── */
   .chat-header { display:flex;align-items:center;gap:12px;padding:7px 24px;border-bottom:1px solid var(--border);background:var(--bg-secondary);transition:background 0.4s; }
-  .ch-avatar { width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,var(--accent-gold),var(--accent-gold-light));color:var(--bg-primary);display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:600;flex-shrink:0;box-shadow:0 2px 12px rgba(201,168,108,0.3); }
+  .ch-avatar { width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--accent-gold),var(--accent-gold-light));color:var(--bg-primary);display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-size:19px;font-weight:600;flex-shrink:0;box-shadow:0 2px 12px rgba(201,168,108,0.3); }
   .ch-meta { display:flex;flex-direction:column;justify-content:center;line-height:1.2; }
-  .ch-name { font-family:'Cormorant Garamond',serif;font-size:18px;color:var(--text-primary); }
+  .ch-name { font-family:'Cormorant Garamond',serif;font-size:18px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%; }
   .ch-status { font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:6px;margin-top:3px; }
   .ch-dot { width:7px;height:7px;border-radius:50%;background:#27ae60;box-shadow:0 0 8px rgba(39,174,96,0.6);animation:livePulse 2s ease-in-out infinite; }
   @keyframes livePulse { 0%,100%{opacity:1;transform:scale(1);} 50%{opacity:0.5;transform:scale(0.85);} }
@@ -415,7 +415,7 @@
   .cl-pill.closed { background:rgba(255,255,255,0.06);color:var(--text-muted); }
   .cr-back { background:none;border:none;color:var(--text-muted);cursor:pointer;padding:6px;display:flex;align-items:center;border-radius:50%;transition:background 0.2s,color 0.2s;flex-shrink:0; }
   .cr-back:hover { background:rgba(255,255,255,0.06);color:var(--accent-gold); }
-  .cr-head-avatar { width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,var(--accent-gold),var(--accent-gold-light));color:#1a1208;display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600;flex-shrink:0;box-shadow:0 2px 12px rgba(201,168,108,0.3); }
+  .cr-head-avatar { width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--accent-gold),var(--accent-gold-light));color:#1a1208;display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-size:17px;font-weight:600;flex-shrink:0;box-shadow:0 2px 12px rgba(201,168,108,0.3); }
   .cr-action { padding:7px 15px;border-radius:18px;background:rgba(201,168,108,0.12);border:1px solid rgba(201,168,108,0.4);color:var(--accent-gold);font-family:'Inter',sans-serif;font-size:11px;font-weight:600;letter-spacing:0.5px;cursor:pointer;transition:all 0.2s;flex-shrink:0;white-space:nowrap; }
   .cr-action:hover { background:rgba(201,168,108,0.22); }
   .cr-action.danger { background:rgba(231,76,60,0.08);border-color:rgba(231,76,60,0.45);color:#e74c3c; }
@@ -567,6 +567,7 @@
   document.addEventListener('paste',function(e){const items=(e.clipboardData&&e.clipboardData.items)||[];let file=null;for(let i=0;i<items.length;i++){const it=items[i];if(it.type&&it.type.indexOf('image')===0){file=it.getAsFile();break;}}if(!file)return;const a=document.activeElement;const id=a&&a.id;if(id==='chatroomInput'){e.preventDefault();handleChatroomFile({files:[file],value:''});}else if(id==='aiInput'){e.preventDefault();handleAIFileUpload({files:[file],value:''});}});
   async function shareLightboxImg(){const blob=await _lightboxBlob();if(!blob){_ilbToast('Image unavailable');return;}const file=new File([blob],'FORI-image-'+Date.now()+_imgExt(blob.type),{type:blob.type||'image/jpeg'});try{if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file]});}else if(navigator.share){await navigator.share({title:'FORI image'});}else{saveLightboxImg();}}catch(e){}}
   async function prepareImageDataURL(file,limitChars){const original=await fileToDataURL(file);if(original.length<=limitChars)return {dataUrl:original,mime:file.type||'image/jpeg'};const steps=[[2200,0.92],[1800,0.88],[1400,0.82],[1100,0.75],[850,0.66]];for(const s of steps){const out=await compressImageToDataURL(file,s[0],s[1]);if(out.length<=limitChars)return {dataUrl:out,mime:'image/jpeg'};}const last=await compressImageToDataURL(file,800,0.55);return {dataUrl:last,mime:'image/jpeg',tooBig:last.length>limitChars};}
+  window.fileToDataURL=fileToDataURL;window.compressImageToDataURL=compressImageToDataURL;window.prepareImageDataURL=prepareImageDataURL;window.fileCardInner=fileCardInner;window.openImageView=openImageView;window.closeImageLightbox=closeImageLightbox;window._ilbToast=_ilbToast;window._lightboxBlob=_lightboxBlob;window._imgExt=_imgExt;window.saveLightboxImg=saveLightboxImg;window.copyLightboxImg=copyLightboxImg;window.shareLightboxImg=shareLightboxImg;window._toPng=_toPng;
   window.fsSendMessage = async function(connId, uid, name, text, fileUrl, fileName, fileData, fileType) {
     await addDoc(collection(db, 'connections', connId, 'messages'), {
       senderId: uid, senderName: name, text: text || '',
