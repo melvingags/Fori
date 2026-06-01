@@ -588,7 +588,7 @@ def ask():
 
         search_context = ""
         search_sources = []
-        if query_type == "research" or tier in ["premium", "business"]:
+        if query_type == "research":
             optimise = tier in ["premium", "business"]
             search_context, search_sources = search_legal_info(question, country, optimise=optimise)
             if not search_context:
@@ -701,7 +701,7 @@ def ask_stream():
 
         search_context = ""
         search_sources = []
-        if query_type == "research" or tier in ["premium", "business"]:
+        if query_type == "research" and image_part is None:
             optimise = tier in ["premium", "business"]
             search_context, search_sources = search_legal_info(question, country, optimise=optimise)
             if not search_context:
