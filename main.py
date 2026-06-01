@@ -95,7 +95,18 @@ def _build_fallback_chain():
 
 FALLBACK_CHAIN = _build_fallback_chain()
 
-def _oai_messages(prompt, system_prompt=None, ack=None, history=None):
+def _build_vision_chain():
+    """Vision-capable fallback providers (Llama 4 Scout is multimodal). Used only for image requests."""
+    vc = []
+    if GROQ_API_KEY:
+        vc.append({"name": "groq-llama4-vision", "url": GROQ_URL, "key": GROQ_API_KEY, "model": "meta-llama/llama-4-scout-17b-16e-instruct"})
+    if CEREBRAS_API_KEY:
+        vc.append({"name": "cerebras-llama4-vision", "url": CEREBRAS_URL, "key": CEREBRAS_API_KEY, "model": CEREBRAS_MODEL})
+    return vc
+
+VISION_CHAIN = _build_vision_chain()
+
+def _oai_messages(prompt, system_prompt=None, ack=None, history=None, image_url=None):
     msgs = []
     if system_prompt:
         msgs.append({"role": "system", "content": system_prompt})
@@ -105,7 +116,13 @@ def _oai_messages(prompt, system_prompt=None, ack=None, history=None):
         for m in history:
             r = "user" if m.get("role") == "user" else "assistant"
             msgs.append({"role": r, "content": m.get("content", "")})
-    msgs.append({"role": "user", "content": prompt})
+    if image_url:
+        msgs.append({"role": "user", "content": [
+            {"type": "text", "text": prompt},
+            {"type": "image_url", "image_url": {"url": image_url}},
+        ]})
+    else:
+        msgs.append({"role": "user", "content": prompt})
     return msgs
 
 def _fallback_generate(prompt, system_prompt=None, ack=None, history=None):
@@ -128,10 +145,11 @@ def _fallback_generate(prompt, system_prompt=None, ack=None, history=None):
         raise last
     raise RuntimeError("No fallback providers configured")
 
-def _fallback_stream(prompt, system_prompt=None, ack=None, history=None):
+def _fallback_stream(prompt, system_prompt=None, ack=None, history=None, image_url=None):
     last = None
-    msgs = _oai_messages(prompt, system_prompt, ack, history)
-    for p in FALLBACK_CHAIN:
+    msgs = _oai_messages(prompt, system_prompt, ack, history, image_url=image_url)
+    chain = VISION_CHAIN if image_url else FALLBACK_CHAIN
+    for p in chain:
         emitted = False
         try:
             resp = requests.post(
@@ -189,9 +207,11 @@ def generate_answer(prompt, system_prompt=None, ack=None, history=None):
             logger.warning(f"Gemini failed -> Groq fallback: {str(e)[:120]}")
     return _fallback_generate(prompt, system_prompt, ack, history)
 
-def stream_answer(prompt, system_prompt=None, ack=None, history=None, image=None):
-    """Generator. Try Gemini streaming; if it fails before output, silently switch to Groq.
-    `image`, if provided, is a dict {"mime_type":..., "data": bytes} passed to Gemini (multimodal)."""
+def stream_answer(prompt, system_prompt=None, ack=None, history=None, image=None, image_url=None):
+    """Generator. Try Gemini streaming first. If Gemini fails before producing output:
+    - for image requests, retry on the vision-capable fallback chain (Llama 4 Scout);
+    - for text requests, use the standard text fallback chain.
+    `image` is the Gemini blob {"mime_type":..,"data":bytes}; `image_url` is a data: URL for the OpenAI-style fallback."""
     if model:
         emitted = False
         try:
@@ -203,12 +223,23 @@ def stream_answer(prompt, system_prompt=None, ack=None, history=None, image=None
                     yield chunk.text
             return
         except Exception as e:
-            logger.warning(f"Gemini stream failed -> Groq fallback: {str(e)[:120]}")
+            logger.warning(f"Gemini stream failed -> fallback: {str(e)[:120]}")
             if emitted:
                 return
-            if image:
-                yield "I couldn't analyse that image just now. Please try again in a moment, or describe what it shows and I'll help."
+    # Gemini unavailable or failed before any output.
+    if image or image_url:
+        if image_url:
+            got = False
+            try:
+                for delta in _fallback_stream(prompt, system_prompt, ack, history, image_url=image_url):
+                    got = True
+                    yield delta
+            except Exception as e:
+                logger.warning(f"Vision fallback failed: {str(e)[:120]}")
+            if got:
                 return
+        yield "I couldn't analyse that image just now. Please try again in a moment, or describe what it shows and I'll help."
+        return
     for delta in _fallback_stream(prompt, system_prompt, ack, history):
         yield delta
 
@@ -581,7 +612,9 @@ User Request:
 {search_context}
 {type_instructions.get(query_type, '')}
 
-Provide a comprehensive response based on the laws of {country}."""
+RESPONSE STYLE: Lead immediately with the substantive answer. Do NOT open with greetings, pleasantries or filler such as "Hello there", "I'd be happy to help", "Great question", or "As an AI". Do not restate the request back. Get straight to the point. When a document or image is attached, analyse it directly — never say you merely received it, and never claim you cannot access or view it.
+
+Provide a thorough, accurate response based on the laws of {country}."""
 
         tier_intro = {
             "business": "elite-level legal counsel",
@@ -632,14 +665,17 @@ def ask_stream():
     memory_context = build_memory_context(memories)
 
     image_part = None
+    image_url = None
     img_b64 = data.get('imageData')
     img_mime = data.get('imageMime')
     if img_b64 and img_mime:
         try:
             image_part = {"mime_type": img_mime, "data": base64.b64decode(img_b64)}
+            image_url = f"data:{img_mime};base64,{img_b64}"
         except Exception as e:
             logger.warning(f"ask-stream image decode failed: {str(e)[:120]}")
             image_part = None
+            image_url = None
 
     if not question:
         return jsonify({'error': 'No question provided'}), 400
@@ -689,7 +725,14 @@ User Request:
 {search_context}
 {type_instructions.get(query_type, '')}
 
-Provide a comprehensive response based on the laws of {country}."""
+RESPONSE STYLE: Lead immediately with the substantive answer. Do NOT open with greetings, pleasantries or filler such as "Hello there", "I'd be happy to help", "Great question", or "As an AI". Do not restate the request back. Get straight to the point. When a document or image is attached, analyse it directly — never say you merely received it, and never claim you cannot access or view it.
+
+Provide a thorough, accurate response based on the laws of {country}."""
+
+        if image_part:
+            prompt += ("\n\nIMPORTANT: An image is attached to this request. You CAN see it. "
+                       "Examine the image directly and base your analysis on its actual visual contents — "
+                       "describe what is shown and analyse its legal relevance. Never claim you are unable to view images.")
 
         tier_intro = {
             "business": "elite-level legal counsel",
@@ -703,7 +746,7 @@ Provide a comprehensive response based on the laws of {country}."""
         def generate():
             try:
                 full_answer = ""
-                for piece in stream_answer(prompt, system_prompt=system_prompt, ack=ack, history=history, image=image_part):
+                for piece in stream_answer(prompt, system_prompt=system_prompt, ack=ack, history=history, image=image_part, image_url=image_url):
                     full_answer += piece
                     yield f"data: {json.dumps({'chunk': piece})}\n\n"
                 remaining = get_remaining_questions(ip) if tier == "free" else None
