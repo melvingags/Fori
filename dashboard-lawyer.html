@@ -256,6 +256,15 @@
   .sidebar-bell { position:relative;background:transparent;border:none;color:var(--text-secondary);cursor:pointer;padding:4px;display:flex;align-items:center;justify-content:center; }
   .sidebar-bell:hover { color:var(--accent-gold); }
   .sidebar-bell-badge { position:absolute;top:-3px;right:-3px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:#e74c3c;color:#fff;font-size:10px;line-height:16px;text-align:center;display:none;font-weight:700; }
+  .tool-hist { margin-top:22px; }
+  .tool-hist .th-head { display:flex;align-items:center;justify-content:space-between;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px; }
+  .tool-hist .th-clear { background:none;border:none;color:var(--text-muted);font-size:10px;letter-spacing:1px;text-transform:uppercase;cursor:pointer; }
+  .tool-hist .th-item { border:1px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden;background:var(--bg-secondary); }
+  .tool-hist .th-row { display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 14px;cursor:pointer; }
+  .tool-hist .th-row:hover { background:rgba(201,168,108,0.06); }
+  .tool-hist .th-title { font-size:13px;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+  .tool-hist .th-time { font-size:11px;color:var(--text-muted);flex-shrink:0; }
+  .tool-hist .th-body { padding:14px 16px 16px;border-top:1px solid var(--border);line-height:1.8;font-size:13.5px;color:var(--text-primary); }
   .fori-toast { position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:rgba(20,20,20,0.95);color:#fff;padding:11px 20px;border-radius:24px;font-size:13.5px;z-index:99999;opacity:0;transition:opacity .25s;pointer-events:none;max-width:82%;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,0.4); }
   .fori-toast.show { opacity:1; }
   .notif-modal-overlay { position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:99990;display:none;align-items:flex-start;justify-content:center;padding:74px 16px; }
@@ -959,6 +968,7 @@
         <div style="font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--text-primary);margin-bottom:8px;">Searching legal databases...</div>
         <div style="font-size:13px;color:var(--text-secondary);">FORI is searching legislation, case law and commentary. 15–30 seconds.</div>
       </div>
+      <div class="tool-hist" id="researchHist"></div>
       <div id="researchResults" style="display:none;">
         <div id="researchSourcesPanel" style="display:none;margin-bottom:16px;">
           <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px;">Sources Found</div>
@@ -1014,6 +1024,7 @@
         <div style="font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--text-primary);margin-bottom:8px;">Comparing documents...</div>
         <div style="font-size:13px;color:var(--text-secondary);">FORI is analysing both documents. This may take 30–60 seconds.</div>
       </div>
+      <div class="tool-hist" id="compareHist"></div>
       <div id="compareResults" style="display:none;">
         <div id="compareVerdictBadge" style="padding:10px 16px;margin-bottom:16px;font-size:12px;letter-spacing:1px;text-transform:uppercase;font-weight:600;text-align:center;display:none;"></div>
         <div id="compareOutput" style="background:var(--bg-secondary);border:1px solid var(--border);padding:24px;line-height:1.9;font-size:14px;color:var(--text-primary);white-space:pre-wrap;font-family:'Inter',sans-serif;min-height:200px;"></div>
@@ -1051,6 +1062,7 @@
         <div style="font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--text-primary);margin-bottom:8px;">Retrieving clause...</div>
         <div style="font-size:13px;color:var(--text-secondary);">FORI is drafting the clause with variations and notes.</div>
       </div>
+      <div class="tool-hist" id="clauseHist"></div>
       <div id="clauseResults" style="display:none;">
         <div id="clauseOutput" style="background:var(--bg-secondary);border:1px solid var(--border);padding:24px;line-height:1.9;font-size:14px;color:var(--text-primary);white-space:pre-wrap;font-family:'Inter',sans-serif;min-height:200px;"></div>
         <div style="display:flex;gap:10px;margin-top:16px;">
@@ -1097,6 +1109,7 @@
         <div style="font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--text-primary);margin-bottom:8px;">Analysing case...</div>
         <div style="font-size:13px;color:var(--text-secondary);">FORI is assessing the legal landscape and likely outcomes.</div>
       </div>
+      <div class="tool-hist" id="outcomeHist"></div>
       <div id="outcomeResults" style="display:none;">
         <div id="outcomeUrgencyBadge" style="padding:10px 16px;margin-bottom:16px;font-size:12px;letter-spacing:1px;text-transform:uppercase;font-weight:600;text-align:center;display:none;"></div>
         <div id="outcomeOutput" style="background:var(--bg-secondary);border:1px solid var(--border);padding:24px;line-height:1.9;font-size:14px;color:var(--text-primary);white-space:pre-wrap;font-family:'Inter',sans-serif;min-height:200px;"></div>
@@ -1136,6 +1149,7 @@
         <div style="font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--text-primary);margin-bottom:8px;" id="contractProcessingLabel">Analysing contract...</div>
         <div style="font-size:13px;color:var(--text-secondary);">FORI is reviewing every clause. This may take 30–60 seconds.</div>
       </div>
+      <div class="tool-hist" id="contractHist"></div>
       <div id="contractResults" style="display:none;">
         <div id="contractRiskBadge" style="padding:10px 16px;margin-bottom:16px;font-size:12px;letter-spacing:1px;text-transform:uppercase;font-weight:600;text-align:center;"></div>
         <div id="contractOutput" style="background:var(--bg-secondary);border:1px solid var(--border);padding:24px;line-height:1.9;font-size:14px;color:var(--text-primary);white-space:pre-wrap;font-family:'Inter',sans-serif;min-height:200px;"></div>
@@ -1531,12 +1545,18 @@
     if (page === 'clients') loadClients();
     if (page === 'documents') loadDocs();
     if (page === 'aihistory') renderAIHistory();
+    if (['contract','outcome','compare','clause','research'].indexOf(page)>=0) toolHistRender(page);
     if (page === 'profile') initLawyerSettings();
     if (page === 'marketplace') loadMarketplaceListing();
     closeSidebar();
   }
   function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); document.getElementById('sidebarOverlay').classList.toggle('visible'); }
   function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('sidebarOverlay').classList.remove('visible'); }
+  function toolHistKey(tool){return 'foriToolHistLaw_'+tool;}
+  function toolHistSave(tool,title,body){if(!body)return;try{var a=JSON.parse(localStorage.getItem(toolHistKey(tool))||'[]');a.unshift({id:Date.now(),t:new Date().toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}),title:(title||'Result').toString().slice(0,80),body:body});if(a.length>25)a.pop();localStorage.setItem(toolHistKey(tool),JSON.stringify(a));}catch(e){}toolHistRender(tool);}
+  function toolHistRender(tool){var c=document.getElementById(tool+'Hist');if(!c)return;var a=[];try{a=JSON.parse(localStorage.getItem(toolHistKey(tool))||'[]');}catch(e){}if(!a.length){c.innerHTML='';return;}c.innerHTML='<div class="th-head"><span>History</span><button class="th-clear" onclick="toolHistClear(\''+tool+'\')">Clear</button></div>'+a.map(function(x){return '<div class="th-item"><div class="th-row" onclick="toolHistToggle(\''+tool+'\','+x.id+')"><div class="th-title">'+escapeHtml(x.title)+'</div><div class="th-time">'+x.t+'</div></div><div class="th-body" id="thb-'+tool+'-'+x.id+'" style="display:none;"></div></div>';}).join('');}
+  function toolHistToggle(tool,id){var b=document.getElementById('thb-'+tool+'-'+id);if(!b)return;if(b.style.display==='none'){var a=[];try{a=JSON.parse(localStorage.getItem(toolHistKey(tool))||'[]');}catch(e){}var it=a.find(function(x){return x.id===id;});b.innerHTML=it?renderMarkdown(it.body):'';b.style.display='block';}else{b.style.display='none';}}
+  function toolHistClear(tool){if(!confirm('Clear this history?'))return;localStorage.removeItem(toolHistKey(tool));toolHistRender(tool);}
   function showUpgrade() { document.getElementById('upgradeModal').style.display = 'flex'; }
   function gatedPage(page, navEl) { if (!isLawyerPremium) { showUpgrade(); return; } showPage(page, navEl); }
   function logout() { window.lexSignOut ? window.lexSignOut() : (localStorage.removeItem('foriUser'), localStorage.removeItem('foriRole'), window.location.href = 'auth.html'); }
@@ -1778,6 +1798,7 @@
     });
   }
 
+  function _scrollChatBottom(wrap){if(!wrap)return;var go=function(){wrap.scrollTop=wrap.scrollHeight;};go();if(window.requestAnimationFrame)requestAnimationFrame(go);setTimeout(go,150);setTimeout(go,500);try{wrap.querySelectorAll('img').forEach(function(im){if(!im.complete){im.addEventListener('load',go,{once:true});im.addEventListener('error',go,{once:true});}});}catch(e){}}
   function renderChatroomMsgs(msgs) {
     const wrap = document.getElementById('chatroomMsgs');
     const uid = window._lexUid || user.uid;
@@ -1797,7 +1818,7 @@
       return `<div class="msg-row ${role}"><div class="msg-col">${inner}<div class="msg-time">${meta}</div></div></div>`;
     } catch(_e){ return `<div class="msg-row assistant"><div class="msg-col"><div class="msg-bubble assistant">📎 ${String((m&&m.fileName)||'Attachment').replace(/[<>&]/g,'')}</div></div></div>`; }
     }).join('');
-    wrap.scrollTop = wrap.scrollHeight;
+    _scrollChatBottom(wrap);
     try { const last = msgs[msgs.length-1]; const ms = (last && last.createdAt && last.createdAt.toMillis) ? last.createdAt.toMillis() : Date.now(); markConnSeen(_activeConnId, ms); } catch(e) {}
     refreshUnreadBadges();
   }
@@ -2149,7 +2170,7 @@
             const data = JSON.parse(line.slice(6));
             if (data.chunk) { researchResultText += data.chunk; output.innerHTML = renderMarkdown(researchResultText); output.scrollTop = output.scrollHeight; }
             if (data.error) output.textContent = 'Error: ' + data.error;
-            if (data.done) { researchSources = data.sources||[]; renderResearchSources(researchSources); addNotif('Legal research complete.'); saveMemory('question', `Research: ${topic}\n\n${researchResultText.slice(0,1500)}`); }
+            if (data.done) { researchSources = data.sources||[]; renderResearchSources(researchSources); addNotif('Legal research complete.');toolHistSave('research',((document.getElementById('researchTopic')||{}).value||'Research'),researchResultText); saveMemory('question', `Research: ${topic}\n\n${researchResultText.slice(0,1500)}`); }
           } catch(e) {}
         }
       }
@@ -2201,7 +2222,7 @@
       const reader=response.body.getReader(); const decoder=new TextDecoder(); let buffer='';
       document.getElementById('compareProcessing').style.display='none'; document.getElementById('compareResults').style.display='block';
       const output=document.getElementById('compareOutput'); output.textContent='';
-      while(true){const{done,value}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});const lines=buffer.split('\n');buffer=lines.pop();for(const line of lines){if(!line.startsWith('data: '))continue;try{const data=JSON.parse(line.slice(6));if(data.chunk){compareResultText+=data.chunk;output.innerHTML=renderMarkdown(compareResultText);output.scrollTop=output.scrollHeight;}if(data.error)output.textContent='Error: '+data.error;if(data.done){setCompareVerdictBadge(compareResultText);addNotif('Document comparison complete.');saveMemory('compare',`Compared: ${compareFileA.name} vs ${compareFileB.name}\n\n${compareResultText.slice(0,1500)}`);}}catch(e){}}}
+      while(true){const{done,value}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});const lines=buffer.split('\n');buffer=lines.pop();for(const line of lines){if(!line.startsWith('data: '))continue;try{const data=JSON.parse(line.slice(6));if(data.chunk){compareResultText+=data.chunk;output.innerHTML=renderMarkdown(compareResultText);output.scrollTop=output.scrollHeight;}if(data.error)output.textContent='Error: '+data.error;if(data.done){setCompareVerdictBadge(compareResultText);addNotif('Document comparison complete.');toolHistSave('compare',((typeof compareFileA!=='undefined'&&compareFileA?compareFileA.name:'Doc A')+' vs '+(typeof compareFileB!=='undefined'&&compareFileB?compareFileB.name:'Doc B')),compareResultText);saveMemory('compare',`Compared: ${compareFileA.name} vs ${compareFileB.name}\n\n${compareResultText.slice(0,1500)}`);}}catch(e){}}}
     } catch(e){document.getElementById('compareProcessing').style.display='none';document.getElementById('compareResults').style.display='block';document.getElementById('compareOutput').textContent='Connection error. Please try again.';} finally{document.getElementById('compareBtn').disabled=false;}
   }
   function setCompareVerdictBadge(text) {
@@ -2226,7 +2247,7 @@
       const reader=response.body.getReader();const decoder=new TextDecoder();let buffer='';
       document.getElementById('clauseProcessing').style.display='none';document.getElementById('clauseResults').style.display='block';
       const output=document.getElementById('clauseOutput');output.textContent='';
-      while(true){const{done,value}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});const lines=buffer.split('\n');buffer=lines.pop();for(const line of lines){if(!line.startsWith('data: '))continue;try{const data=JSON.parse(line.slice(6));if(data.chunk){clauseResultText+=data.chunk;output.innerHTML=renderMarkdown(clauseResultText);output.scrollTop=output.scrollHeight;}if(data.error)output.textContent='Error: '+data.error;if(data.done){addNotif('Clause retrieved.');saveMemory('clause',`Clause: ${query}\n\n${clauseResultText.slice(0,1500)}`);}}catch(e){}}}
+      while(true){const{done,value}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});const lines=buffer.split('\n');buffer=lines.pop();for(const line of lines){if(!line.startsWith('data: '))continue;try{const data=JSON.parse(line.slice(6));if(data.chunk){clauseResultText+=data.chunk;output.innerHTML=renderMarkdown(clauseResultText);output.scrollTop=output.scrollHeight;}if(data.error)output.textContent='Error: '+data.error;if(data.done){addNotif('Clause retrieved.');toolHistSave('clause',((document.getElementById('clauseQuery')||{}).value||'Clause'),clauseResultText);saveMemory('clause',`Clause: ${query}\n\n${clauseResultText.slice(0,1500)}`);}}catch(e){}}}
     }catch(e){document.getElementById('clauseProcessing').style.display='none';document.getElementById('clauseResults').style.display='block';document.getElementById('clauseOutput').textContent='Connection error. Please try again.';}
   }
   function clearClauseResult(){clauseResultText='';document.getElementById('clauseResults').style.display='none';document.getElementById('clauseOutput').textContent='';}
@@ -2245,7 +2266,7 @@
       const reader=response.body.getReader();const decoder=new TextDecoder();let buffer='';
       document.getElementById('outcomeProcessing').style.display='none';document.getElementById('outcomeResults').style.display='block';
       const output=document.getElementById('outcomeOutput');output.textContent='';
-      while(true){const{done,value}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});const lines=buffer.split('\n');buffer=lines.pop();for(const line of lines){if(!line.startsWith('data: '))continue;try{const data=JSON.parse(line.slice(6));if(data.chunk){outcomeResultText+=data.chunk;output.innerHTML=renderMarkdown(outcomeResultText);output.scrollTop=output.scrollHeight;}if(data.error)output.textContent='Error: '+data.error;if(data.done){setUrgencyBadge(outcomeResultText);addNotif('Case outcome assessment complete.');saveMemory('outcome',`Area: ${area}\n\nFacts: ${facts.slice(0,500)}\n\nAssessment: ${outcomeResultText.slice(0,1500)}`);}}catch(e){}}}
+      while(true){const{done,value}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});const lines=buffer.split('\n');buffer=lines.pop();for(const line of lines){if(!line.startsWith('data: '))continue;try{const data=JSON.parse(line.slice(6));if(data.chunk){outcomeResultText+=data.chunk;output.innerHTML=renderMarkdown(outcomeResultText);output.scrollTop=output.scrollHeight;}if(data.error)output.textContent='Error: '+data.error;if(data.done){setUrgencyBadge(outcomeResultText);addNotif('Case outcome assessment complete.');toolHistSave('outcome',((document.getElementById('outcomeArea')||{}).value||'Case assessment'),outcomeResultText);saveMemory('outcome',`Area: ${area}\n\nFacts: ${facts.slice(0,500)}\n\nAssessment: ${outcomeResultText.slice(0,1500)}`);}}catch(e){}}}
     }catch(e){document.getElementById('outcomeProcessing').style.display='none';document.getElementById('outcomeResults').style.display='block';document.getElementById('outcomeOutput').textContent='Connection error. Please try again.';}
   }
   function setUrgencyBadge(text){
@@ -2294,7 +2315,7 @@
       const reader=response.body.getReader();const decoder=new TextDecoder();let buffer='';contractResultText='';
       document.getElementById('contractProcessing').style.display='none';document.getElementById('contractResults').style.display='block';
       const output=document.getElementById('contractOutput');output.textContent='';
-      while(true){const{done,value}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});const lines=buffer.split('\n');buffer=lines.pop();for(const line of lines){if(!line.startsWith('data: '))continue;try{const data=JSON.parse(line.slice(6));if(data.chunk){contractResultText+=data.chunk;output.innerHTML=renderMarkdown(contractResultText);output.scrollTop=output.scrollHeight;}if(data.error)output.textContent='Error: '+data.error;if(data.done){setRiskBadge(contractResultText);addNotif('Contract '+(contractMode==='redline'?'redline':'review')+' complete.');saveMemory(contractMode==='redline'?'redline':'contract_review',`File: ${contractFile.name}\n\n${contractResultText.slice(0,2000)}`);}}catch(e){}}}
+      while(true){const{done,value}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});const lines=buffer.split('\n');buffer=lines.pop();for(const line of lines){if(!line.startsWith('data: '))continue;try{const data=JSON.parse(line.slice(6));if(data.chunk){contractResultText+=data.chunk;output.innerHTML=renderMarkdown(contractResultText);output.scrollTop=output.scrollHeight;}if(data.error)output.textContent='Error: '+data.error;if(data.done){setRiskBadge(contractResultText);addNotif('Contract '+(contractMode==='redline'?'redline':'review')+' complete.');toolHistSave('contract',((typeof contractFile!=='undefined'&&contractFile?contractFile.name:'document')),contractResultText);saveMemory(contractMode==='redline'?'redline':'contract_review',`File: ${contractFile.name}\n\n${contractResultText.slice(0,2000)}`);}}catch(e){}}}
     }catch(e){document.getElementById('contractProcessing').style.display='none';document.getElementById('contractResults').style.display='block';document.getElementById('contractOutput').textContent='Connection error. Please try again.';}
     finally{document.getElementById('contractAnalyseBtn').disabled=false;}
   }
