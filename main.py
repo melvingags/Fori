@@ -486,6 +486,33 @@ def admin():
     return "Not found", 404
 
 
+def _send_asset(filename, mimetype):
+    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
+    if os.path.exists(p):
+        return send_file(p, mimetype=mimetype)
+    return "", 404
+
+@app.route('/favicon.ico')
+def favicon_ico():
+    return _send_asset('favicon.ico', 'image/x-icon')
+
+@app.route('/apple-touch-icon.png')
+def apple_touch_icon():
+    return _send_asset('apple-touch-icon.png', 'image/png')
+
+@app.route('/apple-touch-icon-precomposed.png')
+def apple_touch_icon_pre():
+    return _send_asset('apple-touch-icon.png', 'image/png')
+
+@app.route('/favicon-192.png')
+def favicon_192():
+    return _send_asset('favicon-192.png', 'image/png')
+
+@app.route('/favicon-512.png')
+def favicon_512():
+    return _send_asset('favicon-512.png', 'image/png')
+
+
 # ── LAWYER DIRECTORY (server-side; admin SDK bypasses client security rules) ──
 def _get_firestore_client():
     import firebase_admin
