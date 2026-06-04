@@ -1626,6 +1626,7 @@
       const _lastA=[...aiHistory].reverse().find(m=>m && m.role==='assistant' && m.content);
       if (_lastA) { var _fmt=/\bpdf\b/i.test(typed)?'pdf':(/\b(txt|text)\b/i.test(typed)?'txt':'doc'); input.value=''; input.style.height='auto'; appendAIMessage('user', typed); appendAIMessage('assistant', '\ud83d\udcc4 Here is your '+(_fmt==='pdf'?'PDF':(_fmt==='txt'?'text file':'Word document'))+' \u2014 '+(_fmt==='pdf'?'opening the save dialog\u2026':'downloading now.')); if(_fmt==='pdf')downloadPdf(_lastA.content,'FORI_document'); else if(_fmt==='txt')downloadTxt(_lastA.content,'FORI_document'); else downloadDoc(_lastA.content,'FORI_document'); return; }
     }
+    window._pendingAiFmt = (/\b(pdf|word|docx?|txt|text)\b/i.test(typed) && /\b(send|save|download|export|give|make|provide|generate|create|draft|produce|return|as|format)\b/i.test(typed)) ? (/\bpdf\b/i.test(typed)?'pdf':(/\b(txt|text)\b/i.test(typed)?'txt':'doc')) : null;
     const country = document.getElementById('aiCountry').value;
     const category = document.getElementById('aiTask').value;
     const fileName = aiAttachName, fileText = aiAttachText, imgData = aiAttachImageData, imgMime = aiAttachImageMime, imgPreview = aiAttachImagePreview;
@@ -1678,6 +1679,7 @@
               const colEl = bubble.querySelector('.msg-col'); const timeEl = bubble.querySelector('.msg-time');
               if (colEl && timeEl) colEl.insertBefore(actionsEl, timeEl); else bubble.appendChild(actionsEl);
               aiHistory.push({ role: 'assistant', content: payload.answer });
+              if(window._pendingAiFmt){var _f=window._pendingAiFmt;window._pendingAiFmt=null;setTimeout(function(){try{if(_f==='pdf')downloadPdf(payload.answer,'FORI_document');else if(_f==='txt')downloadTxt(payload.answer,'FORI_document');else downloadDoc(payload.answer,'FORI_document');}catch(e){}},300);}
               persistAiTurn(question, payload.answer, country, category, persistUserMeta);
               saveMemory('question', `Question: ${question}\n\nAnswer: ${payload.answer.slice(0, 1500)}`);
             }
@@ -1731,6 +1733,8 @@
     });
   }
 
+  var _photoCache={};
+  async function fetchUserPhoto(uid){ if(!uid) return ''; if(_photoCache[uid]!==undefined) return _photoCache[uid]; try{ var d=await window.fsLoadMarketplace(uid); var ph=(d&&d.photo)||''; _photoCache[uid]=ph; return ph; }catch(e){ _photoCache[uid]=''; return ''; } }
   function renderClients(conns) {
     const list = document.getElementById('clientsList');
     const visible = (conns||[]).filter(c => c.status !== 'declined');
@@ -1742,14 +1746,15 @@
       const name = c.userName || 'Client';
       const av = ((name.trim()[0])||'C').toUpperCase();
       if (c.status === 'pending') {
-        return `<div class="cl-row" style="cursor:default;align-items:flex-start;"><div class="cl-avatar">${av}</div><div class="cl-main"><div class="cl-top"><span class="cl-name">${escapeHtml(name)}</span><span class="cl-pill pending">new lead</span></div><div class="cl-preview" style="white-space:normal;">${escapeHtml((c.description||'').substring(0,90))}</div><div style="display:flex;gap:8px;margin-top:10px;"><button class="lead-btn decline" onclick="event.stopPropagation();declineConn('${c.id}')">Decline</button><button class="lead-btn accept" onclick="event.stopPropagation();acceptConn('${c.id}')">Accept</button></div></div></div>`;
+        return `<div class="cl-row" style="cursor:default;align-items:flex-start;"><div class="cl-avatar" id="cl-av-${c.id}">${av}</div><div class="cl-main"><div class="cl-top"><span class="cl-name">${escapeHtml(name)}</span><span class="cl-pill pending">new lead</span></div><div class="cl-preview" style="white-space:normal;">${escapeHtml((c.description||'').substring(0,90))}</div><div style="display:flex;gap:8px;margin-top:10px;"><button class="lead-btn decline" onclick="event.stopPropagation();declineConn('${c.id}')">Decline</button><button class="lead-btn accept" onclick="event.stopPropagation();acceptConn('${c.id}')">Accept</button></div></div></div>`;
       }
       const unread = connHasUnread(c);
       const t = (c.lastAt&&c.lastAt.toDate)?c.lastAt.toDate().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
       const prev = c.lastMessage?escapeHtml(c.lastMessage):escapeHtml((c.description||'').substring(0,60));
       const right = c.status==='closed'?'<span class="cl-pill closed">closed</span>':(unread?'<span class="cl-dot"></span>':'');
-      return `<div class="cl-row" onclick="openClientChat('${c.id}','${name.replace(/'/g,"\\'")}','${c.userId||''}','${c.status}')"><div class="cl-avatar">${av}</div><div class="cl-main"><div class="cl-top"><span class="cl-name">${escapeHtml(name)}</span><span class="cl-time">${t}</span></div><div class="cl-bottom"><span class="cl-preview ${unread?'unread':''}">${prev||'Tap to open chat'}</span>${right}</div></div></div>`;
+      return `<div class="cl-row" onclick="openClientChat('${c.id}','${name.replace(/'/g,"\\'")}','${c.userId||''}','${c.status}')"><div class="cl-avatar" id="cl-av-${c.id}">${av}</div><div class="cl-main"><div class="cl-top"><span class="cl-name">${escapeHtml(name)}</span><span class="cl-time">${t}</span></div><div class="cl-bottom"><span class="cl-preview ${unread?'unread':''}">${prev||'Tap to open chat'}</span>${right}</div></div></div>`;
     }).join('');
+    try{ sorted.forEach(function(c){ if(c.userId){ fetchUserPhoto(c.userId).then(function(ph){ if(ph){ var el=document.getElementById('cl-av-'+c.id); if(el) applyAvatarPhoto(el,ph,''); } }); } }); }catch(e){}
   }
 
   function renderOverviewLeads(pending) {
@@ -1783,7 +1788,7 @@
     if (_oc) { const _ms=(_oc.lastAt&&_oc.lastAt.toMillis)?_oc.lastAt.toMillis():Date.now(); markConnSeen(connId,_ms); }
     refreshUnreadBadges();
     document.getElementById('chatroomName').textContent = clientName;
-    document.getElementById('chatroomAvatar').textContent = ((clientName||'C').trim()[0]||'C').toUpperCase();
+    var _ca0=document.getElementById('chatroomAvatar'); if(_ca0){ _ca0.style.backgroundImage=''; _ca0.style.removeProperty('background-size'); _ca0.style.color=''; _ca0.textContent=((clientName||'C').trim()[0]||'C').toUpperCase(); } if(clientId) fetchUserPhoto(clientId).then(function(ph){ if(ph&&_ca0) applyAvatarPhoto(_ca0,ph,''); });
     document.getElementById('chatroomStatus').innerHTML = status === 'closed' ? '<span style="width:7px;height:7px;border-radius:50%;background:var(--text-muted);display:inline-block;"></span>Case Closed' : '<span style="width:7px;height:7px;border-radius:50%;background:#27ae60;display:inline-block;"></span>Active Case';
     const closeBtn = document.getElementById('closeCaseBtn');
     if (closeBtn) closeBtn.style.display = status === 'closed' ? 'none' : 'inline-flex';
@@ -1797,12 +1802,15 @@
   }
 
   function _scrollChatBottom(wrap){if(!wrap)return;var go=function(){wrap.scrollTop=wrap.scrollHeight;};go();if(window.requestAnimationFrame)requestAnimationFrame(go);setTimeout(go,150);setTimeout(go,500);try{wrap.querySelectorAll('img').forEach(function(im){if(!im.complete){im.addEventListener('load',go,{once:true});im.addEventListener('error',go,{once:true});}});}catch(e){}}
+  function _dayLabel(d){ if(!d) return ''; var now=new Date(); var dd=new Date(d.getFullYear(),d.getMonth(),d.getDate()); var td=new Date(now.getFullYear(),now.getMonth(),now.getDate()); var diff=Math.round((td-dd)/86400000); if(diff===0)return 'Today'; if(diff===1)return 'Yesterday'; if(diff>1&&diff<7)return dd.toLocaleDateString([],{weekday:'long'}); return dd.toLocaleDateString([],{year:'numeric',month:'short',day:'numeric'}); }
   function renderChatroomMsgs(msgs) {
     const wrap = document.getElementById('chatroomMsgs');
     const uid = window._lexUid || user.uid;
     if (!msgs.length) { wrap.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-muted);font-size:13px;">No messages yet. Start the conversation.</div>`; return; }
+    var _last=null;
     wrap.innerHTML = msgs.map(m => { try {
       const isMe = m.senderId === uid; const role = isMe ? 'user' : 'assistant';
+      const _d=(m.createdAt&&m.createdAt.toDate)?m.createdAt.toDate():null; const _lbl=_dayLabel(_d); let _divider=''; if(_lbl&&_lbl!==_last){_divider='<div class="day-divider">'+_lbl+'</div>';_last=_lbl;}
       const t = (m.createdAt && m.createdAt.toDate) ? m.createdAt.toDate().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
       const meta = isMe ? t : `${m.senderName||'Client'}${t?' · '+t:''}`;
       let inner;
@@ -1813,7 +1821,7 @@
       else if (src) { const dl = m.fileData ? `download="${escapeHtml(m.fileName||'file')}"` : 'target="_blank" rel="noopener"'; inner = `<a class="msg-file-card" href="${src}" ${dl}>${fileCardInner(m.fileName,ext)}</a>`; }
       else if (m.fileName) { inner = `<div class="msg-file-card">${fileCardInner(m.fileName,ext)}</div>`; }
       else { inner = `<div class="msg-bubble ${role}">${escapeHtml(m.text||'').replace(/\n/g,'<br>')}</div>`; }
-      return `<div class="msg-row ${role}"><div class="msg-col">${inner}<div class="msg-time">${meta}</div></div></div>`;
+      return _divider+`<div class="msg-row ${role}"><div class="msg-col">${inner}<div class="msg-time">${meta}</div></div></div>`;
     } catch(_e){ return `<div class="msg-row assistant"><div class="msg-col"><div class="msg-bubble assistant">📎 ${String((m&&m.fileName)||'Attachment').replace(/[<>&]/g,'')}</div></div></div>`; }
     }).join('');
     _scrollChatBottom(wrap);
@@ -1862,7 +1870,7 @@
   setTimeout(() => { if (window.fsLoadClients) loadClients(); }, 1500);
 
   // ── LAWYER SETTINGS ──
-  function applyAvatarPhoto(el,photo,initial){if(!el)return;if(photo){el.style.backgroundImage='url('+photo+')';el.textContent='';}else{el.style.backgroundImage='';el.textContent=initial||'';}}
+  function applyAvatarPhoto(el,photo,initial){if(!el)return;if(photo){el.style.backgroundImage='url('+photo+')';el.style.setProperty('background-size','cover','important');el.style.setProperty('background-position','center','important');el.style.setProperty('background-repeat','no-repeat','important');el.style.color='transparent';el.textContent='';}else{el.style.backgroundImage='';el.style.removeProperty('background-size');el.style.removeProperty('background-position');el.style.color='';el.textContent=initial||'';}}
   function _avatarInitial(){const u=JSON.parse(localStorage.getItem('foriUser')||'{}');return ((u.name||'F').trim()[0]||'F').toUpperCase();}
   function refreshAvatars(photo){const init=_avatarInitial();applyAvatarPhoto(document.getElementById('firmAvatarInitial'),photo,init);applyAvatarPhoto(document.getElementById('avatarPreview'),photo,init);}
   async function handleAvatarUpload(input){const file=input.files&&input.files[0];if(!file){return;}if(!(file.type||'').startsWith('image/')){addNotif('Please choose an image file.');input.value='';return;}try{let dataUrl=await window.compressImageToDataURL(file,320,0.82);if(dataUrl.length>600000)dataUrl=await window.compressImageToDataURL(file,200,0.7);saveAvatarPhoto(dataUrl);}catch(e){addNotif('Could not process that image. Please try another.');}input.value='';}
