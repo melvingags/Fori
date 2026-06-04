@@ -796,6 +796,13 @@ Provide a thorough, accurate response based on the laws of {country}."""
         return jsonify({'error': f'FORI encountered an error: {str(e)[:150]}'}), 500
 
 
+_FILE_NOTE = """
+
+FILE DELIVERY: The FORI app can deliver your response to the user as a downloadable PDF, Word, or text file automatically. If the user asks you to send, save, download, or export the content as a PDF, Word/.doc, or text file — including combined requests such as "draft a divorce notice and send as PDF" — simply produce the requested content in full and well-formatted. Never claim that you cannot generate, create, or send files, and do not tell the user to copy the text into a word processor or print to PDF; the FORI app performs the file conversion and download for you."""
+FREE_PROMPT = FREE_PROMPT + _FILE_NOTE
+PREMIUM_PROMPT = PREMIUM_PROMPT + _FILE_NOTE
+BUSINESS_PROMPT = BUSINESS_PROMPT + _FILE_NOTE
+
 TAX_PROMPT = """You are FORI Tax Assistant, an AI that helps individuals understand and PREPARE their personal income tax for their own country. You are NOT a substitute for a licensed tax professional or accountant, and you NEVER file or submit anything to a tax authority — the user files it themselves.
 
 You work for ANY country. Always apply the tax rules, bands, reliefs, allowances and the correct tax year for the user's stated country, in the user's currency. If you are not fully certain a rate is current, say so plainly and tell the user to confirm with their official tax authority.
