@@ -257,6 +257,43 @@
   .sidebar-bell { position:relative;background:transparent;border:none;color:var(--text-secondary);cursor:pointer;padding:4px;display:flex;align-items:center;justify-content:center; }
   .sidebar-bell:hover { color:var(--accent-gold); }
   .sidebar-bell-badge { position:absolute;top:-3px;right:-3px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:#e74c3c;color:#fff;font-size:10px;line-height:16px;text-align:center;display:none;font-weight:700; }
+  .set-row { display:flex;align-items:center;gap:14px;padding:15px 16px;border:1px solid var(--border);border-radius:12px;margin-bottom:10px;cursor:pointer;background:var(--bg-card);transition:background .2s; }
+  .set-row:hover { background:var(--bg-elevated); }
+  .set-row .set-ico { width:36px;height:36px;border-radius:10px;background:rgba(201,168,108,0.12);display:flex;align-items:center;justify-content:center;color:var(--accent-gold);flex-shrink:0; }
+  .set-row .set-meta { flex:1;min-width:0; }
+  .set-row-label { font-size:15px;color:var(--text-primary);font-weight:500; }
+  .set-row-sub { font-size:12px;color:var(--text-muted);margin-top:2px; }
+  .set-row .set-chev { color:var(--text-muted);font-size:22px;flex-shrink:0;line-height:1; }
+  .set-row.danger .set-ico { background:rgba(231,76,60,0.1);color:#e74c3c; }
+  .set-row.danger .set-row-label { color:#e74c3c; }
+  .set-detail { display:none; }
+  .set-detail.open { display:block; }
+  .set-back { display:inline-flex;align-items:center;gap:6px;color:var(--accent-gold);font-size:12px;cursor:pointer;margin-bottom:18px;letter-spacing:1px;text-transform:uppercase; }
+  .set-detail-title { font-family:'Cormorant Garamond',serif;font-size:27px;color:var(--text-primary);margin-bottom:6px; }
+  .set-detail-desc { font-size:13px;color:var(--text-muted);margin-bottom:22px; }
+  .set-card { background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:14px; }
+  .set-item { display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 0;border-bottom:1px solid var(--border-light); }
+  .set-item:first-child { padding-top:0; }
+  .set-item:last-child { border-bottom:none;padding-bottom:0; }
+  .set-item .si-label { font-size:14px;color:var(--text-primary); }
+  .set-item .si-sub { font-size:12px;color:var(--text-muted);margin-top:2px; }
+  .switch { position:relative;width:44px;height:26px;flex-shrink:0; }
+  .switch input { opacity:0;width:0;height:0; }
+  .switch .slider { position:absolute;inset:0;background:var(--border);border-radius:26px;transition:.25s;cursor:pointer; }
+  .switch .slider:before { content:'';position:absolute;width:20px;height:20px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.25s; }
+  .switch input:checked + .slider { background:var(--accent-gold); }
+  .switch input:checked + .slider:before { transform:translateX(18px); }
+  .theme-seg { display:flex;gap:8px; }
+  .theme-seg button { flex:1;padding:11px;border:1px solid var(--border);background:transparent;border-radius:8px;color:var(--text-secondary);cursor:pointer;font-size:13px;font-family:'Inter',sans-serif; }
+  .theme-seg button.active { border-color:var(--accent-gold);color:var(--accent-gold);background:rgba(201,168,108,0.08); }
+  .avatar-wrap { position:relative;width:84px;height:84px; }
+  .avatar-wrap .avatar-preview { width:84px;height:84px;font-size:34px; }
+  .avatar-cam { position:absolute;right:-2px;bottom:-2px;width:30px;height:30px;border-radius:50%;background:var(--accent-gold);color:#1a1208;border:2px solid var(--bg-card);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0; }
+  .link-btn { background:none;border:none;color:var(--accent-gold);font-size:12px;cursor:pointer;letter-spacing:.4px;padding:0;font-family:'Inter',sans-serif; }
+  .set-msg { display:none;font-size:12px;margin-top:10px;letter-spacing:.4px; }
+  .collapse-head { display:flex;align-items:center;justify-content:space-between;cursor:pointer; }
+  .collapse-chev { color:var(--text-muted);font-size:20px;line-height:1;transition:transform .2s; }
+  .collapse-chev.open { transform:rotate(90deg); }
   .tool-hist { margin-top:22px; }
   .tool-hist .th-head { display:flex;align-items:center;justify-content:space-between;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px; }
   .tool-hist .th-clear { background:none;border:none;color:var(--text-muted);font-size:10px;letter-spacing:1px;text-transform:uppercase;cursor:pointer; }
@@ -512,11 +549,13 @@
   onAuthStateChanged(auth, async (user) => {
     if (user) {
       window._lexUid = user.uid;
+      window._lexProvider = (user.providerData && user.providerData[0] && user.providerData[0].providerId) || 'password';
       const snap = await getDoc(doc(db, "users", user.uid));
       if (snap.exists()) {
         const data = snap.data();
         localStorage.setItem('foriUser', JSON.stringify({ uid: user.uid, email: user.email || '', name: data.name, role: data.role, plan: data.plan || 'free', photo: data.photo || '' }));
         localStorage.setItem('foriRole', data.role);
+        try{var _pr=JSON.parse(localStorage.getItem('foriLawyerPrefs')||'{}');_pr.photo=data.photo||_pr.photo||'';if(data.firm!==undefined)_pr.firm=data.firm||'';if(data.specialisation!==undefined)_pr.spec=data.specialisation||'';if(data.country!==undefined)_pr.country=data.country||'';if(data.barNumber!==undefined)_pr.bar=data.barNumber||'';if(data.bio!==undefined)_pr.bio=data.bio||'';if(data.name){var _n=String(data.name).split(' ');if(!_pr.firstName)_pr.firstName=_n[0]||'';if(!_pr.lastName)_pr.lastName=_n.slice(1).join(' ')||'';}_pr.verificationStatus=data.verificationStatus||(data.verified?'verified':(_pr.verificationStatus||'none'));if(data.verified)_pr.verified=true;localStorage.setItem('foriLawyerPrefs',JSON.stringify(_pr));var _av=document.getElementById('firmAvatarInitial');if(_av&&window.applyAvatarPhoto)window.applyAvatarPhoto(_av,_pr.photo||'',((data.name||'F').trim()[0]||'F').toUpperCase());}catch(e){}
         if (data.role !== 'lawyer') window.location.href = 'dashboard.html';
       }
     }
@@ -705,6 +744,10 @@
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
       History
     </a>
+    <a class="nav-item" onclick="showPage('marketplace', this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+      Marketplace Listing
+    </a>
     <a class="nav-item" onclick="showPage('leads', this)" id="navLeads">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 8.63a19.79 19.79 0 01-3.07-8.67A2 2 0 012.18 0h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.91 8.09a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>
       Client Leads
@@ -743,12 +786,6 @@
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       Legal Research
       <span class="nav-badge gold">AI</span>
-    </a>
-
-    <div class="nav-section-label">Profile</div>
-    <a class="nav-item" onclick="showPage('marketplace', this)">
-      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
-      Marketplace Listing
     </a>
 
     <div class="nav-section-label">Account</div>
@@ -1165,69 +1202,14 @@
       <div class="page-label">Account</div>
       <h1 class="page-title">Your <em>Settings</em></h1>
 
-            <div class="form-box" style="margin-bottom:24px;">
-        <div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--accent-gold);margin-bottom:20px;">Profile</div>
-        <div style="display:flex;align-items:center;gap:16px;margin-bottom:22px;"><div class="avatar-preview" id="avatarPreview">F</div><div style="display:flex;flex-direction:column;gap:8px;"><button type="button" class="submit-btn" style="padding:9px 16px;" onclick="document.getElementById('avatarInput').click()">Change Photo</button><button type="button" onclick="removeAvatarPhoto()" style="padding:9px 16px;background:transparent;border:1px solid var(--border);color:var(--text-muted);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Remove</button></div><input type="file" id="avatarInput" accept="image/*" style="display:none" onchange="handleAvatarUpload(this)"></div>
-        <div class="form-row">
-          <div class="form-group"><label class="form-label">First Name</label><input type="text" class="form-input" id="lwFirstName" placeholder="First name"></div>
-          <div class="form-group"><label class="form-label">Last Name</label><input type="text" class="form-input" id="lwLastName" placeholder="Last name"></div>
-        </div>
-        <div class="form-group"><label class="form-label">Firm Name</label><input type="text" class="form-input" id="lwFirm" placeholder="Your firm name"></div>
-        <div class="form-group"><label class="form-label">Email</label><input type="email" class="form-input" id="lwEmail" placeholder="your@firm.com"></div>
-        <div class="form-row">
-          <div class="form-group"><label class="form-label">Specialisation</label><input type="text" class="form-input" id="lwSpec" placeholder="e.g. Criminal Defense"></div>
-          <div class="form-group"><label class="form-label">Country</label><input type="text" class="form-input" id="lwCountry" placeholder="Nigeria"></div>
-        </div>
-        <div class="form-group"><label class="form-label">Bar Number / License</label><input type="text" class="form-input" id="lwBar" placeholder="For verification badge"></div>
-        <div class="form-group"><label class="form-label">Bio</label><textarea class="form-textarea" id="lwBio" placeholder="Brief professional bio..."></textarea></div>
-        <button class="submit-btn" onclick="saveLawyerProfile()">Save Profile</button>
-        <div id="lwProfileMsg" style="display:none;margin-top:12px;font-size:12px;color:#27ae60;letter-spacing:1px;">✓ Profile saved.</div>
-      </div>
-      <div class="form-box" id="verifyCard" style="margin-bottom:24px;">
-        <div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--accent-gold);margin-bottom:16px;">Verification</div>
-        <div style="margin-bottom:14px;"><span id="verifyStatusBadge" class="verify-pill none">Not verified</span></div>
-        <div style="font-size:13px;color:var(--text-secondary);line-height:1.7;margin-bottom:18px;">The <strong style="color:#27ae60;">&#10003; Verified</strong> badge tells clients you're a qualified, licensed professional reviewed by the FORI team. Fill in your <strong>Bar Number / License</strong> above and tap Save Profile, then request verification. Reviews are typically completed within 48 hours, and verified lawyers rank above unverified ones in the directory.</div>
-        <button class="submit-btn" id="verifyBtn" onclick="requestVerification()">Get Verified</button>
-        <div id="verifyMsg" style="display:none;margin-top:12px;font-size:12px;color:#27ae60;letter-spacing:1px;line-height:1.6;"></div>
-      </div>
+      <div id="settingsMaster"><div class="set-row " onclick="openSet('profile')"><div class="set-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg></div><div class="set-meta"><div class="set-row-label">My Profile</div><div class="set-row-sub">Firm details, photo &amp; verification</div></div><div class="set-chev">›</div></div><div class="set-row " onclick="openSet('preferences')"><div class="set-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><line x1="4" y1="8" x2="20" y2="8"/><circle cx="9" cy="8" r="2" fill="currentColor"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="15" cy="16" r="2" fill="currentColor"/></svg></div><div class="set-meta"><div class="set-row-label">Preferences</div><div class="set-row-sub">Appearance</div></div><div class="set-chev">›</div></div><div class="set-row " onclick="openSet('notifications')"><div class="set-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg></div><div class="set-meta"><div class="set-row-label">Notifications</div><div class="set-row-sub">Choose what alerts you</div></div><div class="set-chev">›</div></div><div class="set-row " onclick="openSet('privacy')"><div class="set-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><div class="set-meta"><div class="set-row-label">Privacy &amp; Data</div><div class="set-row-sub">Your data &amp; our policies</div></div><div class="set-chev">›</div></div><div class="set-row " onclick="openSet('security')"><div class="set-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg></div><div class="set-meta"><div class="set-row-label">Security</div><div class="set-row-sub">Password &amp; sign out</div></div><div class="set-chev">›</div></div><div class="set-row danger" onclick="openSet('danger')"><div class="set-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg></div><div class="set-meta"><div class="set-row-label">Danger Zone</div><div class="set-row-sub">Delete your account</div></div><div class="set-chev">›</div></div></div>
+    <div class="set-detail" id="setpanel-profile"><div class="set-back" onclick="closeSet()">← Settings</div><div class="set-detail-title">My Profile</div><div class="set-detail-desc">Your firm details and verification.</div><div class="set-card"><div style="display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:22px;"><div class="avatar-wrap"><div class="avatar-preview" id="avatarPreview">F</div><button type="button" class="avatar-cam" onclick="document.getElementById('avatarInput').click()" aria-label="Upload photo"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg></button></div><button type="button" class="link-btn" onclick="removeAvatarPhoto()">Remove photo</button><input type="file" id="avatarInput" accept="image/*" style="display:none" onchange="handleAvatarUpload(this)"></div><div class="form-row"><div class="form-group"><label class="form-label">First Name</label><input type="text" class="form-input" id="lwFirstName" placeholder="First name"></div><div class="form-group"><label class="form-label">Last Name</label><input type="text" class="form-input" id="lwLastName" placeholder="Last name"></div></div><div class="form-group"><label class="form-label">Firm Name</label><input type="text" class="form-input" id="lwFirm" placeholder="Your firm name"></div><div class="form-group"><label class="form-label">Email</label><input type="email" class="form-input" id="lwEmail" placeholder="your@firm.com"></div><div class="form-row"><div class="form-group"><label class="form-label">Specialisation</label><input type="text" class="form-input" id="lwSpec" placeholder="e.g. Corporate Law"></div><div class="form-group"><label class="form-label">Country</label><input type="text" class="form-input" id="lwCountry" placeholder="Nigeria"></div></div><div class="form-group"><label class="form-label">Bar Number / License</label><input type="text" class="form-input" id="lwBar" placeholder="For verification"></div><div class="form-group"><label class="form-label">Bio</label><textarea class="form-textarea" id="lwBio" placeholder="Brief professional bio..."></textarea></div><button class="submit-btn" onclick="saveLawyerProfile()">Save Profile</button><div id="lwProfileMsg" style="display:none;margin-top:12px;font-size:12px;color:#27ae60;letter-spacing:1px;">✓ Profile saved.</div></div><div class="set-card" id="verifyCard"><div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--accent-gold);margin-bottom:14px;">Verification</div><div style="margin-bottom:14px;"><span id="verifyStatusBadge" class="verify-pill none">Not verified</span></div><div style="font-size:13px;color:var(--text-secondary);line-height:1.7;margin-bottom:18px;">A verified badge builds client trust. Submit your bar number and we will review your credentials.</div><button class="submit-btn" id="verifyBtn" onclick="requestVerification()">Get Verified</button><div id="verifyMsg" style="display:none;margin-top:12px;font-size:12px;color:#27ae60;letter-spacing:1px;line-height:1.6;"></div></div></div>
+    <div class="set-detail" id="setpanel-preferences"><div class="set-back" onclick="closeSet()">← Settings</div><div class="set-detail-title">Preferences</div><div class="set-detail-desc">Appearance.</div><div class="set-card"><div class="set-item" style="display:block;border-bottom:none;"><div class="si-label" style="margin-bottom:10px;">Theme</div><div class="theme-seg"><button data-t="dark" onclick="setThemeL('dark')">🌙 Dark</button><button data-t="light" onclick="setThemeL('light')">☀️ Light</button></div></div></div></div>
+    <div class="set-detail" id="setpanel-notifications"><div class="set-back" onclick="closeSet()">← Settings</div><div class="set-detail-title">Notifications</div><div class="set-detail-desc">Choose what you get notified about.</div><div class="set-card"><div class="set-item"><div><div class="si-label">New client requests</div><div class="si-sub">When a client sends you a request</div></div><label class="switch"><input type="checkbox" id="lwNotifRequests" checked onchange="saveLawyerNotifPrefs()"><span class="slider"></span></label></div><div class="set-item"><div><div class="si-label">New messages</div><div class="si-sub">New chat messages from clients</div></div><label class="switch"><input type="checkbox" id="lwNotifMessages" checked onchange="saveLawyerNotifPrefs()"><span class="slider"></span></label></div><div class="set-item"><div><div class="si-label">System updates</div><div class="si-sub">Important FORI announcements</div></div><label class="switch"><input type="checkbox" id="lwNotifSystem" checked onchange="saveLawyerNotifPrefs()"><span class="slider"></span></label></div></div></div>
+    <div class="set-detail" id="setpanel-privacy"><div class="set-back" onclick="closeSet()">← Settings</div><div class="set-detail-title">Privacy &amp; Data</div><div class="set-detail-desc">Control your data and review our policies.</div><div class="set-card"><div class="si-sub" style="line-height:1.75;">FORI stores your firm profile, client connections, messages, and any documents you handle — solely to provide and improve the service. We never sell your data.</div></div><div class="set-card"><div class="set-item" style="border-bottom:none;"><div><div class="si-label">AI memory</div><div class="si-sub">Clears what FORI remembers on this device</div></div><button class="submit-btn" style="padding:9px 16px;width:auto;" onclick="clearAIMemoryL()">Clear</button></div></div><div class="set-card"><div class="set-item" style="cursor:pointer;" onclick="window.location.href='/?legal=privacy'"><div class="si-label">Privacy Policy</div><span class="set-chev">›</span></div><div class="set-item" style="cursor:pointer;" onclick="window.location.href='/?legal=terms'"><div class="si-label">Terms of Service</div><span class="set-chev">›</span></div><div class="set-item" style="cursor:pointer;border-bottom:none;" onclick="window.location.href='/?legal=disclaimer'"><div class="si-label">Disclaimer</div><span class="set-chev">›</span></div></div></div>
+    <div class="set-detail" id="setpanel-security"><div class="set-back" onclick="closeSet()">← Settings</div><div class="set-detail-title">Security</div><div class="set-detail-desc">Manage your password and session.</div><div class="set-card" id="pwForm"><div class="collapse-head" onclick="togglePwBoxL()"><span class="si-label">Change Password</span><span class="collapse-chev" id="pwChev">›</span></div><div id="pwBox" style="display:none;margin-top:14px;"><input type="password" id="lwCurrentPass" class="form-input" placeholder="Current password" style="margin-bottom:10px;"><input type="password" id="lwNewPass" class="form-input" placeholder="New password" style="margin-bottom:10px;"><input type="password" id="lwConfirmPass" class="form-input" placeholder="Confirm new password" style="margin-bottom:10px;"><button class="submit-btn" onclick="doChangeLawyerPassword()">Update Password</button><div id="lwPassMsg" class="set-msg"></div><div style="margin-top:14px;"><button class="link-btn" onclick="sendResetLawyer()">Forgot password? Send reset link</button></div></div></div><div class="set-card" id="pwSocialNote" style="display:none;"><div class="si-sub">You signed in with a Google or Apple account, so your password is managed there.</div></div><div class="set-card"><div class="set-item" style="border-bottom:none;"><div><div class="si-label">Sign out</div><div class="si-sub">Sign out of FORI on this device</div></div><button class="submit-btn" style="padding:9px 16px;width:auto;" onclick="logout()">Sign Out</button></div></div></div>
+    <div class="set-detail" id="setpanel-danger"><div class="set-back" onclick="closeSet()">← Settings</div><div class="set-detail-title" style="color:#e74c3c;">Danger Zone</div><div class="set-detail-desc">Permanent actions that cannot be undone.</div><div style="background:rgba(231,76,60,0.04);border:1px solid rgba(231,76,60,0.2);border-radius:12px;padding:22px;"><div class="si-label" style="color:#e74c3c;margin-bottom:10px;">Are you sure you want to delete your account?</div><div class="si-sub" style="line-height:1.7;margin-bottom:6px;">This permanently removes:</div><ul style="margin:0 0 14px 18px;color:var(--text-muted);font-size:12.5px;line-height:1.85;"><li>Your firm profile, photo and verification</li><li>All client connections and messages</li><li>Your AI history and memory</li><li>Any documents you handled</li></ul><div class="si-sub" style="margin-bottom:18px;">Your email will be released and can be used to sign up again later.</div><button id="delStep1" onclick="revealDeleteL()" style="padding:11px 20px;background:transparent;border:1px solid #e74c3c;color:#e74c3c;border-radius:8px;cursor:pointer;font-size:12px;letter-spacing:1px;text-transform:uppercase;">Delete Account</button><div id="delConfirmBox" style="display:none;margin-top:8px;"><input type="password" id="delPass" class="form-input" placeholder="Enter your password to confirm" style="margin-bottom:10px;"><button onclick="doDeleteLawyerAccount()" style="width:100%;padding:12px;background:#e74c3c;border:none;color:#fff;border-radius:8px;cursor:pointer;font-size:12px;letter-spacing:1px;text-transform:uppercase;font-weight:600;">Permanently Delete Account</button><div id="delMsg" class="set-msg"></div></div></div></div>
     
-
-      <!-- Password -->
-      <div class="form-box" style="margin-bottom:24px;">
-        <div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--accent-gold);margin-bottom:20px;">Change Password</div>
-        <div class="form-group"><label class="form-label">New Password</label><input type="password" class="form-input" id="lwNewPass" placeholder="Enter new password"></div>
-        <div class="form-group"><label class="form-label">Confirm Password</label><input type="password" class="form-input" id="lwConfirmPass" placeholder="Confirm new password"></div>
-        <button class="submit-btn" onclick="changeLawyerPassword()">Update Password</button>
-        <div id="lwPassMsg" style="display:none;margin-top:12px;font-size:12px;"></div>
-      </div>
-
-      <!-- Notifications -->
-      <div class="form-box" style="margin-bottom:24px;">
-        <div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--accent-gold);margin-bottom:20px;">Notifications</div>
-        <div style="display:flex;flex-direction:column;gap:14px;">
-          <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;">
-            <span style="font-size:14px;color:var(--text-secondary);">New client requests</span>
-            <input type="checkbox" id="lwNotifRequests" checked style="width:16px;height:16px;accent-color:var(--accent-gold);cursor:pointer;">
-          </label>
-          <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;">
-            <span style="font-size:14px;color:var(--text-secondary);">New messages</span>
-            <input type="checkbox" id="lwNotifMessages" checked style="width:16px;height:16px;accent-color:var(--accent-gold);cursor:pointer;">
-          </label>
-          <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;">
-            <span style="font-size:14px;color:var(--text-secondary);">FORI system updates</span>
-            <input type="checkbox" id="lwNotifSystem" checked style="width:16px;height:16px;accent-color:var(--accent-gold);cursor:pointer;">
-          </label>
-        </div>
-        <button class="submit-btn" style="margin-top:20px;" onclick="saveLawyerNotifSettings()">Save Preferences</button>
-        <div id="lwNotifMsg" style="display:none;margin-top:12px;font-size:12px;color:#27ae60;letter-spacing:1px;">✓ Preferences saved.</div>
-      </div>
-
-      <!-- Danger Zone -->
-      <div style="background:rgba(231,76,60,0.04);border:1px solid rgba(231,76,60,0.2);padding:28px;">
-        <div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#e74c3c;margin-bottom:16px;">Danger Zone</div>
-        <div style="font-size:13px;color:var(--text-muted);line-height:1.6;margin-bottom:20px;">Deleting your account is permanent. All your data, profile, case history and client connections will be removed and cannot be recovered.</div>
-        <button onclick="confirmDeleteLawyerAccount()" style="padding:12px 24px;background:transparent;border:1px solid #e74c3c;color:#e74c3c;font-family:'Inter',sans-serif;font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;" onmouseover="this.style.background='rgba(231,76,60,0.1)'" onmouseout="this.style.background='transparent'">Delete Account</button>
-      </div>
     </div>
   </div>
 
@@ -1640,6 +1622,10 @@
     const input = document.getElementById('aiInput');
     const typed = input.value.trim();
     if (!typed && !aiAttachText && !aiAttachImageData) return;
+    if (typed && typed.trim().split(/\s+/).length<=8 && /\b(send|download|save|export|as|make|give|generate|create|need|want)\b/i.test(typed) && /\b(docx?|word|pdf|txt|text)\b/i.test(typed)) {
+      const _lastA=[...aiHistory].reverse().find(m=>m && m.role==='assistant' && m.content);
+      if (_lastA) { var _fmt=/\bpdf\b/i.test(typed)?'pdf':(/\b(txt|text)\b/i.test(typed)?'txt':'doc'); input.value=''; input.style.height='auto'; appendAIMessage('user', typed); appendAIMessage('assistant', '\ud83d\udcc4 Here is your '+(_fmt==='pdf'?'PDF':(_fmt==='txt'?'text file':'Word document'))+' \u2014 '+(_fmt==='pdf'?'opening the save dialog\u2026':'downloading now.')); if(_fmt==='pdf')downloadPdf(_lastA.content,'FORI_document'); else if(_fmt==='txt')downloadTxt(_lastA.content,'FORI_document'); else downloadDoc(_lastA.content,'FORI_document'); return; }
+    }
     const country = document.getElementById('aiCountry').value;
     const category = document.getElementById('aiTask').value;
     const fileName = aiAttachName, fileText = aiAttachText, imgData = aiAttachImageData, imgMime = aiAttachImageMime, imgPreview = aiAttachImagePreview;
@@ -1688,7 +1674,7 @@
               document.getElementById(msgId).innerHTML = renderMarkdown(payload.answer);
               const actionsEl = document.createElement('div');
               actionsEl.className = 'bubble-actions';
-              actionsEl.innerHTML = `<button class="bubble-action" onclick="navigator.clipboard.writeText(decodeURIComponent('${encodeURIComponent(payload.answer)}'))">Copy</button><button class="bubble-action" onclick="downloadAI(decodeURIComponent('${encodeURIComponent(payload.answer)}'))">Download</button>`;
+              actionsEl.innerHTML = `<button class="bubble-action" onclick="navigator.clipboard.writeText(decodeURIComponent('${encodeURIComponent(payload.answer)}'))">Copy</button><button class="bubble-action" onclick="downloadDoc(decodeURIComponent('${encodeURIComponent(payload.answer)}'),'FORI_analysis')">Word</button><button class="bubble-action" onclick="downloadPdf(decodeURIComponent('${encodeURIComponent(payload.answer)}'),'FORI_analysis')">PDF</button><button class="bubble-action" onclick="downloadTxt(decodeURIComponent('${encodeURIComponent(payload.answer)}'),'FORI_analysis')">Text</button>`;
               const colEl = bubble.querySelector('.msg-col'); const timeEl = bubble.querySelector('.msg-time');
               if (colEl && timeEl) colEl.insertBefore(actionsEl, timeEl); else bubble.appendChild(actionsEl);
               aiHistory.push({ role: 'assistant', content: payload.answer });
@@ -1704,10 +1690,28 @@
       appendAIMessage('assistant', '⚠️ Connection error. Please try again.');
     }
   }
-  function downloadAI(text) {
-    const b = new Blob([text], {type:'text/plain'}); const a = document.createElement('a');
-    a.href = URL.createObjectURL(b); a.download = 'fori-business-analysis.txt'; a.click();
+  function downloadDoc(text, base){
+    var bodyHtml = (typeof renderMarkdown==='function') ? renderMarkdown(text||'') : ('<pre>'+String(text||'')+'</pre>');
+    var html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>FORI Document</title><style>body{font-family:Calibri,Arial,sans-serif;font-size:11pt;color:#111;line-height:1.5;} h1,h2,h3,h4{font-family:Georgia,serif;color:#1a1a1a;margin:0 0 8pt;} p{margin:0 0 8pt;} ul,ol{margin:0 0 10pt 26pt;} li{margin:0 0 4pt;} hr{border:none;border-top:1px solid #ccc;margin:14pt 0;}</style></head><body>'+bodyHtml+'</body></html>';
+    var blob = new Blob(['\ufeff'+html], {type:'application/msword'});
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = (base||'FORI_document')+'_'+new Date().toISOString().slice(0,10)+'.doc';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1500);
+    try{ if(typeof toast==='function') toast('Word document downloaded.'); }catch(e){}
   }
+  function downloadTxt(text, base){
+    var blob=new Blob([String(text||'')],{type:'text/plain'});var a=document.createElement('a');a.href=URL.createObjectURL(blob);
+    a.download=(base||'FORI_document')+'_'+new Date().toISOString().slice(0,10)+'.txt';document.body.appendChild(a);a.click();a.remove();
+    setTimeout(function(){URL.revokeObjectURL(a.href);},1500);try{if(typeof toast==='function')toast('Text file downloaded.');}catch(e){}
+  }
+  function downloadPdf(text, base, title){
+    var w=window.open('','_blank'); if(!w){ try{if(typeof toast==='function')toast('Allow pop-ups to save the PDF.');}catch(e){} return; }
+    var body=(typeof renderMarkdown==='function')?renderMarkdown(text||''):('<pre>'+String(text||'')+'</pre>');
+    w.document.write('<html><head><title>'+(title||'FORI Document')+'</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,sans-serif;max-width:720px;margin:24px auto;padding:0 18px;color:#1a1a1a;line-height:1.55;}h1.brand{font-family:Georgia,serif;color:#9a7b3f;margin:0 0 4px;font-size:24px;}.sub{color:#666;font-size:12px;margin-bottom:22px;}.md-h{font-weight:700;margin:16px 0 6px;}.md-h3,.md-h4{color:#9a7b3f;}ul,ol{padding-left:22px;}li{margin:4px 0;}strong{color:#000;}.cite-chip{display:none;}hr{border:none;border-top:1px solid #ddd;margin:14px 0;}</style></head><body><h1 class="brand">FORI</h1><div class="sub">Generated '+new Date().toLocaleString()+'</div>'+body+'</body></html>');
+    w.document.close(); setTimeout(function(){try{w.focus();w.print();}catch(e){}},500);
+  }
+  function downloadAI(text) { downloadDoc(text, 'FORI_analysis'); }
 
   // ── CLIENTS + CHAT ──
   let _activeConnId = null, _activeClientName = null, _activeClientId = null, _msgsUnsub = null;
@@ -1880,6 +1884,12 @@
     if (document.getElementById('lwNotifSystem')) document.getElementById('lwNotifSystem').checked = prefs.notifSystem !== false;
     setVerifyBadge(prefs.verificationStatus || 'none');
     applyAvatarPhoto(document.getElementById('avatarPreview'), prefs.photo||stored.photo||'', ((stored.name||'F').trim()[0]||'F').toUpperCase());
+    ['pwBox','delConfirmBox'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display='none';});
+    var _s1=document.getElementById('delStep1'); if(_s1)_s1.style.display='inline-block';
+    var _pc=document.getElementById('pwChev'); if(_pc)_pc.classList.remove('open');
+    var _ct=document.documentElement.getAttribute('data-theme')||'dark'; document.querySelectorAll('.theme-seg button').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-t')===_ct);});
+    try{var _pf=JSON.parse(localStorage.getItem('foriLawyerPrefs')||'{}');if(document.getElementById('lwNotifRequests'))document.getElementById('lwNotifRequests').checked=_pf.notifRequests!==false;if(document.getElementById('lwNotifMessages'))document.getElementById('lwNotifMessages').checked=_pf.notifMessages!==false;if(document.getElementById('lwNotifSystem'))document.getElementById('lwNotifSystem').checked=_pf.notifSystem!==false;}catch(e){}
+    closeSet();
     if (window._lexUid && window.fsLoadMarketplace) { window.fsLoadMarketplace(window._lexUid).then(d => { if(d&&d.photo){prefs.photo=d.photo;localStorage.setItem('foriLawyerPrefs',JSON.stringify(prefs));refreshAvatars(d.photo);} if (d && d.verified) { setVerifyBadge('verified'); } else if (d && d.verificationStatus) { setVerifyBadge(d.verificationStatus); prefs.verificationStatus = d.verificationStatus; localStorage.setItem('foriLawyerPrefs', JSON.stringify(prefs)); } }).catch(() => {}); }
   }
 
@@ -2080,6 +2090,18 @@
   function getNotifs() { try { return JSON.parse(localStorage.getItem(NOTIF_KEY)||'[]'); } catch { return []; } }
   function saveNotifs(n) { localStorage.setItem(NOTIF_KEY, JSON.stringify(n)); }
   function toast(msg){let t=document.getElementById('foriToast');if(!t){t=document.createElement('div');t.id='foriToast';t.className='fori-toast';document.body.appendChild(t);}t.textContent=msg;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),2300);}
+  function _setMsg(id,txt,color){var el=document.getElementById(id);if(!el)return;el.textContent=txt;el.style.color=color||'#27ae60';el.style.display='block';clearTimeout(el._h);el._h=setTimeout(function(){el.style.display='none';},4500);}
+  function openSet(key){var m=document.getElementById('settingsMaster');if(m)m.style.display='none';document.querySelectorAll('.set-detail').forEach(function(d){d.classList.remove('open');});var p=document.getElementById('setpanel-'+key);if(p)p.classList.add('open');if(key==='security'){var isPw=(window._lexProvider||'password')==='password';var pf=document.getElementById('pwForm');var sn=document.getElementById('pwSocialNote');if(pf)pf.style.display=isPw?'block':'none';if(sn)sn.style.display=isPw?'none':'block';}}
+  function closeSet(){document.querySelectorAll('.set-detail').forEach(function(d){d.classList.remove('open');});var m=document.getElementById('settingsMaster');if(m)m.style.display='block';}
+  function setThemeL(t){applyTheme(t);document.querySelectorAll('.theme-seg button').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-t')===t);});toast('Theme updated.');}
+  function saveLawyerNotifPrefs(){var prefs=JSON.parse(localStorage.getItem('foriLawyerPrefs')||'{}');prefs.notifRequests=document.getElementById('lwNotifRequests').checked;prefs.notifMessages=document.getElementById('lwNotifMessages').checked;prefs.notifSystem=document.getElementById('lwNotifSystem').checked;localStorage.setItem('foriLawyerPrefs',JSON.stringify(prefs));toast('Preferences saved.');}
+  function togglePwBoxL(){var b=document.getElementById('pwBox');var c=document.getElementById('pwChev');if(b){var open=b.style.display!=='none';b.style.display=open?'none':'block';if(c)c.classList.toggle('open',!open);}}
+  async function doChangeLawyerPassword(){var cur=document.getElementById('lwCurrentPass').value;var np=document.getElementById('lwNewPass').value;var cp=document.getElementById('lwConfirmPass').value;if(!cur){_setMsg('lwPassMsg','\u2717 Enter your current password.','#e74c3c');return;}if(!np||np.length<6){_setMsg('lwPassMsg','\u2717 New password must be at least 6 characters.','#e74c3c');return;}if(np!==cp){_setMsg('lwPassMsg','\u2717 New passwords do not match.','#e74c3c');return;}try{var a=await import('https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js');var auth=a.getAuth();var user=auth.currentUser;var cred=a.EmailAuthProvider.credential(user.email,cur);await a.reauthenticateWithCredential(user,cred);await a.updatePassword(user,np);document.getElementById('lwCurrentPass').value='';document.getElementById('lwNewPass').value='';document.getElementById('lwConfirmPass').value='';_setMsg('lwPassMsg','\u2713 Password updated.','#27ae60');}catch(e){_setMsg('lwPassMsg',e.code==='auth/wrong-password'?'\u2717 Current password is incorrect.':'\u2717 Could not update password.','#e74c3c');}}
+  async function sendResetLawyer(){try{var a=await import('https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js');var auth=a.getAuth();var email=(auth.currentUser&&auth.currentUser.email)||JSON.parse(localStorage.getItem('foriUser')||'{}').email;if(!email){_setMsg('lwPassMsg','\u2717 No email on file.','#e74c3c');return;}await a.sendPasswordResetEmail(auth,email);_setMsg('lwPassMsg','\u2713 Reset link sent to '+email,'#27ae60');}catch(e){_setMsg('lwPassMsg','\u2717 Could not send reset link.','#e74c3c');}}
+  function clearAIMemoryL(){if(!confirm('Clear what FORI remembers about you on this device?'))return;try{window._lexMemories=[];}catch(e){}localStorage.removeItem('foriMemory');toast('AI memory cleared.');}
+  function revealDeleteL(){var b=document.getElementById('delConfirmBox');var s1=document.getElementById('delStep1');if(b)b.style.display='block';if(s1)s1.style.display='none';}
+  async function doDeleteLawyerAccount(){var pw=document.getElementById('delPass').value;if(!pw){_setMsg('delMsg','\u2717 Enter your password to confirm.','#e74c3c');return;}try{var a=await import('https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js');var auth=a.getAuth();var user=auth.currentUser;var cred=a.EmailAuthProvider.credential(user.email,pw);await a.reauthenticateWithCredential(user,cred);try{if(window._lexUid&&window._db){var f=await import('https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js');await f.deleteDoc(f.doc(window._db,'users',window._lexUid));}}catch(e){}await a.deleteUser(user);['foriUser','foriRole','foriLawyerPrefs','foriNotifs_lawyer','foriNotifSeeded_law','foriCookieConsent'].forEach(function(k){localStorage.removeItem(k);});window.location.href='/';}catch(e){_setMsg('delMsg',e.code==='auth/wrong-password'?'\u2717 Incorrect password.':'\u2717 Could not delete. Please sign out, sign in again, then retry.','#e74c3c');}}
+
   function addNotif(msg, type, priority, route) {
     if (priority !== 'high') { toast(msg); return; }
     const n = getNotifs();
