@@ -68,7 +68,7 @@ if GEMINI_API_KEY:
     try:
         genai.configure(api_key=GEMINI_API_KEY)
         model = genai.GenerativeModel(model_name="gemini-2.5-flash")
-        logger.info("LEX AI Engine online.")
+        logger.info("FORI AI Engine online.")
     except Exception as e:
         logger.error(f"Gemini failed: {e}")
 
@@ -245,7 +245,7 @@ def stream_answer(prompt, system_prompt=None, ack=None, history=None, image=None
 
 usage_tracker = defaultdict(lambda: {"count": 0, "date": str(datetime.date.today())})
 
-FREE_PROMPT = """You are LEX, an AI legal information assistant. You provide clear, simple legal information to everyday people.
+FREE_PROMPT = """You are FORI, an AI legal information assistant. You provide clear, simple legal information to everyday people.
 
 PERSONALITY: Formal but simple and clear. You speak plainly so anyone can understand — no legal jargon unless explained.
 
@@ -263,7 +263,7 @@ RULES:
 - Do NOT provide deep case analysis (premium feature)
 - Be helpful but keep responses concise"""
 
-PREMIUM_PROMPT = """You are LEX Premium, an advanced AI legal advisor. You provide friendly, thorough legal guidance with warmth and care.
+PREMIUM_PROMPT = """You are FORI Premium, an advanced AI legal advisor. You provide friendly, thorough legal guidance with warmth and care.
 
 PERSONALITY: Like a knowledgeable friend who happens to be a lawyer. Warm, approachable, detailed, and genuinely helpful. You make people feel supported and informed.
 
@@ -285,7 +285,7 @@ RULES:
 - Always end with: "This analysis is provided as legal information. For court proceedings or binding legal matters, I recommend consulting a qualified lawyer."
 - Go above and beyond — give the user everything they need"""
 
-BUSINESS_PROMPT = """You are LEX Business, an elite AI legal counsel system designed for businesses and legal professionals.
+BUSINESS_PROMPT = """You are FORI Business, an elite AI legal counsel system designed for businesses and legal professionals.
 
 PERSONALITY: Like a senior partner at a top law firm. Precise, authoritative, thorough, and highly professional. You speak the language of lawyers and business leaders.
 
@@ -315,7 +315,7 @@ RULES:
 - Always cite specific statutes with section numbers
 - Use proper legal terminology
 - Structure responses professionally with clear headings
-- Always end with: "This analysis constitutes legal information prepared by LEX Business AI. It does not establish an attorney-client relationship. Verify all citations before use in legal proceedings."
+- Always end with: "This analysis constitutes legal information prepared by FORI Business AI. It does not establish an attorney-client relationship. Verify all citations before use in legal proceedings."
 - Deliver elite-level legal intelligence"""
 
 # Shared response-style rules appended to every tier
@@ -565,7 +565,7 @@ def build_memory_context(memories):
     if not memories:
         return ""
     lines = ["\n\n=== USER MEMORY CONTEXT ==="]
-    lines.append("The following is important context from this user's previous interactions with LEX.")
+    lines.append("The following is important context from this user's previous interactions with FORI.")
     lines.append("Use this to provide personalised, contextually aware responses:\n")
     for m in memories[:10]:
         mtype = m.get('type', 'interaction')
@@ -591,12 +591,12 @@ def ask():
         return jsonify({'error': 'No question provided'}), 400
 
     if not model:
-        return jsonify({'error': 'LEX AI engine is offline. Please try again later.'}), 503
+        return jsonify({'error': 'FORI AI engine is offline. Please try again later.'}), 503
 
     ip = request.remote_addr
     if not check_rate_limit(ip, tier):
         return jsonify({
-            'error': 'You have reached your 5 free questions for today. Upgrade to LEX Premium for unlimited access.',
+            'error': 'You have reached your 5 free questions for today. Upgrade to FORI Premium for unlimited access.',
             'limit_reached': True
         }), 429
 
@@ -649,7 +649,7 @@ Provide a thorough, accurate response based on the laws of {country}."""
             "free": "clear, simple legal information"
         }
 
-        ack = f"Understood. I am LEX {'Business' if tier == 'business' else 'Premium' if tier == 'premium' else ''}. Ready to provide {tier_intro[tier]} based on the laws of {country}."
+        ack = f"Understood. I am FORI {'Business' if tier == 'business' else 'Premium' if tier == 'premium' else ''}. Ready to provide {tier_intro[tier]} based on the laws of {country}."
         answer = generate_answer(prompt, system_prompt=system_prompt, ack=ack)
 
         result = {
@@ -668,8 +668,8 @@ Provide a thorough, accurate response based on the laws of {country}."""
         return jsonify(result)
 
     except Exception as e:
-        logger.error(f"LEX AI Error: {e}")
-        return jsonify({'error': f'LEX encountered an error: {str(e)[:150]}'}), 500
+        logger.error(f"FORI AI Error: {e}")
+        return jsonify({'error': f'FORI encountered an error: {str(e)[:150]}'}), 500
 
 
 # Alias so frontend /api/ask calls resolve correctly
@@ -708,12 +708,12 @@ def ask_stream():
         return jsonify({'error': 'No question provided'}), 400
 
     if not model:
-        return jsonify({'error': 'LEX AI engine is offline. Please try again later.'}), 503
+        return jsonify({'error': 'FORI AI engine is offline. Please try again later.'}), 503
 
     ip = request.remote_addr
     if not check_rate_limit(ip, tier):
         def limit_gen():
-            yield f"data: {json.dumps({'error': 'You have reached your 5 free questions for today. Upgrade to LEX Premium for unlimited access.', 'limit_reached': True})}\n\n"
+            yield f"data: {json.dumps({'error': 'You have reached your 5 free questions for today. Upgrade to FORI Premium for unlimited access.', 'limit_reached': True})}\n\n"
         return Response(limit_gen(), mimetype='text/event-stream')
 
     try:
@@ -768,7 +768,7 @@ Provide a thorough, accurate response based on the laws of {country}."""
         }
 
         memory_intro = f" I have access to this user's previous interactions and will reference them naturally when relevant." if memories else ""
-        ack = f"Understood. I am LEX {'Business' if tier == 'business' else 'Premium' if tier == 'premium' else ''}. Ready to provide {tier_intro[tier]} based on the laws of {country}.{memory_intro}"
+        ack = f"Understood. I am FORI {'Business' if tier == 'business' else 'Premium' if tier == 'premium' else ''}. Ready to provide {tier_intro[tier]} based on the laws of {country}.{memory_intro}"
 
         def generate():
             try:
@@ -792,8 +792,8 @@ Provide a thorough, accurate response based on the laws of {country}."""
         })
 
     except Exception as e:
-        logger.error(f"LEX Stream Setup Error: {e}")
-        return jsonify({'error': f'LEX encountered an error: {str(e)[:150]}'}), 500
+        logger.error(f"FORI Stream Setup Error: {e}")
+        return jsonify({'error': f'FORI encountered an error: {str(e)[:150]}'}), 500
 
 
 TAX_PROMPT = """You are FORI Tax Assistant, an AI that helps individuals understand and PREPARE their personal income tax for their own country. You are NOT a substitute for a licensed tax professional or accountant, and you NEVER file or submit anything to a tax authority — the user files it themselves.
@@ -916,7 +916,7 @@ def draft_document():
         return jsonify({'error': 'Document drafting is a Premium feature. Upgrade to access this capability.'}), 403
 
     if not model:
-        return jsonify({'error': 'LEX AI engine is offline.'}), 503
+        return jsonify({'error': 'FORI AI engine is offline.'}), 503
 
     try:
         system_prompt = BUSINESS_PROMPT if tier == 'business' else PREMIUM_PROMPT
@@ -980,7 +980,7 @@ def extract_file():
         return jsonify({'error': 'Could not read that file. Please try a PDF, Word (.docx) or text file.'}), 200
 
 
-CONTRACT_REVIEW_PROMPT = """You are LEX Contract Analyst, an expert legal AI specialising in contract review across all jurisdictions worldwide.
+CONTRACT_REVIEW_PROMPT = """You are FORI Contract Analyst, an expert legal AI specialising in contract review across all jurisdictions worldwide.
 
 Analyse the contract below and provide a thorough review structured exactly as follows:
 
@@ -1011,7 +1011,7 @@ Give an overall contract risk rating: LOW / MEDIUM / HIGH / VERY HIGH with a bri
 
 Be thorough, clear and use plain English throughout. Flag anything that could harm the user."""
 
-REDLINE_PROMPT = """You are LEX Redline Expert, a specialist in contract redlining and negotiation across all jurisdictions.
+REDLINE_PROMPT = """You are FORI Redline Expert, a specialist in contract redlining and negotiation across all jurisdictions.
 
 Review the contract below and produce a detailed redline report structured as follows:
 
@@ -1047,7 +1047,7 @@ Be specific with revised language. Write as if advising a client preparing for c
 @app.route('/review-stream', methods=['POST'])
 def review_stream():
     if not model:
-        return jsonify({'error': 'LEX AI engine is offline.'}), 503
+        return jsonify({'error': 'FORI AI engine is offline.'}), 503
 
     file = request.files.get('file')
     country = request.form.get('country', 'Nigeria')
@@ -1076,7 +1076,7 @@ CONTRACT TEXT:
 
         def generate():
             try:
-                ack = "Understood. I am LEX Contract Analyst. I will provide a thorough contract review."
+                ack = "Understood. I am FORI Contract Analyst. I will provide a thorough contract review."
                 sys_p = BUSINESS_PROMPT if tier == 'business' else PREMIUM_PROMPT
                 full = ""
                 for piece in stream_answer(prompt, system_prompt=sys_p, ack=ack):
@@ -1099,7 +1099,7 @@ CONTRACT TEXT:
 @app.route('/redline-stream', methods=['POST'])
 def redline_stream():
     if not model:
-        return jsonify({'error': 'LEX AI engine is offline.'}), 503
+        return jsonify({'error': 'FORI AI engine is offline.'}), 503
 
     file = request.files.get('file')
     country = request.form.get('country', 'Nigeria')
@@ -1125,7 +1125,7 @@ CONTRACT TEXT:
 
         def generate():
             try:
-                ack = "Understood. I am LEX Redline Expert. I will produce a detailed redline report with specific revision suggestions."
+                ack = "Understood. I am FORI Redline Expert. I will produce a detailed redline report with specific revision suggestions."
                 sys_p = BUSINESS_PROMPT if tier == 'business' else PREMIUM_PROMPT
                 full = ""
                 for piece in stream_answer(prompt, system_prompt=sys_p, ack=ack):
@@ -1145,7 +1145,7 @@ CONTRACT TEXT:
         return jsonify({'error': str(e)[:150]}), 500
 
 
-CLAUSE_LIBRARY_PROMPT = """You are LEX Clause Library, an expert in legal drafting across all jurisdictions worldwide.
+CLAUSE_LIBRARY_PROMPT = """You are FORI Clause Library, an expert in legal drafting across all jurisdictions worldwide.
 
 The user is looking for a legal clause. Provide the following structured response:
 
@@ -1183,7 +1183,7 @@ Any important differences for the specified jurisdiction compared to internation
 
 Be thorough, practical and provide clause text that is ready to copy and use."""
 
-OUTCOME_PROMPT = """You are LEX Case Analyst, an expert in legal case assessment and outcome prediction across all jurisdictions.
+OUTCOME_PROMPT = """You are FORI Case Analyst, an expert in legal case assessment and outcome prediction across all jurisdictions.
 
 Analyse the case described and provide a structured assessment:
 
@@ -1228,7 +1228,7 @@ Be honest about uncertainty. Never guarantee outcomes. Always recommend consulti
 @app.route('/clause-stream', methods=['POST'])
 def clause_stream():
     if not model:
-        return jsonify({'error': 'LEX AI engine is offline.'}), 503
+        return jsonify({'error': 'FORI AI engine is offline.'}), 503
 
     data = request.json
     query = data.get('query', '').strip()
@@ -1248,7 +1248,7 @@ Clause Request: {query}
 
     def generate():
         try:
-            ack = "Understood. I am LEX Clause Library. I will provide comprehensive clause information including standard text, variations and negotiation notes."
+            ack = "Understood. I am FORI Clause Library. I will provide comprehensive clause information including standard text, variations and negotiation notes."
             sys_p = BUSINESS_PROMPT if tier == 'business' else PREMIUM_PROMPT
             full = ""
             for piece in stream_answer(prompt, system_prompt=sys_p, ack=ack):
@@ -1267,7 +1267,7 @@ Clause Request: {query}
 @app.route('/outcome-stream', methods=['POST'])
 def outcome_stream():
     if not model:
-        return jsonify({'error': 'LEX AI engine is offline.'}), 503
+        return jsonify({'error': 'FORI AI engine is offline.'}), 503
 
     data = request.json
     facts = data.get('facts', '').strip()
@@ -1291,7 +1291,7 @@ CASE FACTS:
 
     def generate():
         try:
-            ack = "Understood. I am LEX Case Analyst. I will provide a thorough case assessment with outcome predictions and recommendations."
+            ack = "Understood. I am FORI Case Analyst. I will provide a thorough case assessment with outcome predictions and recommendations."
             sys_p = BUSINESS_PROMPT if tier == 'business' else PREMIUM_PROMPT
             full = ""
             for piece in stream_answer(prompt, system_prompt=sys_p, ack=ack):
@@ -1307,7 +1307,7 @@ CASE FACTS:
     })
 
 
-COMPARE_PROMPT = """You are LEX Document Comparison Expert, a specialist in comparative legal analysis across all jurisdictions.
+COMPARE_PROMPT = """You are FORI Document Comparison Expert, a specialist in comparative legal analysis across all jurisdictions.
 
 You have been provided with two legal documents. Conduct a thorough side-by-side comparison structured as follows:
 
@@ -1360,7 +1360,7 @@ Specific advice on which document to use, what to negotiate, and what clauses to
 @app.route('/compare-stream', methods=['POST'])
 def compare_stream():
     if not model:
-        return jsonify({'error': 'LEX AI engine is offline.'}), 503
+        return jsonify({'error': 'FORI AI engine is offline.'}), 503
 
     file_a = request.files.get('file_a')
     file_b = request.files.get('file_b')
@@ -1397,7 +1397,7 @@ def compare_stream():
         # FIX 2: compare_stream — fixed double-brace f-string bug
         def generate():
             try:
-                ack = "Understood. I am LEX Document Comparison Expert. I will conduct a thorough side-by-side analysis of both documents."
+                ack = "Understood. I am FORI Document Comparison Expert. I will conduct a thorough side-by-side analysis of both documents."
                 sys_p = BUSINESS_PROMPT if tier == 'business' else PREMIUM_PROMPT
                 full = ""
                 for piece in stream_answer(prompt, system_prompt=sys_p, ack=ack):
@@ -1417,7 +1417,7 @@ def compare_stream():
         return jsonify({'error': str(e)[:150]}), 500
 
 
-RESEARCH_PROMPT = """You are LEX Legal Research Engine, an expert legal researcher with access to current case law, legislation and legal commentary across all jurisdictions worldwide.
+RESEARCH_PROMPT = """You are FORI Legal Research Engine, an expert legal researcher with access to current case law, legislation and legal commentary across all jurisdictions worldwide.
 
 Conduct thorough legal research on the topic provided and structure your response as follows:
 
@@ -1453,7 +1453,7 @@ List all sources referenced with proper legal citation format."""
 @app.route('/research-stream', methods=['POST'])
 def research_stream():
     if not model:
-        return jsonify({'error': 'LEX AI engine is offline.'}), 503
+        return jsonify({'error': 'FORI AI engine is offline.'}), 503
 
     data = request.json
     topic = data.get('topic', '').strip()
@@ -1478,7 +1478,7 @@ Jurisdiction: {country}
     def generate():
         try:
             system = BUSINESS_PROMPT if tier == 'business' else PREMIUM_PROMPT
-            ack = f"Understood. I am LEX Legal Research Engine. I will conduct thorough research on this topic for {country} jurisdiction."
+            ack = f"Understood. I am FORI Legal Research Engine. I will conduct thorough research on this topic for {country} jurisdiction."
             full = ""
             for piece in stream_answer(prompt, system_prompt=system, ack=ack):
                 full += piece
@@ -1525,7 +1525,7 @@ Content to summarise:
 {content_to_summarise[:3000]}
 
 Rules:
-- Write in past tense from LEX's perspective (e.g. "User asked about...", "Reviewed a contract...")
+- Write in past tense from FORI's perspective (e.g. "User asked about...", "Reviewed a contract...")
 - Be specific — include document names, risk levels, outcomes where present
 - Maximum 3 sentences
 - No preamble, just the summary itself"""
@@ -1577,7 +1577,7 @@ def create_checkout():
                     "product_options": {
                         "redirect_url": redirect_url,
                         "receipt_link_url": "https://lex-rvmc.onrender.com/dashboard.html",
-                        "receipt_thank_you_note": "Thank you for subscribing to LEX! Your account has been upgraded."
+                        "receipt_thank_you_note": "Thank you for subscribing to FORI! Your account has been upgraded."
                     },
                     "expires_at": None
                 },
