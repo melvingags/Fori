@@ -527,6 +527,7 @@
   .msg-bubble.assistant em{font-style:italic;}
   .msg-bubble.assistant .md-code{background:rgba(255,255,255,0.09);padding:1px 5px;border-radius:4px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.88em;}
   .msg-bubble.assistant .md-hr{border:none;border-top:1px solid rgba(201,168,108,0.25);margin:13px 0;}
+.bubble-action.ico{padding:6px 8px !important;border-radius:9px !important;display:inline-flex;align-items:center;justify-content:center;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-muted);cursor:pointer;transition:all .2s;} .bubble-action.ico:hover{border-color:var(--accent-gold);color:var(--accent-gold);} .bubble-action.ico svg{display:block;}
 </style>
 <!-- Firebase SDK -->
 <script type="module">
@@ -622,7 +623,7 @@
 
   function fileToDataURL(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file);});}
   async function compressImageToDataURL(file,maxDim,quality){const dataUrl=await fileToDataURL(file);return await new Promise((res)=>{const img=new Image();img.onload=()=>{let w=img.width,h=img.height;if(w>maxDim||h>maxDim){if(w>=h){h=Math.round(h*maxDim/w);w=maxDim;}else{w=Math.round(w*maxDim/h);h=maxDim;}}const c=document.createElement('canvas');c.width=w;c.height=h;try{c.getContext('2d').drawImage(img,0,0,w,h);res(c.toDataURL('image/jpeg',quality||0.72));}catch(e){res(dataUrl);}};img.onerror=()=>res(dataUrl);img.src=dataUrl;});}
-  function fileCardInner(fileName,ext){const types={pdf:'PDF Document',docx:'Word Document',doc:'Word Document',txt:'Text File',xls:'Spreadsheet',xlsx:'Spreadsheet'};const label=types[ext]||'Document';return '<div class="mf-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div><div class="mf-meta"><div class="mf-name">'+escapeHtml(fileName||'File')+'</div><div class="mf-type">'+label+'</div></div>';}
+  function fileCardInner(fileName,ext){const types={pdf:'PDF Document',docx:'Word Document',doc:'Word Document',txt:'Text File',md:'Markdown File',xls:'Spreadsheet',xlsx:'Spreadsheet'};const label=types[ext]||'Document';return '<div class="mf-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div><div class="mf-meta"><div class="mf-name">'+escapeHtml(fileName||'File')+'</div><div class="mf-type">'+label+'</div></div>';}
   function openImageView(src){const ov=document.getElementById('imgLightbox');const im=document.getElementById('imgLightboxImg');if(ov&&im){im.src=src;ov.classList.add('open');}}
   function closeImageLightbox(){const ov=document.getElementById('imgLightbox');if(ov)ov.classList.remove('open');const im=document.getElementById('imgLightboxImg');if(im)im.src='';}
   function _ilbToast(msg){const t=document.getElementById('ilbToast');if(!t)return;t.textContent=msg;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),1600);}
@@ -1625,11 +1626,11 @@
     const input = document.getElementById('aiInput');
     const typed = input.value.trim();
     if (!typed && !aiAttachText && !aiAttachImageData) return;
-    if (typed && typed.trim().split(/\s+/).length<=8 && /\b(send|download|save|export|as|make|give|generate|create|need|want)\b/i.test(typed) && /\b(docx?|word|pdf|txt|text)\b/i.test(typed)) {
+    if (typed && typed.trim().split(/\s+/).length<=8 && /\b(send|download|save|export|as|make|give|generate|create|need|want)\b/i.test(typed) && /\b(docx?|word|pdf|txt|text|md|markdown)\b/i.test(typed)) {
       const _lastA=[...aiHistory].reverse().find(m=>m && m.role==='assistant' && m.content);
-      if (_lastA) { var _fmt=/\bpdf\b/i.test(typed)?'pdf':(/\b(txt|text)\b/i.test(typed)?'txt':'doc'); input.value=''; input.style.height='auto'; appendAIMessage('user', typed); appendAIMessage('assistant', '\ud83d\udcc4 Here is your '+(_fmt==='pdf'?'PDF':(_fmt==='txt'?'text file':'Word document'))+' \u2014 '+(_fmt==='pdf'?'opening the save dialog\u2026':'downloading now.')); try{appendAIFile(_fmt,_lastA.content);}catch(e){} if(_fmt==='pdf')downloadPdf(_lastA.content,'FORI_document'); else if(_fmt==='txt')downloadTxt(_lastA.content,'FORI_document'); else downloadDoc(_lastA.content,'FORI_document'); return; }
+      if (_lastA) { var _fmt=/\bpdf\b/i.test(typed)?'pdf':(/\b(md|markdown)\b/i.test(typed)?'md':(/\b(txt|text)\b/i.test(typed)?'txt':'doc')); input.value=''; input.style.height='auto'; appendAIMessage('user', typed); appendAIFileMsg(_fmt,_lastA.content); return; }
     }
-    window._pendingAiFmt = (/\b(pdf|word|docx?|txt|text)\b/i.test(typed) && /\b(send|save|download|export|give|make|provide|generate|create|draft|produce|return|as|format)\b/i.test(typed)) ? (/\bpdf\b/i.test(typed)?'pdf':(/\b(txt|text)\b/i.test(typed)?'txt':'doc')) : null;
+    window._pendingAiFmt = (/\b(pdf|word|docx?|txt|text|md|markdown)\b/i.test(typed) && /\b(send|save|download|export|give|make|provide|generate|create|draft|produce|return|as|format)\b/i.test(typed)) ? (/\bpdf\b/i.test(typed)?'pdf':(/\b(md|markdown)\b/i.test(typed)?'md':(/\b(txt|text)\b/i.test(typed)?'txt':'doc'))) : null;
     const country = document.getElementById('aiCountry').value;
     const category = document.getElementById('aiTask').value;
     const fileName = aiAttachName, fileText = aiAttachText, imgData = aiAttachImageData, imgMime = aiAttachImageMime, imgPreview = aiAttachImagePreview;
@@ -1678,11 +1679,11 @@
               document.getElementById(msgId).innerHTML = renderMarkdown(payload.answer);
               const actionsEl = document.createElement('div');
               actionsEl.className = 'bubble-actions';
-              actionsEl.innerHTML = `<button class="bubble-action" onclick="navigator.clipboard.writeText(decodeURIComponent('${encodeURIComponent(payload.answer)}'))">Copy</button><button class="bubble-action" onclick="downloadDoc(decodeURIComponent('${encodeURIComponent(payload.answer)}'),'FORI_analysis')">Word</button><button class="bubble-action" onclick="downloadPdf(decodeURIComponent('${encodeURIComponent(payload.answer)}'),'FORI_analysis')">PDF</button><button class="bubble-action" onclick="downloadTxt(decodeURIComponent('${encodeURIComponent(payload.answer)}'),'FORI_analysis')">Text</button>`;
+              actionsEl.innerHTML = _copyIcon(window._msgTexts.push(payload.answer)-1);
               const colEl = bubble.querySelector('.msg-col'); const timeEl = bubble.querySelector('.msg-time');
               if (colEl && timeEl) colEl.insertBefore(actionsEl, timeEl); else bubble.appendChild(actionsEl);
               aiHistory.push({ role: 'assistant', content: payload.answer });
-              if(window._pendingAiFmt){var _f=window._pendingAiFmt;window._pendingAiFmt=null;try{appendAIFile(_f,payload.answer);}catch(e){}setTimeout(function(){try{if(_f==='pdf')downloadPdf(payload.answer,'FORI_document');else if(_f==='txt')downloadTxt(payload.answer,'FORI_document');else downloadDoc(payload.answer,'FORI_document');}catch(e){}},300);}
+              if(window._pendingAiFmt){var _f=window._pendingAiFmt;window._pendingAiFmt=null;try{appendAIFileMsg(_f,payload.answer);}catch(e){}}
               persistAiTurn(question, payload.answer, country, category, persistUserMeta);
               saveMemory('question', `Question: ${question}\n\nAnswer: ${payload.answer.slice(0, 1500)}`);
             }
@@ -1718,8 +1719,15 @@
   }
   function downloadAI(text) { downloadDoc(text, 'FORI_analysis'); }
   window._genFiles = window._genFiles || [];
-  function downloadGenFile(i){ var f=window._genFiles[i]; if(!f)return; if(f.fmt==='pdf')downloadPdf(f.text,'FORI_Document'); else if(f.fmt==='txt')downloadTxt(f.text,'FORI_Document'); else downloadDoc(f.text,'FORI_Document'); }
-  function appendAIFile(fmt, text){ var ext=fmt==='pdf'?'pdf':(fmt==='txt'?'txt':'doc'); var name='FORI_Document.'+ext; var idx=window._genFiles.push({fmt:fmt,text:text})-1; var wrap=document.getElementById('aiChatMessages'); if(!wrap)return; var row=document.createElement('div'); row.className='msg-row assistant'; var t=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); row.innerHTML='<div class="msg-avatar">F</div><div class="msg-col"><div class="msg-file-card" style="cursor:pointer" onclick="downloadGenFile('+idx+')">'+fileCardInner(name,ext)+'</div><div class="msg-time">'+t+'</div></div>'; wrap.appendChild(row); wrap.scrollTop=wrap.scrollHeight; }
+  function downloadMd(text, base){ var blob=new Blob([String(text||'')],{type:'text/markdown'}); var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=(base||'FORI_document')+'_'+new Date().toISOString().slice(0,10)+'.md'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){URL.revokeObjectURL(a.href);},1500); try{if(typeof toast==='function')toast('Markdown file downloaded.');}catch(e){} }
+  function _fmtLabel(fmt){ return fmt==='pdf'?'PDF':(fmt==='txt'?'text file':(fmt==='md'?'Markdown file':'Word document')); }
+  function _fmtExt(fmt){ return fmt==='pdf'?'pdf':(fmt==='txt'?'txt':(fmt==='md'?'md':'doc')); }
+  window._genFiles = window._genFiles || [];
+  function downloadGenFile(i){ var f=window._genFiles[i]; if(!f)return; if(f.fmt==='pdf')downloadPdf(f.text,'FORI_Document'); else if(f.fmt==='txt')downloadTxt(f.text,'FORI_Document'); else if(f.fmt==='md')downloadMd(f.text,'FORI_Document'); else downloadDoc(f.text,'FORI_Document'); }
+  window._msgTexts = window._msgTexts || [];
+  function copyMsg(i){ var tx=window._msgTexts[i]; if(tx==null)return; try{ navigator.clipboard.writeText(tx).then(function(){ if(typeof toast==='function')toast('Copied to clipboard.'); }); }catch(e){} }
+  function _copyIcon(idx){ return '<button class="bubble-action ico" onclick="copyMsg('+idx+')" aria-label="Copy" title="Copy"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>'; }
+  function appendAIFileMsg(fmt, text){ var ext=_fmtExt(fmt); var name='FORI_Document.'+ext; var idx=window._genFiles.push({fmt:fmt,text:text})-1; var wrap=document.getElementById('aiChatMessages'); if(!wrap)return; var row=document.createElement('div'); row.className='msg-row assistant'; var t=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); row.innerHTML='<div class="msg-avatar">F</div><div class="msg-col"><div class="msg-bubble assistant" style="margin-bottom:7px;">Here is your '+_fmtLabel(fmt)+'. Tap the file below to download.</div><div class="msg-file-card" style="cursor:pointer" onclick="downloadGenFile('+idx+')">'+fileCardInner(name,ext)+'</div><div class="msg-time">'+t+'</div></div>'; wrap.appendChild(row); wrap.scrollTop=wrap.scrollHeight; }
 
   // ── CLIENTS + CHAT ──
   let _activeConnId = null, _activeClientName = null, _activeClientId = null, _msgsUnsub = null;
