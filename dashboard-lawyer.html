@@ -547,6 +547,8 @@
 
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
+  window._foriGetToken = async function(){ try { return auth.currentUser ? await auth.currentUser.getIdToken() : null; } catch(e){ return null; } };
+  (function(){ if(window._foriFetchPatched) return; window._foriFetchPatched=true; var _f=window.fetch.bind(window); var API=['/ask-stream','/api/ask','/ask','/tax-stream','/research-stream','/compare-stream','/clause-stream','/outcome-stream','/review-stream','/redline-stream','/extract-file','/draft','/summarise-memory','/create-checkout','/lawyers']; window.fetch=async function(u,opts){ try{ var url=(typeof u==='string')?u:(u&&u.url)||''; var hit=API.some(function(p){return url===p||url.indexOf(p)===0;}); if(hit&&window._foriGetToken){ var tok=await window._foriGetToken(); if(tok){ opts=opts||{}; var h=new Headers(opts.headers||{}); h.set('Authorization','Bearer '+tok); opts.headers=h; } } }catch(e){} return _f(u,opts); }; })();
   const db = getFirestore(app);
   const storage = getStorage(app);
 
@@ -605,6 +607,11 @@
 
   window.fsLoadClients = function(lawyerUid, callback) {
     const q = query(collection(db, 'connections'), where('lawyerId', '==', lawyerUid));
+    return onSnapshot(q, callback);
+  };
+
+  window.fsLoadReviews = function(lawyerUid, callback) {
+    const q = query(collection(db, 'ratings'), where('lawyerId', '==', lawyerUid));
     return onSnapshot(q, callback);
   };
 
@@ -842,7 +849,7 @@
         <div class="stat-card"><div class="stat-num">3</div><div class="stat-label">New Leads</div><div class="stat-change">↑ This week</div></div>
         <div class="stat-card"><div class="stat-num">12</div><div class="stat-label">Active Cases</div><div class="stat-change">↑ 2 new</div></div>
         <div class="stat-card"><div class="stat-num">91%</div><div class="stat-label">Win Rate</div><div class="stat-change">↑ Last 30 cases</div></div>
-        <div class="stat-card"><div class="stat-num">4.9</div><div class="stat-label">Client Rating</div><div class="stat-change">↑ 47 reviews</div></div>
+        <div class="stat-card"><div class="stat-num" id="statRating">—</div><div class="stat-label">Client Rating</div><div class="stat-change" id="statReviews">No reviews yet</div></div>
       </div>
       <div style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;">
         <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);">Recent Leads</div>
@@ -1735,16 +1742,29 @@
   function loadClients() {
     const uid = window._lexUid || user.uid;
     if (!uid || !window.fsLoadClients) return;
-    window.fsLoadClients(uid, (snap) => {
+    if (_clientsUnsub) { renderClients(_clientConns); refreshUnreadBadges(); return; }
+    _clientsUnsub = window.fsLoadClients(uid, (snap) => {
       const conns = []; snap.forEach(d => conns.push({ id: d.id, ...d.data() }));
       _clientConns = conns;
       const cr = document.getElementById('page-chatroom');
       const chatOpen = cr && cr.classList.contains('active');
       if (chatOpen && _activeConnId) { const oc = conns.find(c => c.id === _activeConnId); if (oc) { const ms = (oc.lastAt && oc.lastAt.toMillis) ? oc.lastAt.toMillis() : Date.now(); markConnSeen(_activeConnId, ms); } }
+      _notifyClientChanges(conns);
       renderClients(conns);
       refreshUnreadBadges();
       renderOverviewLeads(conns.filter(c => c.status === 'pending'));
     });
+  }
+  function _notifyClientChanges(conns){
+    if(_connPrev){
+      conns.forEach(c=>{
+        const p=_connPrev[c.id];
+        const cname=c.userName||'A client';
+        if(!p && c.status==='pending'){ addNotif('New client request from '+cname+'.','info','high','page:leads'); }
+        else if(p && !p.unread && connHasUnread(c)){ addNotif('New message from '+cname+'.','info','high','page:clients'); }
+      });
+    }
+    const m={}; conns.forEach(c=>{ m[c.id]={status:c.status,unread:connHasUnread(c)}; }); _connPrev=m;
   }
 
   var _photoCache={};
@@ -1786,10 +1806,22 @@
       </div>`).join('');
   }
 
-  async function acceptConn(connId) { await window.fsAcceptConnection(connId); addNotif('Connection accepted. Chat is now open.','success','high','page:clients'); }
-  async function declineConn(connId) { await window.fsDeclineConnection(connId); addNotif('Connection declined.','info','high','page:leads'); }
+  async function acceptConn(connId) {
+    await window.fsAcceptConnection(connId);
+    toast('Connection accepted. Chat is now open.');
+    const conn = (_clientConns||[]).find(c => c.id === connId) || {};
+    const cname = conn.userName || 'there';
+    try {
+      await window.fsSendMessage(connId, window._lexUid||user.uid, user.name||'Lawyer',
+        "Hello "+cname+" — I've reviewed your request and I'm glad to help. Could you share any additional details about your matter so I can advise you properly?",
+        null, null);
+    } catch(e) {}
+    try { markConnSeen(connId, Date.now()); } catch(e) {}
+    openClientChat(connId, conn.userName||'Client', conn.userId||'', 'active');
+  }
+  async function declineConn(connId) { await window.fsDeclineConnection(connId); toast('Connection declined.'); }
 
-  let _clientConns = [];
+  let _clientConns = [], _clientsUnsub=null, _connPrev=null, _reviewsUnsub=null, _reviewPrev=null, _reviewsSeeded=false;
   function getConnSeen(){try{return JSON.parse(localStorage.getItem('foriConnSeen')||'{}');}catch(e){return {};}}
   function markConnSeen(connId,ms){if(!connId||!ms)return;const s=getConnSeen();if((s[connId]||0)<ms){s[connId]=ms;try{localStorage.setItem('foriConnSeen',JSON.stringify(s));}catch(e){}}}
   function connHasUnread(c){const me=window._lexUid||user.uid||'';const ms=(c.lastAt&&c.lastAt.toMillis)?c.lastAt.toMillis():0;return !!c.lastSenderId&&c.lastSenderId!==me&&ms>(getConnSeen()[c.id]||0);}
@@ -1878,10 +1910,45 @@
     await window.fsCloseCase(_activeConnId);
     document.getElementById('chatroomStatus').textContent = 'Case Closed';
     document.getElementById('closeCaseBtn').style.display = 'none';
-    addNotif('Case closed. Client will be prompted to rate their experience.','success','high','page:cases');
+    addNotif('Case closed. Client will be prompted to rate their experience.');
   }
 
-  setTimeout(() => { if (window.fsLoadClients) loadClients(); }, 1500);
+  function loadReviews(){
+    const uid=window._lexUid||user.uid;
+    if(!uid||!window.fsLoadReviews||_reviewsUnsub) return;
+    _reviewsUnsub=window.fsLoadReviews(uid,(snap)=>{
+      const reviews=[]; snap.forEach(d=>reviews.push({id:d.id,...d.data()}));
+      reviews.sort((a,b)=>{const ta=(a.createdAt&&a.createdAt.toMillis)?a.createdAt.toMillis():0;const tb=(b.createdAt&&b.createdAt.toMillis)?b.createdAt.toMillis():0;return tb-ta;});
+      if(_reviewsSeeded){
+        reviews.forEach(r=>{ if(_reviewPrev && !_reviewPrev[r.id]){ const s=r.stars?(r.stars+'★'):'a rating'; addNotif('New review from a client — '+s+'.','success','high','page:overview'); } });
+      }
+      const pm={}; reviews.forEach(r=>{pm[r.id]=true;}); _reviewPrev=pm; _reviewsSeeded=true;
+      renderReviews(reviews);
+    });
+  }
+  function renderReviews(reviews){
+    const count=reviews.length;
+    const avg=count?(reviews.reduce((s,r)=>s+(Number(r.stars)||0),0)/count):0;
+    const rn=document.getElementById('statRating'); if(rn) rn.textContent=count?avg.toFixed(1):'—';
+    const rc=document.getElementById('statReviews'); if(rc) rc.textContent=count?(count+' review'+(count!==1?'s':'')):'No reviews yet';
+    const area=document.querySelector('#page-overview .content-area');
+    if(!area) return;
+    let card=document.getElementById('reviewsCard');
+    if(!count){ if(card) card.style.display='none'; return; }
+    if(!card){ card=document.createElement('div'); card.id='reviewsCard'; area.appendChild(card); }
+    card.style.display='block';
+    const fmtDate=(r)=>{try{return (r.createdAt&&r.createdAt.toDate)?r.createdAt.toDate().toLocaleDateString([],{day:'numeric',month:'short',year:'numeric'}):'';}catch(e){return '';}};
+    card.innerHTML='<div style="margin:18px 0 12px;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);">Recent Reviews</div>'+
+      reviews.slice(0,8).map(r=>{
+        const stars=Math.max(0,Math.min(5,Math.round(Number(r.stars)||0)));
+        const starStr='★'.repeat(stars)+'☆'.repeat(5-stars);
+        const outcome=r.outcome?('<span style="margin-left:8px;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted);">'+escapeHtml(r.outcome)+'</span>'):'';
+        const txt=r.review?('<div style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-top:6px;">'+escapeHtml(r.review)+'</div>'):'';
+        return '<div style="border:1px solid var(--border);padding:14px 16px;margin-bottom:10px;border-radius:10px;background:var(--bg-card);"><div style="display:flex;align-items:center;justify-content:space-between;"><span style="color:var(--accent-gold);letter-spacing:2px;">'+starStr+'</span><span style="font-size:11px;color:var(--text-muted);">'+fmtDate(r)+'</span></div>'+outcome+txt+'</div>';
+      }).join('');
+  }
+
+  setTimeout(() => { if (window.fsLoadClients) loadClients(); if (window.fsLoadReviews) loadReviews(); }, 1500);
 
   // ── LAWYER SETTINGS ──
   function applyAvatarPhoto(el,photo,initial){if(!el)return;if(photo){el.style.backgroundImage='url('+photo+')';el.style.setProperty('background-size','cover','important');el.style.setProperty('background-position','center','important');el.style.setProperty('background-repeat','no-repeat','important');el.style.color='transparent';el.textContent='';}else{el.style.backgroundImage='';el.style.removeProperty('background-size');el.style.removeProperty('background-position');el.style.color='';el.textContent=initial||'';}}
@@ -1912,7 +1979,7 @@
     var _ct=document.documentElement.getAttribute('data-theme')||'dark'; document.querySelectorAll('.theme-seg button').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-t')===_ct);});
     try{var _pf=JSON.parse(localStorage.getItem('foriLawyerPrefs')||'{}');if(document.getElementById('lwNotifRequests'))document.getElementById('lwNotifRequests').checked=_pf.notifRequests!==false;if(document.getElementById('lwNotifMessages'))document.getElementById('lwNotifMessages').checked=_pf.notifMessages!==false;if(document.getElementById('lwNotifSystem'))document.getElementById('lwNotifSystem').checked=_pf.notifSystem!==false;}catch(e){}
     closeSet();
-    if (window._lexUid && window.fsLoadMarketplace) { window.fsLoadMarketplace(window._lexUid).then(d => { if(d&&d.photo){prefs.photo=d.photo;localStorage.setItem('foriLawyerPrefs',JSON.stringify(prefs));refreshAvatars(d.photo);} if (d && d.verified) { setVerifyBadge('verified'); } else if (d && d.verificationStatus) { setVerifyBadge(d.verificationStatus); prefs.verificationStatus = d.verificationStatus; localStorage.setItem('foriLawyerPrefs', JSON.stringify(prefs)); } }).catch(() => {}); }
+    if (window._lexUid && window.fsLoadMarketplace) { window.fsLoadMarketplace(window._lexUid).then(d => { if(d&&d.photo){prefs.photo=d.photo;localStorage.setItem('foriLawyerPrefs',JSON.stringify(prefs));refreshAvatars(d.photo);} const _prevVer=prefs.verifiedNotified===true; const _prevStatus=prefs.verificationStatus||''; if (d && d.verified) { setVerifyBadge('verified'); if(!_prevVer){ addNotif('Your verification was approved. The verified badge now shows on your profile.','success','high','page:profile'); prefs.verifiedNotified=true; localStorage.setItem('foriLawyerPrefs',JSON.stringify(prefs)); } } else if (d && d.verificationStatus) { setVerifyBadge(d.verificationStatus); if(d.verificationStatus==='rejected' && _prevStatus!=='rejected'){ addNotif('Your verification needs attention. Please review your details and resubmit.','warning','high','page:profile'); } prefs.verificationStatus = d.verificationStatus; localStorage.setItem('foriLawyerPrefs', JSON.stringify(prefs)); } }).catch(() => {}); }
   }
 
   async function saveLawyerProfile() {
@@ -2143,7 +2210,7 @@
   function openNotifModal() { const m = document.getElementById('notifModal'); if(m) m.classList.add('open'); const n = getNotifs().map(x=>({...x,read:true})); saveNotifs(n); renderNotifs(); }
   function closeNotifModal() { const m = document.getElementById('notifModal'); if(m) m.classList.remove('open'); }
   function clearNotifs() { saveNotifs([]); renderNotifs(); }
-  if (!localStorage.getItem('foriNotifSeeded_law')) { addNotif('Welcome to FORI for Lawyers. Your dashboard is ready.','info','high','page:profile'); addNotif('You have 3 new client leads waiting.','info','high','page:leads'); localStorage.setItem('foriNotifSeeded_law','1'); }
+  if (!localStorage.getItem('foriNotifSeeded_law')) { addNotif('Welcome to FORI for Lawyers. Your dashboard is ready.','info','high','page:profile'); localStorage.setItem('foriNotifSeeded_law','1'); }
   renderNotifs();
 
   // ── COOKIES ── (cookie banner removed)
