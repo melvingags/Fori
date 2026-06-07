@@ -607,14 +607,20 @@ PROMPT_DEFLECTION = ("I'm here for your legal questions, not to get into how I w
                      "behind the scenes. What's the legal issue I can help you with?")
 
 _PROBE_PATTERNS = re.compile(
-    r"(system\s*prompt"
-    r"|your\s+(instructions|prompt|system|guidelines|rules|configuration)"
-    r"|(what|repeat|show|reveal|print|display|output|give\s+me|tell\s+me)\b.{0,40}\b(prompt|instructions|system\s*message|your\s+rules|guidelines)"
-    r"|ignore\s+(all\s+)?(previous|prior|the\s+above|above)\s+instructions"
-    r"|repeat\s+(the\s+)?(text|words|everything|message)\s+above"
-    r"|what\s+were\s+you\s+(told|instructed)"
-    r"|initial\s+(instructions|prompt)"
-    r"|verbatim\b.{0,25}(instructions|prompt|rules))",
+    r"("
+    r"system\s*prompt"
+    r"|system\s+(message|instructions?)"
+    r"|your\s+(?:\w+\s+){0,3}(prompt|instructions?|configuration|directives?|persona)"
+    r"|your\s+(rules|guidelines)\b"
+    r"|(initial|original|exact|full|entire|complete|verbatim|underlying|raw)\s+(?:\w+\s+){0,2}(prompt|instructions?)"
+    r"|(prompt|instructions?)\s+(for|of|behind|powering|driving)\s+(this|the|your)\s+(ai|assistant|bot|model|tool|chat|system)"
+    r"|(this|the)\s+(ai|assistant|bot|model)('?s)?\s+(?:\w+\s+){0,2}(prompt|instructions?)"
+    r"|ignore\s+(all\s+)?(previous|prior|above|earlier|the\s+above)\s+(instructions?|prompts?|rules?|directions?)"
+    r"|(everything|the\s+(text|words|message|content))\s+(above|before)"
+    r"|(repeat|reproduce|recite|print|output|reveal)\s+(?:\w+\s+){0,4}(verbatim|above)"
+    r"|what\s+(were|are)\s+you\s+(told|instructed|given|programmed|configured|trained)"
+    r"|what('?s| is| are)\s+your\s+(?:\w+\s+){0,3}(prompt|instructions?|system\s*message|rules|guidelines|configuration)"
+    r")",
     re.IGNORECASE)
 
 def _is_prompt_probe(text):
