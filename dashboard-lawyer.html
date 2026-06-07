@@ -533,7 +533,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
   import { getAuth, onAuthStateChanged, signOut, updatePassword, deleteUser } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
-  import { getFirestore, doc, getDoc, getDocs, collection, query, where, orderBy, onSnapshot, addDoc, updateDoc, serverTimestamp, deleteDoc } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, getDocs, setDoc, collection, query, where, orderBy, onSnapshot, addDoc, updateDoc, serverTimestamp, deleteDoc } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
   import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-storage.js";
 
   const firebaseConfig = {
@@ -614,6 +614,10 @@
     const q = query(collection(db, 'ratings'), where('lawyerId', '==', lawyerUid));
     return onSnapshot(q, callback);
   };
+
+  window.fsSaveChat = async function(uid, chat){ try{ var id=uid+'_'+chat.id; var s=JSON.stringify(chat); s=s.replace(/data:[a-zA-Z0-9.+\/-]+;base64,[^"'\s)]+/g,'[image]'); if(s.length>900000)s=s.slice(0,900000); await setDoc(doc(db,'chats',id),{userId:uid,chatId:String(chat.id),title:String(chat.title||'').slice(0,200),updatedAt:Number(chat.updatedAt||chat.createdAt||Date.now()),payload:s}); }catch(e){} };
+  window.fsLoadChats = async function(uid){ var out=[]; try{ var qs=await getDocs(query(collection(db,'chats'),where('userId','==',uid))); qs.forEach(function(d){ try{ var c=JSON.parse(d.data().payload); if(c&&c.id!=null) out.push(c); }catch(e){} }); }catch(e){} return out; };
+  window.fsDeleteChat = async function(uid, chatId){ try{ await deleteDoc(doc(db,'chats',uid+'_'+chatId)); }catch(e){} };
 
   window.fsAcceptConnection = async function(connId) {
     await updateDoc(doc(db, 'connections', connId), { status: 'active', acceptedAt: serverTimestamp() });
@@ -751,7 +755,7 @@
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
       Ask FORI
     </a>
-    <a class="nav-item" onclick="showPage('aihistory', this)">
+    <a class="nav-item" onclick="showPage('aihistory', this);syncAiChatsFromCloud()">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
       History
     </a>
@@ -762,7 +766,7 @@
     <a class="nav-item" onclick="showPage('leads', this)" id="navLeads">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 8.63a19.79 19.79 0 01-3.07-8.67A2 2 0 012.18 0h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.91 8.09a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>
       Client Leads
-      <span class="nav-badge" id="leadsBadge">3</span>
+      <span class="nav-badge" id="leadsBadge" style="display:none;">0</span>
     </a>
     <a class="nav-item" onclick="showPage('clients', this)" id="navClients">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
@@ -1756,15 +1760,25 @@
     });
   }
   function _notifyClientChanges(conns){
+    // New client leads: notify once per lead ever — reliable even if the lawyer
+    // was offline when the request arrived.
+    try{
+      var lk='foriLeadNotified';var done=JSON.parse(localStorage.getItem(lk)||'[]');var chg=false;
+      conns.filter(function(c){return c.status==='pending';}).forEach(function(c){
+        if(done.indexOf(c.id)===-1){ addNotif('New client request from '+(c.userName||'a client')+'.','info','high','page:leads'); done.push(c.id); chg=true; }
+      });
+      if(chg) localStorage.setItem(lk,JSON.stringify(done.slice(-200)));
+    }catch(e){}
+    // New messages: in-memory transition only (avoids re-notifying on every login)
     if(_connPrev){
-      conns.forEach(c=>{
-        const p=_connPrev[c.id];
-        const cname=c.userName||'A client';
-        if(!p && c.status==='pending'){ addNotif('New client request from '+cname+'.','info','high','page:leads'); }
-        else if(p && !p.unread && connHasUnread(c)){ addNotif('New message from '+cname+'.','info','high','page:clients'); }
+      conns.forEach(function(c){
+        var p=_connPrev[c.id];
+        if(p && !p.unread && connHasUnread(c)){ addNotif('New message from '+(c.userName||'a client')+'.','info','high','page:clients'); }
       });
     }
-    const m={}; conns.forEach(c=>{ m[c.id]={status:c.status,unread:connHasUnread(c)}; }); _connPrev=m;
+    var m={}; conns.forEach(function(c){ m[c.id]={status:c.status,unread:connHasUnread(c)}; }); _connPrev=m;
+    // Live Client Leads badge (real pending count, not a fixed number)
+    try{ var pend=conns.filter(function(c){return c.status==='pending';}).length; var lb=document.getElementById('leadsBadge'); if(lb){ if(pend>0){lb.textContent=pend;lb.style.display='';} else {lb.style.display='none';} } }catch(e){}
   }
 
   var _photoCache={};
@@ -1948,7 +1962,7 @@
       }).join('');
   }
 
-  setTimeout(() => { if (window.fsLoadClients) loadClients(); if (window.fsLoadReviews) loadReviews(); }, 1500);
+  setTimeout(() => { if (window.fsLoadClients) loadClients(); if (window.fsLoadReviews) loadReviews(); syncAiChatsFromCloud(); }, 1500);
 
   // ── LAWYER SETTINGS ──
   function applyAvatarPhoto(el,photo,initial){if(!el)return;if(photo){el.style.backgroundImage='url('+photo+')';el.style.setProperty('background-size','cover','important');el.style.setProperty('background-position','center','important');el.style.setProperty('background-repeat','no-repeat','important');el.style.color='transparent';el.textContent='';}else{el.style.backgroundImage='';el.style.removeProperty('background-size');el.style.removeProperty('background-position');el.style.color='';el.textContent=initial||'';}}
@@ -2067,7 +2081,10 @@
 
   // ── AI RESEARCH HISTORY (conversation threads) ──
   function getAiChats(){try{return JSON.parse(localStorage.getItem('foriLawyerAIChats')||'[]');}catch(e){return [];}}
-  function saveAiChats(a){try{localStorage.setItem('foriLawyerAIChats',JSON.stringify(a.slice(0,100)));}catch(e){}}
+  function saveAiChats(a){try{localStorage.setItem('foriLawyerAIChats',JSON.stringify(a.slice(0,100)));}catch(e){} if(!_aiChatSyncing)_pushCurrentAiChatCloud(); }
+  let _aiChatSyncing=false,_aiChatPushT=null;
+  function _pushCurrentAiChatCloud(){ if(!window.fsSaveChat)return; var uid=window._lexUid; if(!uid)return; var arr=getAiChats(); var cur=arr.find(function(c){return String(c.id)===String(currentAiChatId);})||arr[0]; if(!cur)return; clearTimeout(_aiChatPushT); _aiChatPushT=setTimeout(function(){ try{window.fsSaveChat(uid,cur);}catch(e){} },700); }
+  async function syncAiChatsFromCloud(){ var uid=window._lexUid; if(!uid||!window.fsLoadChats)return; var cloud=[]; try{cloud=await window.fsLoadChats(uid);}catch(e){return;} var local=getAiChats(); var cloudIds={}; cloud.forEach(function(c){cloudIds[String(c.id)]=true;}); if(window.fsSaveChat){local.forEach(function(c){if(!cloudIds[String(c.id)]){try{window.fsSaveChat(uid,c);}catch(e){}}});} if(!cloud.length)return; var map={}; local.forEach(function(c){map[String(c.id)]=c;}); cloud.forEach(function(c){var k=String(c.id);var ex=map[k];var ct=(c.updatedAt||c.createdAt||c.id||0);var et=ex?(ex.updatedAt||ex.createdAt||ex.id||0):-1; if(!ex||ct>et)map[k]=c;}); var merged=Object.keys(map).map(function(k){return map[k];}).sort(function(a,b){return ((b.updatedAt||b.createdAt||b.id||0)-(a.updatedAt||a.createdAt||a.id||0));}).slice(0,100); _aiChatSyncing=true; saveAiChats(merged); _aiChatSyncing=false; try{renderAIHistory();}catch(e){} }
   function migrateAiChatsOnce(){
     if(localStorage.getItem('foriLawyerAIChats')!==null)return;
     let old=[];try{old=JSON.parse(localStorage.getItem('foriAIHistory')||'[]');}catch(e){old=[];}
@@ -2099,8 +2116,9 @@
   }
   function confirmDeleteAiChat(id){const c=getAiChats().find(x=>String(x.id)===String(id));const name=c&&c.title?c.title:'this session';closeForiConfirm();const ov=document.createElement('div');ov.id='foriConfirmOverlay';ov.className='fori-confirm-overlay';ov.innerHTML=`<div class="fori-confirm-box"><div class="fori-confirm-title">Delete session?</div><div class="fori-confirm-msg">"${escapeHtml(name)}" will be permanently deleted. This can't be undone.</div><div class="fori-confirm-actions"><button class="fori-confirm-cancel" onclick="closeForiConfirm()">Cancel</button><button class="fori-confirm-delete" onclick="closeForiConfirm();doDeleteAiChat('${c?c.id:id}')">Delete</button></div></div>`;ov.addEventListener('click',e=>{if(e.target===ov)closeForiConfirm();});document.body.appendChild(ov);}
   function closeForiConfirm(){const ov=document.getElementById('foriConfirmOverlay');if(ov)ov.remove();}
-  function doDeleteAiChat(id){const next=getAiChats().filter(x=>String(x.id)!==String(id));saveAiChats(next);if(String(currentAiChatId)===String(id)){currentAiChatId=null;aiHistory.length=0;}renderAIHistory();}
-  function clearAIHistory(){const ov=document.createElement('div');ov.id='foriConfirmOverlay';ov.className='fori-confirm-overlay';ov.innerHTML=`<div class="fori-confirm-box"><div class="fori-confirm-title">Clear all history?</div><div class="fori-confirm-msg">Every saved research session will be permanently deleted. This can't be undone.</div><div class="fori-confirm-actions"><button class="fori-confirm-cancel" onclick="closeForiConfirm()">Cancel</button><button class="fori-confirm-delete" onclick="closeForiConfirm();localStorage.removeItem('foriLawyerAIChats');currentAiChatId=null;aiHistory.length=0;renderAIHistory();">Clear all</button></div></div>`;ov.addEventListener('click',e=>{if(e.target===ov)closeForiConfirm();});document.body.appendChild(ov);}
+  function doDeleteAiChat(id){const next=getAiChats().filter(x=>String(x.id)!==String(id));_aiChatSyncing=true;saveAiChats(next);_aiChatSyncing=false;if(window.fsDeleteChat&&window._lexUid)window.fsDeleteChat(window._lexUid,id);if(String(currentAiChatId)===String(id)){currentAiChatId=null;aiHistory.length=0;}renderAIHistory();}
+  function clearAllAiChatsConfirmed(){var ids=getAiChats().map(function(c){return c.id;});localStorage.removeItem('foriLawyerAIChats');if(window.fsDeleteChat&&window._lexUid)ids.forEach(function(i){window.fsDeleteChat(window._lexUid,i);});currentAiChatId=null;aiHistory.length=0;renderAIHistory();}
+  function clearAIHistory(){const ov=document.createElement('div');ov.id='foriConfirmOverlay';ov.className='fori-confirm-overlay';ov.innerHTML=`<div class="fori-confirm-box"><div class="fori-confirm-title">Clear all history?</div><div class="fori-confirm-msg">Every saved research session will be permanently deleted. This can't be undone.</div><div class="fori-confirm-actions"><button class="fori-confirm-cancel" onclick="closeForiConfirm()">Cancel</button><button class="fori-confirm-delete" onclick="closeForiConfirm();clearAllAiChatsConfirmed();">Clear all</button></div></div>`;ov.addEventListener('click',e=>{if(e.target===ov)closeForiConfirm();});document.body.appendChild(ov);}
   // ── AI chat file upload ──
   async function handleAIFileUpload(input){
     const file=input.files&&input.files[0];if(!file)return;
