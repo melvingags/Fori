@@ -447,7 +447,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
   import { getAuth, onAuthStateChanged, signOut, updatePassword, deleteUser } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
-  import { getFirestore, doc, getDoc, getDocs, addDoc, collection, query, where, orderBy, onSnapshot, updateDoc, serverTimestamp, deleteDoc } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, getDocs, addDoc, setDoc, collection, query, where, orderBy, onSnapshot, updateDoc, serverTimestamp, deleteDoc } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
   import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-storage.js";
   const firebaseConfig = { apiKey:"AIzaSyAW2Cc8KT4ss9Y0G3kpCRzDT4QE6PCiNr0", authDomain:"lex-ai-bc013.firebaseapp.com", projectId:"lex-ai-bc013", storageBucket:"lex-ai-bc013.firebasestorage.app", messagingSenderId:"668577225294", appId:"1:668577225294:web:17d8f5c6ab4656d665411f" };
   const app = initializeApp(firebaseConfig);
@@ -476,6 +476,9 @@
   window.fsSendMessage = async function(connId,uid,name,text,fileUrl,fileName,fileData,fileType){ await addDoc(collection(db,'connections',connId,'messages'),{senderId:uid,senderName:name,text:text||'',fileUrl:fileUrl||null,fileName:fileName||null,fileData:fileData||null,fileType:fileType||null,createdAt:serverTimestamp()}); await updateDoc(doc(db,'connections',connId),{lastMessage:text||fileName||'Attachment',lastAt:serverTimestamp(),lastSenderId:uid}); };
   window.fsCloseCase = async function(connId){ await updateDoc(doc(db,'connections',connId),{status:'closed',closedAt:serverTimestamp()}); };
   window.fsSubmitRating = async function(connId,lawyerId,userId,stars,outcome,review){ await addDoc(collection(db,'ratings'),{connId,lawyerId,userId,stars,outcome,review,createdAt:serverTimestamp(),verified:true,source:'FORI'}); await updateDoc(doc(db,'connections',connId),{rated:true}); };
+  window.fsSaveChat = async function(uid, chat){ try{ var id=uid+'_'+chat.id; var s=JSON.stringify(chat); s=s.replace(/data:[a-zA-Z0-9.+\/-]+;base64,[^"'\s)]+/g,'[image]'); if(s.length>900000)s=s.slice(0,900000); await setDoc(doc(db,'chats',id),{userId:uid,chatId:String(chat.id),title:String(chat.title||'').slice(0,200),updatedAt:Number(chat.updatedAt||Date.now()),payload:s}); }catch(e){} };
+  window.fsLoadChats = async function(uid){ var out=[]; try{ var qs=await getDocs(query(collection(db,'chats'),where('userId','==',uid))); qs.forEach(function(d){ try{ var c=JSON.parse(d.data().payload); if(c&&c.id!=null) out.push(c); }catch(e){} }); }catch(e){} return out; };
+  window.fsDeleteChat = async function(uid, chatId){ try{ await deleteDoc(doc(db,'chats',uid+'_'+chatId)); }catch(e){} };
   window.fsUploadDoc = async function(uid,file){ const r=ref(storage,`documents/${uid}/${Date.now()}_${file.name}`); await uploadBytes(r,file); const url=await getDownloadURL(r); await addDoc(collection(db,'documents'),{uid,name:file.name,size:file.size,type:file.type,url,createdAt:serverTimestamp()}); return url; };
   window.fsLoadDocs = function(uid,callback){ return onSnapshot(query(collection(db,'documents'),where('uid','==',uid),orderBy('createdAt','desc')),callback); };
   window.fsDeleteDoc = async function(docId){ await deleteDoc(doc(db,'documents',docId)); };
@@ -488,7 +491,7 @@
   <nav class="sidebar-nav">
     <div class="nav-section-label">Main</div>
     <a class="nav-item active" onclick="showPage('ask',this)"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>Ask FORI</a>
-    <a class="nav-item" onclick="showPage('history',this)"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>History</a>
+    <a class="nav-item" onclick="showPage('history',this);syncChatsFromCloud()"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>History</a>
     <a class="nav-item" onclick="showPage('lawyers',this)"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>Find a Lawyer</a>
     <a class="nav-item" onclick="showPage('mylawyers',this)" id="navMyLawyers"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>My Lawyers<span class="nav-badge" id="myLawyersBadge" style="display:none;background:#e74c3c;">0</span></a>
     <a class="nav-item" onclick="gatedPage('contract',this)"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Contract Review<span class="nav-badge" style="background:var(--accent-gold);color:var(--bg-primary);">AI</span></a>
@@ -1000,7 +1003,10 @@
 
   // ── CONVERSATION THREADS (Claude-style: one history entry per chat, reopenable) ──
   function getChats(){try{return JSON.parse(localStorage.getItem('foriChats')||'[]');}catch(e){return [];}}
-  function saveChats(a){try{localStorage.setItem('foriChats',JSON.stringify(a.slice(0,100)));}catch(e){}}
+  function saveChats(a){try{localStorage.setItem('foriChats',JSON.stringify(a.slice(0,100)));}catch(e){} if(!_chatSyncing)_pushCurrentChatCloud(); }
+  let _chatSyncing=false,_chatPushT=null;
+  function _pushCurrentChatCloud(){ if(!window.fsSaveChat)return; var uid=window._lexUid; if(!uid)return; var arr=getChats(); var cur=arr.find(function(c){return String(c.id)===String(currentChatId);})||arr[0]; if(!cur)return; clearTimeout(_chatPushT); _chatPushT=setTimeout(function(){ try{window.fsSaveChat(uid,cur);}catch(e){} },700); }
+  async function syncChatsFromCloud(){ var uid=window._lexUid; if(!uid||!window.fsLoadChats)return; var cloud=[]; try{cloud=await window.fsLoadChats(uid);}catch(e){return;} var local=getChats(); var cloudIds={}; cloud.forEach(function(c){cloudIds[String(c.id)]=true;}); if(window.fsSaveChat){local.forEach(function(c){if(!cloudIds[String(c.id)]){try{window.fsSaveChat(uid,c);}catch(e){}}});} if(!cloud.length)return; var map={}; local.forEach(function(c){map[String(c.id)]=c;}); cloud.forEach(function(c){var k=String(c.id);var ex=map[k]; if(!ex||((c.updatedAt||0)>(ex.updatedAt||0)))map[k]=c;}); var merged=Object.keys(map).map(function(k){return map[k];}).sort(function(a,b){return (b.updatedAt||b.id||0)-(a.updatedAt||a.id||0);}).slice(0,100); _chatSyncing=true; saveChats(merged); _chatSyncing=false; try{renderHistory();}catch(e){} }
   function migrateChatsOnce(){
     if(localStorage.getItem('foriChats')!==null)return;
     let old=[];try{old=JSON.parse(localStorage.getItem('foriHistory')||'[]');}catch(e){old=[];}
@@ -1102,9 +1108,9 @@
     document.body.appendChild(ov);
   }
   function closeForiConfirm(){const ov=document.getElementById('foriConfirmOverlay');if(ov)ov.remove();}
-  function doDeleteChat(id){const next=getChats().filter(x=>String(x.id)!==String(id));saveChats(next);if(String(currentChatId)===String(id)){currentChatId=null;chatHistory.length=0;}renderHistory();}
+  function doDeleteChat(id){const next=getChats().filter(x=>String(x.id)!==String(id));_chatSyncing=true;saveChats(next);_chatSyncing=false;if(window.fsDeleteChat&&window._lexUid)window.fsDeleteChat(window._lexUid,id);if(String(currentChatId)===String(id)){currentChatId=null;chatHistory.length=0;}renderHistory();}
   function deleteHistoryItem(id){confirmDeleteChat(id);}
-  function clearHistory(){if(!confirm('Clear all chat history?'))return;localStorage.removeItem('foriChats');currentChatId=null;chatHistory.length=0;renderHistory();}
+  function clearHistory(){if(!confirm('Clear all chat history?'))return;var ids=getChats().map(function(c){return c.id;});localStorage.removeItem('foriChats');if(window.fsDeleteChat&&window._lexUid)ids.forEach(function(i){window.fsDeleteChat(window._lexUid,i);});currentChatId=null;chatHistory.length=0;renderHistory();}
 
   let _allLawyers=[];
   async function initLawyerDirectory(){
@@ -1253,7 +1259,7 @@
   function clearNotifs(){saveNotifs([]);renderNotifs();}
   if(!localStorage.getItem('foriNotifSeeded_ind')){addNotif('Welcome to FORI. Your account is active and ready.','info','high','page:settings');localStorage.setItem('foriNotifSeeded_ind','1');}
   renderNotifs();
-  setTimeout(()=>{if(window.fsLoadMyLawyers)loadMyLawyers();},1500);
+  setTimeout(()=>{if(window.fsLoadMyLawyers)loadMyLawyers();syncChatsFromCloud();},1500);
 
   let researchResultText='',researchSources=[];
   function setResearchTopic(topic){document.getElementById('researchTopic').value=topic;runResearch();}
