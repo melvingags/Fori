@@ -703,9 +703,37 @@ def lawyers_directory():
     works regardless of client-side security rules, and never returns dummy data."""
     try:
         db = _get_firestore_client()
+        # Aggregate ratings + closed-case counts once with admin access (ignores
+        # client security rules, so reviews show on cards without exposing the
+        # ratings collection to clients).
+        rating_agg = {}   # lawyerId -> [sum_stars, count]
+        try:
+            for r in db.collection('ratings').stream():
+                rd = r.to_dict() or {}
+                lid = rd.get('lawyerId')
+                if not lid:
+                    continue
+                try:
+                    s = float(rd.get('stars') or 0)
+                except (TypeError, ValueError):
+                    s = 0
+                a = rating_agg.setdefault(lid, [0.0, 0]); a[0] += s; a[1] += 1
+        except Exception as e:
+            logger.warning(f"ratings agg failed: {str(e)[:100]}")
+        case_agg = {}     # lawyerId -> closed-case count
+        try:
+            for c in db.collection('connections').where('status', '==', 'closed').stream():
+                lid = (c.to_dict() or {}).get('lawyerId')
+                if lid:
+                    case_agg[lid] = case_agg.get(lid, 0) + 1
+        except Exception as e:
+            logger.warning(f"case agg failed: {str(e)[:100]}")
         out = []
         for d in db.collection('users').where('role', '==', 'lawyer').stream():
             data = d.to_dict() or {}
+            agg = rating_agg.get(d.id)
+            avg = round(agg[0] / agg[1], 1) if (agg and agg[1]) else None
+            cnt = agg[1] if agg else 0
             out.append({
                 'id': d.id,
                 'name': data.get('name', ''),
@@ -714,9 +742,9 @@ def lawyers_directory():
                 'country': data.get('country', ''),
                 'firm': data.get('firm', ''),
                 'bio': data.get('bio', ''),
-                'avgRating': data.get('avgRating'),
-                'ratingCount': data.get('ratingCount', 0),
-                'caseCount': data.get('caseCount'),
+                'avgRating': avg,
+                'ratingCount': cnt,
+                'caseCount': case_agg.get(d.id, 0),
                 'verified': bool(data.get('verified', False)),
                 'boosted': bool(data.get('profileBoost', False)),
             })
@@ -724,6 +752,46 @@ def lawyers_directory():
     except Exception as e:
         logger.error(f"/lawyers error: {e}")
         return jsonify({'lawyers': [], 'error': 'directory_unavailable'}), 200
+
+
+@app.route('/lawyer-reviews')
+def lawyer_reviews():
+    """Public reviews for one lawyer. Served via admin access so the ratings
+    collection stays locked in security rules, and the reviewer's identity
+    (userId) is never sent to the client."""
+    lawyer_id = (request.args.get('lawyerId') or '').strip()
+    if not lawyer_id:
+        return jsonify({'reviews': [], 'avgRating': None, 'ratingCount': 0})
+    try:
+        db = _get_firestore_client()
+        revs = []
+        total = 0.0
+        for r in db.collection('ratings').where('lawyerId', '==', lawyer_id).stream():
+            rd = r.to_dict() or {}
+            try:
+                s = float(rd.get('stars') or 0)
+            except (TypeError, ValueError):
+                s = 0
+            total += s
+            ts = None
+            ca = rd.get('createdAt')
+            try:
+                if ca and hasattr(ca, 'timestamp'):
+                    ts = int(ca.timestamp() * 1000)
+            except Exception:
+                ts = None
+            revs.append({
+                'stars': s,
+                'outcome': rd.get('outcome', ''),
+                'review': (rd.get('review') or '')[:1000],
+                'createdAt': ts,
+            })
+        cnt = len(revs)
+        revs.sort(key=lambda x: x.get('createdAt') or 0, reverse=True)
+        return jsonify({'reviews': revs, 'avgRating': round(total / cnt, 1) if cnt else None, 'ratingCount': cnt})
+    except Exception as e:
+        logger.error(f"/lawyer-reviews error: {e}")
+        return jsonify({'reviews': [], 'avgRating': None, 'ratingCount': 0}), 200
 
 
 # ── MEMORY SYSTEM ──
