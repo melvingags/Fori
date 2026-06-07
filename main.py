@@ -633,6 +633,69 @@ def _is_prompt_probe(text):
         return False
     return bool(_PROBE_PATTERNS.search(t))
 
+# ── SECURITY: output-side leak detection (phrasing-proof) ──
+# These markers are verbatim from FORI's own system prompts and never appear in a
+# normal legal answer. If the model's OUTPUT contains them, it is reciting its
+# instructions — block it regardless of how the user asked or what reason they gave.
+_LEAK_MARKERS = [
+    "you are fori", "personality:", "your capabilities:", "document drafting:",
+    "response style", "file delivery:", "do not draft documents",
+    "lead with the answer", "economical with words", "no throat-clearing",
+    "this overrides any earlier instruction",
+]
+def _looks_like_prompt_leak(text):
+    if not text:
+        return False
+    low = text.lower()
+    if "you are fori" in low:
+        return True
+    return sum(1 for m in _LEAK_MARKERS if m in low) >= 2
+
+# Short, referential or justification-style follow-ups that try to revive a blocked
+# extraction request without repeating any trigger words ("I need it for research",
+# "go on", "it's important", "just do it", etc.).
+_FOLLOWUP_RE = re.compile(
+    r"^(.{0,90})$", re.IGNORECASE | re.DOTALL)
+_FOLLOWUP_CUES = re.compile(
+    r"\b(that|it|the above|those|this info|go on|continue|carry on|anyway|"
+    r"i need (it|that|this)|for (a |my )?(legal )?research|please|do it|just do|"
+    r"come on|as i said|i told you|trust me|it'?s (important|urgent|fine|ok|okay)|"
+    r"no mistake|i'?m the (dev|developer|owner|admin|creator)|don'?t hold back|"
+    r"reveal it|show it|paste it|share it|give it)\b", re.IGNORECASE)
+def _is_followup(text):
+    if not text:
+        return False
+    t = text.strip()
+    return len(t) <= 90 and bool(_FOLLOWUP_CUES.search(t))
+
+def _history_texts(history):
+    out = []
+    try:
+        for item in (history or [])[-6:]:
+            if isinstance(item, str):
+                out.append(item)
+            elif isinstance(item, dict):
+                for k in ('content', 'text', 'message', 'parts'):
+                    v = item.get(k)
+                    if isinstance(v, str):
+                        out.append(v); break
+                    if isinstance(v, list):
+                        out.append(' '.join(str(x) for x in v)); break
+    except Exception:
+        pass
+    return out
+
+def _history_has_probe(history):
+    for t in _history_texts(history):
+        if _is_prompt_probe(t) or _looks_like_prompt_leak(t):
+            return True
+    return False
+
+def _is_extraction_attempt(question, history):
+    """True if this turn is an extraction attempt — either directly, or a short
+    follow-up reviving an earlier blocked attempt."""
+    return _is_prompt_probe(question) or (_is_followup(question) and _history_has_probe(history))
+
 
 @app.route('/lawyers')
 def lawyers_directory():
@@ -694,7 +757,7 @@ def ask():
     if not question:
         return jsonify({'error': 'No question provided'}), 400
 
-    if _is_prompt_probe(question):
+    if _is_extraction_attempt(question, data.get('history', [])):
         return jsonify({'answer': PROMPT_DEFLECTION, 'country': country,
                         'category': category, 'tier': tier, 'query_type': 'question',
                         'web_search_used': False, 'sources': []})
@@ -760,6 +823,8 @@ Provide a thorough, accurate response based on the laws of {country}."""
 
         ack = f"Understood. I am FORI {'Business' if tier == 'business' else 'Premium' if tier == 'premium' else ''}. Ready to provide {tier_intro[tier]} based on the laws of {country}."
         answer = generate_answer(prompt, system_prompt=system_prompt, ack=ack)
+        if _looks_like_prompt_leak(answer):
+            answer = PROMPT_DEFLECTION
 
         result = {
             'answer': answer,
@@ -778,7 +843,7 @@ Provide a thorough, accurate response based on the laws of {country}."""
 
     except Exception as e:
         logger.error(f"FORI AI Error: {e}")
-        return jsonify({'error': f'FORI encountered an error: {str(e)[:150]}'}), 500
+        return jsonify({'error': 'FORI ran into a problem. Please try again.'}), 500
 
 
 # Alias so frontend /api/ask calls resolve correctly
@@ -819,7 +884,7 @@ def ask_stream():
     if not model:
         return jsonify({'error': 'FORI AI engine is offline. Please try again later.'}), 503
 
-    if _is_prompt_probe(question) and image_part is None:
+    if _is_extraction_attempt(question, history) and image_part is None:
         def deflect_gen():
             yield f"data: {json.dumps({'chunk': PROMPT_DEFLECTION})}\n\n"
             yield f"data: {json.dumps({'done': True, 'answer': PROMPT_DEFLECTION, 'query_type': 'question', 'web_search_used': False, 'sources': [], 'remaining_questions': None})}\n\n"
@@ -888,10 +953,32 @@ Provide a thorough, accurate response based on the laws of {country}."""
         def generate():
             try:
                 full_answer = ""
+                buffered = ""
+                gate_open = False
+                remaining = get_remaining_questions(ip) if tier == "free" else None
+                def _deflect():
+                    yield f"data: {json.dumps({'chunk': PROMPT_DEFLECTION})}\n\n"
+                    yield f"data: {json.dumps({'done': True, 'answer': PROMPT_DEFLECTION, 'query_type': 'question', 'web_search_used': False, 'sources': [], 'remaining_questions': remaining})}\n\n"
                 for piece in stream_answer(prompt, system_prompt=system_prompt, ack=ack, history=history, image=image_part, image_url=image_url):
                     full_answer += piece
-                    yield f"data: {json.dumps({'chunk': piece})}\n\n"
-                remaining = get_remaining_questions(ip) if tier == "free" else None
+                    if not gate_open:
+                        # Hold back the opening until we're sure it isn't a recital of the prompt.
+                        buffered += piece
+                        if _looks_like_prompt_leak(buffered):
+                            yield from _deflect(); return
+                        if len(buffered) >= 160:
+                            gate_open = True
+                            yield f"data: {json.dumps({'chunk': buffered})}\n\n"
+                            buffered = ""
+                    else:
+                        if _looks_like_prompt_leak(full_answer):
+                            yield from _deflect(); return
+                        yield f"data: {json.dumps({'chunk': piece})}\n\n"
+                # stream ended while still buffering (short answer)
+                if not gate_open and buffered:
+                    if _looks_like_prompt_leak(buffered):
+                        yield from _deflect(); return
+                    yield f"data: {json.dumps({'chunk': buffered})}\n\n"
                 yield f"data: {json.dumps({'done': True, 'answer': full_answer, 'query_type': query_type, 'web_search_used': bool(search_context), 'sources': search_sources, 'remaining_questions': remaining})}\n\n"
             except Exception as e:
                 logger.error(f"Stream error: {e}")
