@@ -68,7 +68,7 @@
   .theme-btn { width:26px; height:26px; border:none; background:transparent; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; color:var(--text-secondary); transition:all 0.3s ease; font-size:11px; }
   .theme-btn.active { background:var(--accent-gold); color:var(--bg-primary); }
 
-  .main-content { flex:1; min-height:100vh; display:flex; flex-direction:column; background:var(--bg-primary); transition:background 0.4s; }
+  .main-content { flex:1; min-width:0; overflow-x:hidden; min-height:100vh; display:flex; flex-direction:column; background:var(--bg-primary); transition:background 0.4s; }
 
   .topbar { position:sticky; top:0; z-index:50; background:var(--bg-primary); border-bottom:1px solid var(--border); padding:15px 24px; display:flex; align-items:center; gap:16px; transition:background 0.4s,border 0.4s; }
   .menu-btn { width:36px; height:36px; background:transparent; border:1px solid var(--border); color:var(--text-secondary); cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.3s; }
@@ -1774,7 +1774,7 @@
     const visible = (conns||[]).filter(c => c.status !== 'declined');
     if (!visible.length) { list.className=''; list.innerHTML = `<div style="text-align:center;padding:60px 20px;color:var(--text-muted);"><div style="font-family:'Cormorant Garamond',serif;font-size:22px;margin-bottom:8px;color:var(--text-secondary);">No clients yet</div><div style="font-size:14px;">Accept leads from Client Leads to start cases.</div></div>`; return; }
     const ord = { pending:0, active:1, closed:2 };
-    const sorted = [...visible].sort((a,b)=>{const ua=connHasUnread(a)?0:1,ub=connHasUnread(b)?0:1;if(ua!==ub)return ua-ub;return (ord[a.status]??3)-(ord[b.status]??3);});
+    const sorted = [...visible].sort((a,b)=>{const _rt=function(x){return (x.lastAt&&x.lastAt.toMillis)?x.lastAt.toMillis():((x.createdAt&&x.createdAt.toMillis)?x.createdAt.toMillis():0);};const ta=_rt(a),tb=_rt(b);if(tb!==ta)return tb-ta;const ua=connHasUnread(a)?0:1,ub=connHasUnread(b)?0:1;if(ua!==ub)return ua-ub;return (ord[a.status]??3)-(ord[b.status]??3);});
     list.className='cl-list';
     list.innerHTML = sorted.map(c => {
       const name = c.userName || 'Client';
