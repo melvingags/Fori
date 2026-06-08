@@ -600,7 +600,30 @@ def _trusted_tier(req):
         logger.error(f"Tier lookup failed: {str(e)[:120]}")
     tier = _derive_tier(plan, role)
     _tier_cache[uid] = (tier, now + _TIER_CACHE_TTL)
+    # Best-effort: record last-seen IP for self-dealing detection (only on cache
+    # miss, so at most ~once/minute per active user).
+    try:
+        db.collection('users').document(uid).set({'lastIp': _client_ip(req)}, merge=True)
+    except Exception:
+        pass
     return uid, tier
+
+def _verify_uid(req):
+    """Verify the Firebase ID token and return the real uid, or None."""
+    authz = req.headers.get('Authorization', '') or ''
+    if not authz.startswith('Bearer '):
+        return None
+    token = authz[7:].strip()
+    if not token:
+        return None
+    try:
+        from firebase_admin import auth as fb_auth
+        _get_firestore_client()
+        decoded = fb_auth.verify_id_token(token)
+        return decoded.get('uid')
+    except Exception as e:
+        logger.warning(f"uid verify failed: {str(e)[:120]}")
+        return None
 
 # ── SECURITY: prompt-extraction deflection ──
 PROMPT_DEFLECTION = ("I'm here for your legal questions, not to get into how I work "
@@ -711,7 +734,7 @@ def lawyers_directory():
             for r in db.collection('ratings').stream():
                 rd = r.to_dict() or {}
                 lid = rd.get('lawyerId')
-                if not lid:
+                if not lid or rd.get('suspicious'):
                     continue
                 try:
                     s = float(rd.get('stars') or 0)
@@ -768,6 +791,8 @@ def lawyer_reviews():
         total = 0.0
         for r in db.collection('ratings').where('lawyerId', '==', lawyer_id).stream():
             rd = r.to_dict() or {}
+            if rd.get('suspicious'):
+                continue
             try:
                 s = float(rd.get('stars') or 0)
             except (TypeError, ValueError):
@@ -792,6 +817,91 @@ def lawyer_reviews():
     except Exception as e:
         logger.error(f"/lawyer-reviews error: {e}")
         return jsonify({'reviews': [], 'avgRating': None, 'ratingCount': 0}), 200
+
+
+@app.route('/submit-rating', methods=['POST'])
+def submit_rating():
+    """Create/update a review. Server-controlled so clients can't self-verify or
+    spam. Enforces ONE review per (client, lawyer) pair via a deterministic doc id,
+    and flags likely self-dealing (lawyer reviewing via a second account) so those
+    reviews are excluded from the public average."""
+    uid = _verify_uid(request)
+    if not uid:
+        return jsonify({'error': 'auth_required'}), 401
+    data = request.json or {}
+    conn_id = (data.get('connId') or '').strip()
+    lawyer_id = (data.get('lawyerId') or '').strip()
+    try:
+        stars = int(data.get('stars') or 0)
+    except (TypeError, ValueError):
+        stars = 0
+    if not conn_id or not lawyer_id or stars < 1 or stars > 5:
+        return jsonify({'error': 'invalid'}), 400
+    outcome = (data.get('outcome') or '')[:60]
+    review = (data.get('review') or '')[:1000]
+    device_id = (data.get('deviceId') or '')[:80]
+    db = _get_firestore_client()
+    # Verify the connection is real, belongs to this client, and matches the lawyer.
+    try:
+        cdoc = db.collection('connections').document(conn_id).get()
+        conn = cdoc.to_dict() if (cdoc and cdoc.exists) else None
+    except Exception:
+        conn = None
+    if not conn or conn.get('userId') != uid or conn.get('lawyerId') != lawyer_id:
+        return jsonify({'error': 'not_your_case'}), 403
+    if conn.get('status') != 'closed':
+        return jsonify({'error': 'not_closed'}), 400
+    # ── self-dealing signals ──
+    flags = []
+    client_ip = _client_ip(request)
+    if device_id and conn.get('lawyerDeviceId') and device_id == conn.get('lawyerDeviceId'):
+        flags.append('same_device')
+    lawyer_ip = ''
+    lawyer_created = None
+    try:
+        ld = (db.collection('users').document(lawyer_id).get().to_dict()) or {}
+        lawyer_ip = ld.get('lastIp') or ''
+        lawyer_created = ld.get('createdAt')
+    except Exception:
+        pass
+    if client_ip and client_ip != 'unknown' and lawyer_ip and client_ip == lawyer_ip:
+        flags.append('same_ip')
+    try:
+        seen = set()
+        for c in db.collection('connections').where('userId', '==', uid).stream():
+            lid = (c.to_dict() or {}).get('lawyerId')
+            if lid:
+                seen.add(lid)
+        if seen and seen == {lawyer_id}:
+            flags.append('single_lawyer_client')
+    except Exception:
+        pass
+    try:
+        cd = (db.collection('users').document(uid).get().to_dict()) or {}
+        cc = cd.get('createdAt')
+        if cc and lawyer_created and hasattr(cc, 'timestamp') and hasattr(lawyer_created, 'timestamp'):
+            if abs(cc.timestamp() - lawyer_created.timestamp()) < 3600:
+                flags.append('accounts_created_together')
+    except Exception:
+        pass
+    # Strong signal alone (same device/IP) OR two weak signals together => suspicious.
+    suspicious = ('same_device' in flags or 'same_ip' in flags
+                  or ('single_lawyer_client' in flags and 'accounts_created_together' in flags))
+    rid = uid + '_' + lawyer_id   # deterministic => one review per (client, lawyer)
+    try:
+        from firebase_admin import firestore as fb_fs
+        db.collection('ratings').document(rid).set({
+            'connId': conn_id, 'lawyerId': lawyer_id, 'userId': uid,
+            'stars': stars, 'outcome': outcome, 'review': review,
+            'createdAt': fb_fs.SERVER_TIMESTAMP,
+            'verified': (not suspicious), 'suspicious': suspicious,
+            'flags': flags, 'source': 'FORI',
+        })
+        db.collection('connections').document(conn_id).update({'rated': True})
+    except Exception as e:
+        logger.error(f"submit-rating write failed: {str(e)[:120]}")
+        return jsonify({'error': 'write_failed'}), 500
+    return jsonify({'ok': True})
 
 
 # ── MEMORY SYSTEM ──
