@@ -620,7 +620,8 @@
   window.fsDeleteChat = async function(uid, chatId){ try{ await deleteDoc(doc(db,'chats',uid+'_'+chatId)); }catch(e){} };
 
   window.fsAcceptConnection = async function(connId) {
-    await updateDoc(doc(db, 'connections', connId), { status: 'active', acceptedAt: serverTimestamp() });
+    var dv=''; try{dv=localStorage.getItem('foriDeviceId')||'';if(!dv){dv=Date.now().toString(36)+Math.random().toString(36).slice(2,10);localStorage.setItem('foriDeviceId',dv);}}catch(e){}
+    await updateDoc(doc(db, 'connections', connId), { status: 'active', acceptedAt: serverTimestamp(), lawyerDeviceId: dv });
   };
 
   window.fsDeclineConnection = async function(connId) {
