@@ -1411,6 +1411,8 @@
 </div>
 
 <script>
+  /* ===== TEMP DEMO FLAG — testing only. Set to false (or delete this line) before launch. ===== */
+  window.FORI_DEMO_VERIFY_ALL = true;
   // ── FIX 4: showToast defined before everything ──
   function showToast(msg, type) {
     let t = document.getElementById('lexToastLawyer');
@@ -1790,7 +1792,7 @@
     var card=document.getElementById('lawyerInfoCard');if(!card)return;
     var name=(data.name||'').trim()||'Your Firm';
     var meta=[data.spec,data.firm,data.country].filter(Boolean).join(' \u00b7 ');
-    var verified=(data.verificationStatus==='verified');
+    var verified=(data.verificationStatus==='verified')||window.FORI_DEMO_VERIFY_ALL;
     var vbadge=verified?'<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(39,174,96,0.1);color:#27ae60;padding:2px 8px;font-size:10px;letter-spacing:1px;text-transform:uppercase;border:1px solid rgba(39,174,96,0.3);border-radius:4px;">\u2713 Verified</span>':'<span style="display:inline-flex;background:rgba(150,150,150,0.12);color:var(--text-muted);padding:2px 8px;font-size:10px;letter-spacing:1px;text-transform:uppercase;border-radius:4px;">Not verified</span>';
     var initials=((name.trim()[0])||'F').toUpperCase();
     var av=data.photo?('<div style="width:54px;height:54px;border-radius:50%;background-size:cover;background-position:center;background-image:url('+data.photo+');flex-shrink:0;"></div>'):('<div style="width:54px;height:54px;border-radius:50%;background:linear-gradient(135deg,var(--accent-gold),var(--accent-gold-light));color:#1a1208;display:flex;align-items:center;justify-content:center;font-family:\'Cormorant Garamond\',serif;font-size:22px;font-weight:600;flex-shrink:0;">'+initials+'</div>');
@@ -1969,7 +1971,7 @@
     if (document.getElementById('lwNotifRequests')) document.getElementById('lwNotifRequests').checked = prefs.notifRequests !== false;
     if (document.getElementById('lwNotifMessages')) document.getElementById('lwNotifMessages').checked = prefs.notifMessages !== false;
     if (document.getElementById('lwNotifSystem')) document.getElementById('lwNotifSystem').checked = prefs.notifSystem !== false;
-    setVerifyBadge(prefs.verificationStatus || 'none');
+    setVerifyBadge(window.FORI_DEMO_VERIFY_ALL ? 'verified' : (prefs.verificationStatus || 'none'));
     applyAvatarPhoto(document.getElementById('avatarPreview'), prefs.photo||stored.photo||'', ((stored.name||'F').trim()[0]||'F').toUpperCase());
     ['pwBox','delConfirmBox'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display='none';});
     var _s1=document.getElementById('delStep1'); if(_s1)_s1.style.display='inline-block';
@@ -1977,7 +1979,7 @@
     var _ct=document.documentElement.getAttribute('data-theme')||'dark'; document.querySelectorAll('.theme-seg button').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-t')===_ct);});
     try{var _pf=JSON.parse(localStorage.getItem('foriLawyerPrefs')||'{}');if(document.getElementById('lwNotifRequests'))document.getElementById('lwNotifRequests').checked=_pf.notifRequests!==false;if(document.getElementById('lwNotifMessages'))document.getElementById('lwNotifMessages').checked=_pf.notifMessages!==false;if(document.getElementById('lwNotifSystem'))document.getElementById('lwNotifSystem').checked=_pf.notifSystem!==false;}catch(e){}
     closeSet();
-    if (window._lexUid && window.fsLoadMarketplace) { window.fsLoadMarketplace(window._lexUid).then(d => { if(d&&d.photo){prefs.photo=d.photo;localStorage.setItem('foriLawyerPrefs',JSON.stringify(prefs));refreshAvatars(d.photo);} const _prevVer=prefs.verifiedNotified===true; const _prevStatus=prefs.verificationStatus||''; if (d && d.verified) { setVerifyBadge('verified'); if(!_prevVer){ addNotif('Your verification was approved. The verified badge now shows on your profile.','success','high','page:profile'); prefs.verifiedNotified=true; localStorage.setItem('foriLawyerPrefs',JSON.stringify(prefs)); } } else if (d && d.verificationStatus) { setVerifyBadge(d.verificationStatus); if(d.verificationStatus==='rejected' && _prevStatus!=='rejected'){ addNotif('Your verification needs attention. Please review your details and resubmit.','warning','high','page:profile'); } prefs.verificationStatus = d.verificationStatus; localStorage.setItem('foriLawyerPrefs', JSON.stringify(prefs)); } }).catch(() => {}); }
+    if (window._lexUid && window.fsLoadMarketplace) { window.fsLoadMarketplace(window._lexUid).then(d => { if(d&&d.photo){prefs.photo=d.photo;localStorage.setItem('foriLawyerPrefs',JSON.stringify(prefs));refreshAvatars(d.photo);} const _prevVer=prefs.verifiedNotified===true; if(window.FORI_DEMO_VERIFY_ALL){ setVerifyBadge('verified'); return; } const _prevStatus=prefs.verificationStatus||''; if (d && d.verified) { setVerifyBadge('verified'); if(!_prevVer){ addNotif('Your verification was approved. The verified badge now shows on your profile.','success','high','page:profile'); prefs.verifiedNotified=true; localStorage.setItem('foriLawyerPrefs',JSON.stringify(prefs)); } } else if (d && d.verificationStatus) { setVerifyBadge(d.verificationStatus); if(d.verificationStatus==='rejected' && _prevStatus!=='rejected'){ addNotif('Your verification needs attention. Please review your details and resubmit.','warning','high','page:profile'); } prefs.verificationStatus = d.verificationStatus; localStorage.setItem('foriLawyerPrefs', JSON.stringify(prefs)); } }).catch(() => {}); }
   }
 
   async function saveLawyerProfile() {
