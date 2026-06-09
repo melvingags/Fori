@@ -44,6 +44,7 @@
   .verified-badge { display:inline-flex; align-items:center; gap:4px; background:rgba(39,174,96,0.08); border:1px solid rgba(39,174,96,0.25); color:#27ae60; font-size:10px; padding:3px 8px; }
   .verify-pill { display:inline-flex; align-items:center; gap:5px; font-size:11px; letter-spacing:1px; text-transform:uppercase; padding:5px 12px; border-radius:20px; font-family:'Inter',sans-serif; font-weight:600; }
   .verify-pill.none { background:rgba(255,255,255,0.04); border:1px solid var(--border); color:var(--text-muted); }
+  .verify-ic{display:inline-block;vertical-align:-2px;margin-left:5px;color:var(--accent-gold);}
   .verify-pill.pending { background:rgba(201,168,108,0.10); border:1px solid rgba(201,168,108,0.40); color:var(--accent-gold); }
   .verify-pill.verified { background:rgba(39,174,96,0.10); border:1px solid rgba(39,174,96,0.35); color:#27ae60; }
 
@@ -1793,11 +1794,12 @@
     var name=(data.name||'').trim()||'Your Firm';
     var meta=[data.spec,data.firm,data.country].filter(Boolean).join(' \u00b7 ');
     var verified=(data.verificationStatus==='verified')||window.FORI_DEMO_VERIFY_ALL;
+    var vseal=verified?'<svg class="verify-ic" width="16" height="16" viewBox="0 0 24 24" role="img" aria-label="Verified"><path fill="currentColor" d="M23 12l-2.44-2.78.34-3.68-3.61-.82-1.89-3.18L12 3 8.6 1.54 6.71 4.72l-3.61.81.34 3.68L1 12l2.44 2.78-.34 3.69 3.61.82 1.89 3.18L12 21l3.4 1.46 1.89-3.18 3.61-.82-.34-3.68L23 12zm-12.91 4.72l-3.8-3.81 1.48-1.48 2.32 2.33 5.85-5.87 1.48 1.48-7.33 7.35z"/></svg>':'';
     var vbadge=verified?'<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(39,174,96,0.1);color:#27ae60;padding:2px 8px;font-size:10px;letter-spacing:1px;text-transform:uppercase;border:1px solid rgba(39,174,96,0.3);border-radius:4px;">\u2713 Verified</span>':'<span style="display:inline-flex;background:rgba(150,150,150,0.12);color:var(--text-muted);padding:2px 8px;font-size:10px;letter-spacing:1px;text-transform:uppercase;border-radius:4px;">Not verified</span>';
     var initials=((name.trim()[0])||'F').toUpperCase();
     var av=data.photo?('<div style="width:54px;height:54px;border-radius:50%;background-size:cover;background-position:center;background-image:url('+data.photo+');flex-shrink:0;"></div>'):('<div style="width:54px;height:54px;border-radius:50%;background:linear-gradient(135deg,var(--accent-gold),var(--accent-gold-light));color:#1a1208;display:flex;align-items:center;justify-content:center;font-family:\'Cormorant Garamond\',serif;font-size:22px;font-weight:600;flex-shrink:0;">'+initials+'</div>');
     card.style.display='block';
-    card.innerHTML='<div style="display:flex;gap:14px;align-items:center;border:1px solid var(--border);border-radius:14px;padding:15px 18px;margin-bottom:22px;background:var(--bg-card);">'+av+'<div style="min-width:0;flex:1;"><div style="font-family:\'Cormorant Garamond\',serif;font-size:21px;color:var(--text-primary);line-height:1.1;">'+escapeHtml(name)+'</div>'+(meta?('<div style="font-size:12px;color:var(--text-secondary);margin-top:3px;">'+escapeHtml(meta)+'</div>'):'<div style="font-size:12px;color:var(--text-muted);margin-top:3px;">Complete your profile in Settings</div>')+'<div style="margin-top:8px;">'+vbadge+'</div></div></div>';
+    card.innerHTML='<div style="display:flex;gap:14px;align-items:center;border:1px solid var(--border);border-radius:14px;padding:15px 18px;margin-bottom:22px;background:var(--bg-card);">'+av+'<div style="min-width:0;flex:1;"><div style="font-family:\'Cormorant Garamond\',serif;font-size:21px;color:var(--text-primary);line-height:1.1;">'+escapeHtml(name)+vseal+'</div>'+(meta?('<div style="font-size:12px;color:var(--text-secondary);margin-top:3px;">'+escapeHtml(meta)+'</div>'):'<div style="font-size:12px;color:var(--text-muted);margin-top:3px;">Complete your profile in Settings</div>')+'</div></div>';
   }
   async function renderLawyerOverviewInfo(){
     var prefs={};var stored={};try{prefs=JSON.parse(localStorage.getItem('foriLawyerPrefs')||'{}');}catch(e){}try{stored=JSON.parse(localStorage.getItem('foriUser')||'{}');}catch(e){}
