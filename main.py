@@ -564,11 +564,24 @@ def _derive_tier(plan, role):
         return 'business' if plan in ('premium', 'lawyer', 'business') else 'free'
     return 'premium' if plan == 'premium' else 'free'
 
+# ===== TEMP TEST FLAG — set False (or remove) before launch. =====
+# When True, every authenticated/guest request is treated as premium so the
+# premium tools (review, redline, clause, outcome, compare, research) can be
+# tested without setting each test account's Firestore plan to 'premium'.
+FORI_TEST_UNLOCK = True
+
+
 def _trusted_tier(req):
     """Verify the Firebase ID token (if any) and return the user's REAL tier from
     Firestore. The client-supplied 'tier' field is ignored entirely.
     Returns (uid, tier). Missing/invalid token -> (None, 'free') so guests still
     get the free product but nobody can claim premium/business by faking a field."""
+    if FORI_TEST_UNLOCK:
+        # TEMP testing: real uid when logged in (for memory/history), premium tier for all.
+        try:
+            return _verify_uid(req), 'premium'
+        except Exception:
+            return None, 'premium'
     authz = req.headers.get('Authorization', '') or ''
     if not authz.startswith('Bearer '):
         return None, 'free'
