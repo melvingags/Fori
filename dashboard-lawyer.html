@@ -1429,6 +1429,32 @@
     var r; try{ r=fn(); }catch(e){ console.error(e); done(); return; }
     if(r && typeof r.then==='function'){ r.then(done, function(e){ console.error(e); done(); }); } else { done(); }
   }
+  function foriConfirm(opts){
+    opts=opts||{};
+    var old=document.getElementById('foriConfirmX'); if(old&&old.parentNode) old.parentNode.removeChild(old);
+    var ov=document.createElement('div'); ov.id='foriConfirmX';
+    ov.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:20px;';
+    var noteHtml=opts.note?'<div style="font-size:12.5px;color:#e74c3c;line-height:1.6;margin-bottom:20px;">'+opts.note+'</div>':'';
+    ov.innerHTML='<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;max-width:420px;width:100%;padding:24px;box-shadow:0 18px 50px rgba(0,0,0,.45);">'
+      +'<div style="font-weight:600;font-size:19px;color:var(--text-primary);margin-bottom:10px;">'+(opts.title||'Are you sure?')+'</div>'
+      +'<div style="font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:'+(opts.note?'10px':'20px')+';">'+(opts.message||'')+'</div>'
+      +noteHtml
+      +'<div style="display:flex;gap:10px;justify-content:flex-end;">'
+      +'<button type="button" id="_fcNo" style="padding:10px 16px;border-radius:9px;border:1px solid var(--border);background:transparent;color:var(--text-secondary);font-size:13px;cursor:pointer;">'+(opts.cancelText||'Cancel')+'</button>'
+      +'<button type="button" id="_fcYes" style="padding:10px 18px;border-radius:9px;border:none;background:#e74c3c;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">'+(opts.confirmText||'Confirm')+'</button>'
+      +'</div></div>';
+    document.body.appendChild(ov);
+    function close(){ if(ov&&ov.parentNode) ov.parentNode.removeChild(ov); }
+    ov.addEventListener('click',function(e){ if(e.target===ov) close(); });
+    ov.querySelector('#_fcNo').onclick=close;
+    ov.querySelector('#_fcYes').onclick=function(){
+      withBtnLoading(this, function(){
+        var work=Promise.resolve().then(function(){ return opts.onConfirm?opts.onConfirm():null; });
+        var minD=new Promise(function(r){ setTimeout(r,450); });
+        return Promise.all([work,minD]).then(close,function(e){ console.error(e); close(); });
+      });
+    };
+  }
   // ── FIX 4: showToast defined before everything ──
   function showToast(msg, type) {
     let t = document.getElementById('lexToastLawyer');
@@ -2031,6 +2057,7 @@
     }
     const msg = document.getElementById('lwProfileMsg');
     if (msg) { msg.style.display = 'block'; setTimeout(() => msg.style.display = 'none', 3000); }
+    closeSet();
   }
 
   async function requestVerification() {
@@ -2136,7 +2163,7 @@
   function closeForiConfirm(){const ov=document.getElementById('foriConfirmOverlay');if(ov)ov.remove();}
   function doDeleteAiChat(id){const next=getAiChats().filter(x=>String(x.id)!==String(id));_aiChatSyncing=true;saveAiChats(next);_aiChatSyncing=false;if(window.fsDeleteChat&&window._lexUid)window.fsDeleteChat(window._lexUid,id);if(String(currentAiChatId)===String(id)){currentAiChatId=null;aiHistory.length=0;}renderAIHistory();}
   function clearAllAiChatsConfirmed(){var ids=getAiChats().map(function(c){return c.id;});localStorage.removeItem('foriLawyerAIChats');if(window.fsDeleteChat&&window._lexUid)ids.forEach(function(i){window.fsDeleteChat(window._lexUid,i);});currentAiChatId=null;aiHistory.length=0;renderAIHistory();}
-  function clearAIHistory(){const ov=document.createElement('div');ov.id='foriConfirmOverlay';ov.className='fori-confirm-overlay';ov.innerHTML=`<div class="fori-confirm-box"><div class="fori-confirm-title">Clear all history?</div><div class="fori-confirm-msg">Every saved research session will be permanently deleted. This can't be undone.</div><div class="fori-confirm-actions"><button class="fori-confirm-cancel" onclick="closeForiConfirm()">Cancel</button><button class="fori-confirm-delete" onclick="closeForiConfirm();clearAllAiChatsConfirmed();">Clear all</button></div></div>`;ov.addEventListener('click',e=>{if(e.target===ov)closeForiConfirm();});document.body.appendChild(ov);}
+  function clearAIHistory(){foriConfirm({title:'Delete chat history?',message:"This permanently removes every saved research session from this device and the cloud.",note:"This can't be undone - past sessions and their saved context will be lost.",confirmText:'Delete history',onConfirm:async function(){var ids=getAiChats().map(function(c){return c.id;});localStorage.removeItem('foriLawyerAIChats');if(window.fsDeleteChat&&window._lexUid){await Promise.all(ids.map(function(i){try{return Promise.resolve(window.fsDeleteChat(window._lexUid,i));}catch(e){return null;}}));}currentAiChatId=null;aiHistory.length=0;renderAIHistory();toast('Chat history cleared.');}});}
   // ── AI chat file upload ──
   async function handleAIFileUpload(input){
     const file=input.files&&input.files[0];if(!file)return;
@@ -2223,7 +2250,7 @@
   function togglePwBoxL(){var b=document.getElementById('pwBox');var c=document.getElementById('pwChev');if(b){var open=b.style.display!=='none';b.style.display=open?'none':'block';if(c)c.classList.toggle('open',!open);}}
   async function doChangeLawyerPassword(){var cur=document.getElementById('lwCurrentPass').value;var np=document.getElementById('lwNewPass').value;var cp=document.getElementById('lwConfirmPass').value;if(!cur){_setMsg('lwPassMsg','\u2717 Enter your current password.','#e74c3c');return;}if(!np||np.length<6){_setMsg('lwPassMsg','\u2717 New password must be at least 6 characters.','#e74c3c');return;}if(np!==cp){_setMsg('lwPassMsg','\u2717 New passwords do not match.','#e74c3c');return;}try{var a=await import('https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js');var auth=a.getAuth();var user=auth.currentUser;var cred=a.EmailAuthProvider.credential(user.email,cur);await a.reauthenticateWithCredential(user,cred);await a.updatePassword(user,np);document.getElementById('lwCurrentPass').value='';document.getElementById('lwNewPass').value='';document.getElementById('lwConfirmPass').value='';_setMsg('lwPassMsg','\u2713 Password updated.','#27ae60');}catch(e){_setMsg('lwPassMsg',e.code==='auth/wrong-password'?'\u2717 Current password is incorrect.':'\u2717 Could not update password.','#e74c3c');}}
   async function sendResetLawyer(){try{var a=await import('https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js');var auth=a.getAuth();var email=(auth.currentUser&&auth.currentUser.email)||JSON.parse(localStorage.getItem('foriUser')||'{}').email;if(!email){_setMsg('lwPassMsg','\u2717 No email on file.','#e74c3c');return;}await a.sendPasswordResetEmail(auth,email);_setMsg('lwPassMsg','\u2713 Reset link sent to '+email,'#27ae60');}catch(e){_setMsg('lwPassMsg','\u2717 Could not send reset link.','#e74c3c');}}
-  function clearAIMemoryL(){if(!confirm('Clear what FORI remembers about you on this device?'))return;try{window._lexMemories=[];}catch(e){}localStorage.removeItem('foriMemory');toast('AI memory cleared.');}
+  function clearAIMemoryL(){foriConfirm({title:'Delete AI memory?',message:"This clears everything FORI has remembered about you on this device.",note:"This can't be undone - FORI will start fresh and lose personalisation from past chats.",confirmText:'Delete memory',onConfirm:async function(){try{window._lexMemories=[];}catch(e){}localStorage.removeItem('foriMemory');toast('AI memory cleared.');}});}
   function revealDeleteL(){var b=document.getElementById('delConfirmBox');var s1=document.getElementById('delStep1');if(b)b.style.display='block';if(s1)s1.style.display='none';}
   async function doDeleteLawyerAccount(){var pw=document.getElementById('delPass').value;if(!pw){_setMsg('delMsg','\u2717 Enter your password to confirm.','#e74c3c');return;}try{var a=await import('https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js');var auth=a.getAuth();var user=auth.currentUser;var cred=a.EmailAuthProvider.credential(user.email,pw);await a.reauthenticateWithCredential(user,cred);try{if(window._lexUid&&window._db){var f=await import('https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js');await f.deleteDoc(f.doc(window._db,'users',window._lexUid));}}catch(e){}await a.deleteUser(user);['foriUser','foriRole','foriLawyerPrefs','foriNotifs_lawyer','foriNotifSeeded_law','foriCookieConsent'].forEach(function(k){localStorage.removeItem(k);});window.location.href='/';}catch(e){_setMsg('delMsg',e.code==='auth/wrong-password'?'\u2717 Incorrect password.':'\u2717 Could not delete. Please sign out, sign in again, then retry.','#e74c3c');}}
 
