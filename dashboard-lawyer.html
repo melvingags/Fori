@@ -845,10 +845,12 @@
   <div class="page active" id="page-overview">
     <div class="content-area">
       <div class="page-label">Dashboard</div>
-      <h1 class="page-title">Welcome back, <em>Counsellor</em></h1>
+      <h1 class="page-title">Welcome back, <em id="ovwName">Counsellor</em></h1>
+      <div id="lawyerInfoCard" style="display:none;"></div>
       <div class="stats-row">
         <div class="stat-card"><div class="stat-num" id="statLeads">0</div><div class="stat-label">New Leads</div><div class="stat-change">Pending</div></div>
         <div class="stat-card"><div class="stat-num" id="statActive">0</div><div class="stat-label">Active Cases</div><div class="stat-change">In progress</div></div>
+        <div class="stat-card"><div class="stat-num" id="statClosed">0</div><div class="stat-label">Closed Cases</div><div class="stat-change">Completed</div></div>
         <div class="stat-card"><div class="stat-num" id="statRating">—</div><div class="stat-label">Client Rating</div><div class="stat-change" id="statReviews">No reviews yet</div></div>
       </div>
       <div style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;">
@@ -876,13 +878,7 @@
       <div style="overflow-x:auto;">
         <table class="cases-table">
           <thead><tr><th>Case</th><th>Client</th><th>Area</th><th>Status</th><th>Date</th></tr></thead>
-          <tbody>
-            <tr><td style="color:var(--text-primary);font-weight:500;">Okafor v. Lagos State</td><td>Mr. Okafor</td><td>Criminal</td><td><span class="case-status won">Won</span></td><td>Jan 2026</td></tr>
-            <tr><td style="color:var(--text-primary);font-weight:500;">Adeyemi Property Dispute</td><td>Mrs. Adeyemi</td><td>Property</td><td><span class="case-status active">Active</span></td><td>Feb 2026</td></tr>
-            <tr><td style="color:var(--text-primary);font-weight:500;">TechCorp NDA Review</td><td>TechCorp Ltd</td><td>Corporate</td><td><span class="case-status won">Won</span></td><td>Dec 2025</td></tr>
-            <tr><td style="color:var(--text-primary);font-weight:500;">Ibrahim Family Matter</td><td>Mr. Ibrahim</td><td>Family</td><td><span class="case-status active">Active</span></td><td>Mar 2026</td></tr>
-            <tr><td style="color:var(--text-primary);font-weight:500;">Chukwu Employment Case</td><td>Ms. Chukwu</td><td>Employment</td><td><span class="case-status pending">Pending</span></td><td>Mar 2026</td></tr>
-          </tbody>
+          <tbody id="casesTableBody"><tr><td colspan="5" style="text-align:center;padding:40px;color:var(--text-muted);">No cases yet.</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -1486,6 +1482,7 @@
     if (page === 'aihistory') renderAIHistory();
     if (['contract','outcome','compare','clause','research'].indexOf(page)>=0) toolHistRender(page);
     if (page === 'settings' || page === 'profile') initLawyerSettings();
+    if (page === 'overview') renderLawyerOverviewInfo();
     if (page === 'marketplace') loadMarketplaceListing();
     closeSidebar();
   }
@@ -1705,7 +1702,9 @@
       renderClients(conns);
       refreshUnreadBadges();
       renderOverviewLeads(conns.filter(c => c.status === 'pending'));
-      try{var _sl=document.getElementById('statLeads');if(_sl)_sl.textContent=conns.filter(c=>c.status==='pending').length;var _sa=document.getElementById('statActive');if(_sa)_sa.textContent=conns.filter(c=>c.status==='active').length;}catch(e){}
+      renderCases(conns);
+      try{var _sl=document.getElementById('statLeads');if(_sl)_sl.textContent=conns.filter(c=>c.status==='pending').length;var _sa=document.getElementById('statActive');if(_sa)_sa.textContent=conns.filter(c=>c.status==='active').length;var _sc=document.getElementById('statClosed');if(_sc)_sc.textContent=conns.filter(c=>c.status==='closed').length;}catch(e){}
+      renderLawyerOverviewInfo();
     });
   }
   function _notifyClientChanges(conns){
@@ -1767,6 +1766,42 @@
       </div>`).join('') : '';
     var l1 = document.getElementById('leadsList'); if (l1) l1.innerHTML = has ? cards : '<div style="text-align:center;padding:50px 20px;color:var(--text-muted);font-size:13px;">No client leads yet.</div>';
     var l2 = document.getElementById('overviewLeadsList'); if (l2) l2.innerHTML = has ? cards : '<div style="text-align:center;padding:30px 20px;color:var(--text-muted);font-size:13px;">No new leads right now.</div>';
+  }
+
+  function renderCases(conns){
+    var tb=document.getElementById('casesTableBody'); if(!tb) return;
+    var rows=(conns||[]).filter(function(c){return c.status!=='declined';});
+    var ord={active:0,pending:1,closed:2};
+    rows.sort(function(a,b){var d=(ord[a.status]!=null?ord[a.status]:3)-(ord[b.status]!=null?ord[b.status]:3);if(d)return d;var ta=(a.lastAt&&a.lastAt.toMillis)?a.lastAt.toMillis():0,tb2=(b.lastAt&&b.lastAt.toMillis)?b.lastAt.toMillis():0;return tb2-ta;});
+    if(!rows.length){tb.innerHTML='<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--text-muted);">No cases yet.</td></tr>';return;}
+    tb.innerHTML=rows.map(function(c){
+      var subj=escapeHtml((c.description||'Case').substring(0,50));
+      var client=escapeHtml(c.userName||'Client');
+      var badge;
+      if(c.status==='active')badge='<span class="case-status active">Active</span>';
+      else if(c.status==='pending')badge='<span class="case-status pending">Pending</span>';
+      else badge='<span class="case-status" style="background:rgba(130,130,130,0.15);color:var(--text-muted);">Closed</span>';
+      var dt='';try{var d=(c.createdAt&&c.createdAt.toDate)?c.createdAt.toDate():null;dt=d?d.toLocaleDateString([],{month:'short',year:'numeric'}):'';}catch(e){}
+      return '<tr><td style="color:var(--text-primary);font-weight:500;">'+subj+'</td><td>'+client+'</td><td>'+'\u2014'+'</td><td>'+badge+'</td><td>'+dt+'</td></tr>';
+    }).join('');
+  }
+
+  function _paintLawyerInfo(data){
+    var nm=document.getElementById('ovwName');var first=(data.firstName||(data.name||'Counsellor').split(' ')[0]||'Counsellor');if(nm)nm.textContent=first;
+    var card=document.getElementById('lawyerInfoCard');if(!card)return;
+    var name=(data.name||'').trim()||'Your Firm';
+    var meta=[data.spec,data.firm,data.country].filter(Boolean).join(' \u00b7 ');
+    var verified=(data.verificationStatus==='verified');
+    var vbadge=verified?'<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(39,174,96,0.1);color:#27ae60;padding:2px 8px;font-size:10px;letter-spacing:1px;text-transform:uppercase;border:1px solid rgba(39,174,96,0.3);border-radius:4px;">\u2713 Verified</span>':'<span style="display:inline-flex;background:rgba(150,150,150,0.12);color:var(--text-muted);padding:2px 8px;font-size:10px;letter-spacing:1px;text-transform:uppercase;border-radius:4px;">Not verified</span>';
+    var initials=((name.trim()[0])||'F').toUpperCase();
+    var av=data.photo?('<div style="width:54px;height:54px;border-radius:50%;background-size:cover;background-position:center;background-image:url('+data.photo+');flex-shrink:0;"></div>'):('<div style="width:54px;height:54px;border-radius:50%;background:linear-gradient(135deg,var(--accent-gold),var(--accent-gold-light));color:#1a1208;display:flex;align-items:center;justify-content:center;font-family:\'Cormorant Garamond\',serif;font-size:22px;font-weight:600;flex-shrink:0;">'+initials+'</div>');
+    card.style.display='block';
+    card.innerHTML='<div style="display:flex;gap:14px;align-items:center;border:1px solid var(--border);border-radius:14px;padding:15px 18px;margin-bottom:22px;background:var(--bg-card);">'+av+'<div style="min-width:0;flex:1;"><div style="font-family:\'Cormorant Garamond\',serif;font-size:21px;color:var(--text-primary);line-height:1.1;">'+escapeHtml(name)+'</div>'+(meta?('<div style="font-size:12px;color:var(--text-secondary);margin-top:3px;">'+escapeHtml(meta)+'</div>'):'<div style="font-size:12px;color:var(--text-muted);margin-top:3px;">Complete your profile in Settings</div>')+'<div style="margin-top:8px;">'+vbadge+'</div></div></div>';
+  }
+  async function renderLawyerOverviewInfo(){
+    var prefs={};var stored={};try{prefs=JSON.parse(localStorage.getItem('foriLawyerPrefs')||'{}');}catch(e){}try{stored=JSON.parse(localStorage.getItem('foriUser')||'{}');}catch(e){}
+    _paintLawyerInfo({firstName:prefs.firstName,name:((prefs.firstName||'')+' '+(prefs.lastName||'')).trim()||stored.name||'',firm:prefs.firm,spec:prefs.spec,country:prefs.country,verificationStatus:prefs.verificationStatus,photo:prefs.photo||stored.photo||''});
+    try{if(window._lexUid&&window.fsLoadMarketplace){var d=await window.fsLoadMarketplace(window._lexUid);if(d){_paintLawyerInfo({firstName:prefs.firstName,name:d.name||(((prefs.firstName||'')+' '+(prefs.lastName||'')).trim())||stored.name||'',firm:d.firm||prefs.firm,spec:d.specialisation||d.spec||prefs.spec,country:d.country||prefs.country,verificationStatus:d.verified?'verified':(d.verificationStatus||prefs.verificationStatus),photo:d.photo||prefs.photo||stored.photo||''});}}}catch(e){}
   }
 
   async function acceptConn(connId) {
