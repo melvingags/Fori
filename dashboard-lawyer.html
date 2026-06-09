@@ -738,9 +738,9 @@
 
   <div class="firm-profile">
     <div class="firm-avatar" id="firmAvatarInitial">F</div>
-    <div class="firm-name" id="firmName">Your Firm</div>
+    <div class="firm-name"><span id="firmName">Your Firm</span><span id="firmNameSeal"></span></div>
     <div class="firm-type">Lawyer / Firm</div>
-    <div class="verified-badge">
+    <div class="verified-badge" id="sidebarVerify">
       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
       Verification Pending
     </div>
@@ -1447,6 +1447,7 @@
   }
 
   document.getElementById('firmName').textContent = user.name || 'Your Firm';
+  setSidebarVerify(!!window.FORI_DEMO_VERIFY_ALL);
   document.getElementById('firmAvatarInitial').textContent = (user.name || 'F')[0].toUpperCase();
   applyAvatarPhoto(document.getElementById('firmAvatarInitial'), (JSON.parse(localStorage.getItem('foriLawyerPrefs')||'{}').photo)||user.photo||'', (user.name || 'F')[0].toUpperCase());
   if (isLawyerPremium) { const cta = document.getElementById('lawyerUpgradeCta'); if (cta) cta.style.display = 'none'; }
@@ -1788,12 +1789,23 @@
     }).join('');
   }
 
+  function setSidebarVerify(verified){
+    try{
+      var seal=document.getElementById('firmNameSeal');
+      if(seal) seal.innerHTML = verified ? '<svg class="verify-ic" width="13" height="13" viewBox="0 0 24 24" role="img" aria-label="Verified"><path fill="currentColor" d="M23 12l-2.44-2.78.34-3.68-3.61-.82-1.89-3.18L12 3 8.6 1.54 6.71 4.72l-3.61.81.34 3.68L1 12l2.44 2.78-.34 3.69 3.61.82 1.89 3.18L12 21l3.4 1.46 1.89-3.18 3.61-.82-.34-3.68L23 12zm-12.91 4.72l-3.8-3.81 1.48-1.48 2.32 2.33 5.85-5.87 1.48 1.48-7.33 7.35z"/></svg>' : '';
+      var sv=document.getElementById('sidebarVerify');
+      if(sv){
+        if(verified){ sv.innerHTML='<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" role="img" aria-label="Verified"><path d="M23 12l-2.44-2.78.34-3.68-3.61-.82-1.89-3.18L12 3 8.6 1.54 6.71 4.72l-3.61.81.34 3.68L1 12l2.44 2.78-.34 3.69 3.61.82 1.89 3.18L12 21l3.4 1.46 1.89-3.18 3.61-.82-.34-3.68L23 12zm-12.91 4.72l-3.8-3.81 1.48-1.48 2.32 2.33 5.85-5.87 1.48 1.48-7.33 7.35z"/></svg> Verified'; sv.style.color='var(--accent-gold)'; }
+        else { sv.innerHTML='<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Verification Pending'; sv.style.color=''; }
+      }
+    }catch(e){}
+  }
   function _paintLawyerInfo(data){
     var nm=document.getElementById('ovwName');var first=(data.firstName||(data.name||'Counsellor').split(' ')[0]||'Counsellor');if(nm)nm.textContent=first;
     var card=document.getElementById('lawyerInfoCard');if(!card)return;
     var name=(data.name||'').trim()||'Your Firm';
     var meta=[data.spec,data.firm,data.country].filter(Boolean).join(' \u00b7 ');
-    var verified=(data.verificationStatus==='verified')||window.FORI_DEMO_VERIFY_ALL;
+    var verified=(data.verificationStatus==='verified')||window.FORI_DEMO_VERIFY_ALL; setSidebarVerify(verified);
     var vseal=verified?'<svg class="verify-ic" width="16" height="16" viewBox="0 0 24 24" role="img" aria-label="Verified"><path fill="currentColor" d="M23 12l-2.44-2.78.34-3.68-3.61-.82-1.89-3.18L12 3 8.6 1.54 6.71 4.72l-3.61.81.34 3.68L1 12l2.44 2.78-.34 3.69 3.61.82 1.89 3.18L12 21l3.4 1.46 1.89-3.18 3.61-.82-.34-3.68L23 12zm-12.91 4.72l-3.8-3.81 1.48-1.48 2.32 2.33 5.85-5.87 1.48 1.48-7.33 7.35z"/></svg>':'';
     var vbadge=verified?'<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(39,174,96,0.1);color:#27ae60;padding:2px 8px;font-size:10px;letter-spacing:1px;text-transform:uppercase;border:1px solid rgba(39,174,96,0.3);border-radius:4px;">\u2713 Verified</span>':'<span style="display:inline-flex;background:rgba(150,150,150,0.12);color:var(--text-muted);padding:2px 8px;font-size:10px;letter-spacing:1px;text-transform:uppercase;border-radius:4px;">Not verified</span>';
     var initials=((name.trim()[0])||'F').toUpperCase();
