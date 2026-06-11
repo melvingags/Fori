@@ -3,6 +3,7 @@ import re
 import json
 import logging
 import datetime
+import time
 import io
 import base64
 import hmac
@@ -447,24 +448,37 @@ def detect_query_type(question):
     else:
         return "question"
 
-def check_rate_limit(ip, tier):
-    if tier != "free":
-        return True
-    today = str(datetime.date.today())
-    user = usage_tracker[ip]
-    if user["date"] != today:
-        usage_tracker[ip] = {"count": 0, "date": today}
-    if usage_tracker[ip]["count"] >= 5:
-        return False
-    usage_tracker[ip]["count"] += 1
-    return True
+RATE_WINDOW_SECONDS = 5 * 3600  # rolling 5-hour window
 
-def get_remaining_questions(ip):
-    today = str(datetime.date.today())
-    user = usage_tracker[ip]
-    if user["date"] != today:
+def _rate_limit_for(uid, tier):
+    """Anonymous visitors (landing page): 2. Logged-in free: 5. Subscribers: 30."""
+    if not uid:
+        return 2
+    if tier == "free":
         return 5
-    return max(0, 5 - user["count"])
+    return 30
+
+def check_rate_limit(key, uid, tier):
+    """Rolling 5-hour window keyed by uid (logged in) or ip (anonymous).
+    Returns (allowed, reset_epoch_seconds)."""
+    now = time.time()
+    rec = usage_tracker.get(key)
+    if not isinstance(rec, dict) or "start" not in rec or now - rec["start"] >= RATE_WINDOW_SECONDS:
+        rec = {"start": now, "count": 0}
+        usage_tracker[key] = rec
+    reset_at = int(rec["start"] + RATE_WINDOW_SECONDS)
+    if rec["count"] >= _rate_limit_for(uid, tier):
+        return False, reset_at
+    rec["count"] += 1
+    return True, reset_at
+
+def get_remaining_questions(key, uid=None, tier="free"):
+    now = time.time()
+    rec = usage_tracker.get(key)
+    limit = _rate_limit_for(uid, tier)
+    if not isinstance(rec, dict) or "start" not in rec or now - rec["start"] >= RATE_WINDOW_SECONDS:
+        return limit
+    return max(0, limit - rec.get("count", 0))
 
 @app.route('/')
 def index():
@@ -957,10 +971,13 @@ def ask():
         return jsonify({'error': 'FORI AI engine is offline. Please try again later.'}), 503
 
     ip = _client_ip(request)
-    if not check_rate_limit(ip, tier):
+    _rl_key = _uid or ip
+    allowed, _reset_at = check_rate_limit(_rl_key, _uid, tier)
+    if not allowed:
         return jsonify({
-            'error': 'You have reached your 5 free questions for today. Upgrade to FORI Premium for unlimited access.',
-            'limit_reached': True
+            'error': 'You have reached your message limit for now.',
+            'limit_reached': True,
+            'reset_at': _reset_at
         }), 429
 
     try:
@@ -1028,7 +1045,7 @@ Provide a thorough, accurate response based on the laws of {country}."""
         }
 
         if tier == "free":
-            result['remaining_questions'] = get_remaining_questions(ip)
+            result['remaining_questions'] = get_remaining_questions(_rl_key, _uid, tier)
 
         return jsonify(result)
 
@@ -1082,9 +1099,11 @@ def ask_stream():
         return Response(deflect_gen(), mimetype='text/event-stream', headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
 
     ip = _client_ip(request)
-    if not check_rate_limit(ip, tier):
+    _rl_key = _uid or ip
+    allowed, _reset_at = check_rate_limit(_rl_key, _uid, tier)
+    if not allowed:
         def limit_gen():
-            yield f"data: {json.dumps({'error': 'You have reached your 5 free questions for today. Upgrade to FORI Premium for unlimited access.', 'limit_reached': True})}\n\n"
+            yield f"data: {json.dumps({'error': 'You have reached your message limit for now.', 'limit_reached': True, 'reset_at': _reset_at})}\n\n"
         return Response(limit_gen(), mimetype='text/event-stream')
 
     try:
@@ -1146,7 +1165,7 @@ Provide a thorough, accurate response based on the laws of {country}."""
                 full_answer = ""
                 buffered = ""
                 gate_open = False
-                remaining = get_remaining_questions(ip) if tier == "free" else None
+                remaining = get_remaining_questions(_rl_key, _uid, tier) if tier == "free" else None
                 def _deflect():
                     yield f"data: {json.dumps({'chunk': PROMPT_DEFLECTION})}\n\n"
                     yield f"data: {json.dumps({'done': True, 'answer': PROMPT_DEFLECTION, 'query_type': 'question', 'web_search_used': False, 'sources': [], 'remaining_questions': remaining})}\n\n"
