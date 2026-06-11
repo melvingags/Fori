@@ -179,6 +179,12 @@
       plan: 'free',
       createdAt: new Date().toISOString()
     }, { merge: true });
+    try {
+      await setDoc(doc(db, "publicProfiles", user.uid), {
+        name: user.displayName || user.email.split('@')[0],
+        role: role
+      }, { merge: true });
+    } catch (e) {}
   }
 
   function redirectUser(role) {
