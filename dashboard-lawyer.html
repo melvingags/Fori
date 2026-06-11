@@ -1677,7 +1677,7 @@
           if (!line.startsWith('data: ')) continue;
           try {
             const payload = JSON.parse(line.slice(6));
-            if (payload.error) { document.getElementById(msgId).textContent = '⚠️ ' + payload.error; break; }
+            if (payload.error) { const _msgEl = document.getElementById(msgId); if (payload.limit_reached) { let _lim = 'You\u2019re out of messages for now.'; if (payload.reset_at) { const _rt = new Date(payload.reset_at * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); _lim = 'You\u2019re out of messages for now \u2014 your limit resets at ' + _rt + '.'; } if (_msgEl) _msgEl.textContent = _lim; } else { if (_msgEl) _msgEl.textContent = '\u26A0\uFE0F ' + payload.error; } break; }
             if (payload.chunk) { fullAnswer += payload.chunk; document.getElementById(msgId).innerHTML = renderMarkdown(fullAnswer); wrap.scrollTop = wrap.scrollHeight; }
             if (payload.done) {
               document.getElementById(msgId).innerHTML = renderMarkdown(payload.answer);
