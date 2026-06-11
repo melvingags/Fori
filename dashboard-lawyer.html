@@ -710,6 +710,19 @@
 
   window.fsSaveLawyerProfile = async function(uid, data) {
     await updateDoc(doc(db, 'users', uid), data);
+    try {
+      const pub = {};
+      ['name','firm','specialisation','country','city','bio','photo','listingTitle','consultFee','responseTime','role'].forEach(function(k){ if (data[k] !== undefined) pub[k] = data[k]; });
+      if (Object.keys(pub).length) await setDoc(doc(db, 'publicProfiles', uid), pub, { merge: true });
+    } catch(e) {}
+  };
+
+  window.fsLoadPublicProfile = async function(uid) {
+    try { const snap = await getDoc(doc(db, 'publicProfiles', uid)); return snap.exists() ? snap.data() : null; } catch(e) { return null; }
+  };
+
+  window.fsMirrorPublic = async function(uid, fields) {
+    try { await setDoc(doc(db, 'publicProfiles', uid), fields, { merge: true }); } catch(e) {}
   };
 
   window.fsRequestVerification = async function(uid, data) {
@@ -717,6 +730,7 @@
   };
 
   window.fsDeleteLawyerAccount = async function(uid) {
+    try { await deleteDoc(doc(db, 'publicProfiles', uid)); } catch(e) {}
     await deleteDoc(doc(db, 'users', uid));
     await deleteUser(auth.currentUser);
   };
@@ -984,7 +998,7 @@
         </div>
         <div id="researchOutput" style="background:var(--bg-secondary);border:1px solid var(--border);padding:24px;line-height:1.9;font-size:14px;color:var(--text-primary);white-space:pre-wrap;font-family:'Inter',sans-serif;min-height:200px;"></div>
         <div style="display:flex;gap:10px;margin-top:16px;">
-          <button onclick="copyResearchResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-secondary);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Copy</button>
+          <button onclick="copyResearchResult()" title="Copy" aria-label="Copy" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-secondary);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="vertical-align:middle;"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 012-2h8"/></svg></button>
           <button onclick="downloadResearchResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--accent-gold);color:var(--accent-gold);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Download Report</button>
           <button onclick="clearResearchResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-muted);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Clear</button>
         </div>
@@ -1037,7 +1051,7 @@
         <div id="compareVerdictBadge" style="padding:10px 16px;margin-bottom:16px;font-size:12px;letter-spacing:1px;text-transform:uppercase;font-weight:600;text-align:center;display:none;"></div>
         <div id="compareOutput" style="background:var(--bg-secondary);border:1px solid var(--border);padding:24px;line-height:1.9;font-size:14px;color:var(--text-primary);white-space:pre-wrap;font-family:'Inter',sans-serif;min-height:200px;"></div>
         <div style="display:flex;gap:10px;margin-top:16px;">
-          <button onclick="copyCompareResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-secondary);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Copy</button>
+          <button onclick="copyCompareResult()" title="Copy" aria-label="Copy" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-secondary);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="vertical-align:middle;"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 012-2h8"/></svg></button>
           <button onclick="downloadCompareResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--accent-gold);color:var(--accent-gold);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Download Report</button>
           <button onclick="clearCompareResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-muted);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Clear</button>
         </div>
@@ -1074,7 +1088,7 @@
       <div id="clauseResults" style="display:none;">
         <div id="clauseOutput" style="background:var(--bg-secondary);border:1px solid var(--border);padding:24px;line-height:1.9;font-size:14px;color:var(--text-primary);white-space:pre-wrap;font-family:'Inter',sans-serif;min-height:200px;"></div>
         <div style="display:flex;gap:10px;margin-top:16px;">
-          <button onclick="copyClauseResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-secondary);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Copy</button>
+          <button onclick="copyClauseResult()" title="Copy" aria-label="Copy" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-secondary);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="vertical-align:middle;"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 012-2h8"/></svg></button>
           <button onclick="downloadClauseResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--accent-gold);color:var(--accent-gold);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Download</button>
           <button onclick="clearClauseResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-muted);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Clear</button>
         </div>
@@ -1122,7 +1136,7 @@
         <div id="outcomeUrgencyBadge" style="padding:10px 16px;margin-bottom:16px;font-size:12px;letter-spacing:1px;text-transform:uppercase;font-weight:600;text-align:center;display:none;"></div>
         <div id="outcomeOutput" style="background:var(--bg-secondary);border:1px solid var(--border);padding:24px;line-height:1.9;font-size:14px;color:var(--text-primary);white-space:pre-wrap;font-family:'Inter',sans-serif;min-height:200px;"></div>
         <div style="display:flex;gap:10px;margin-top:16px;">
-          <button onclick="copyOutcomeResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-secondary);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Copy</button>
+          <button onclick="copyOutcomeResult()" title="Copy" aria-label="Copy" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-secondary);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="vertical-align:middle;"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 012-2h8"/></svg></button>
           <button onclick="downloadOutcomeResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--accent-gold);color:var(--accent-gold);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Download Report</button>
           <button onclick="clearOutcomeResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-muted);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Clear</button>
         </div>
@@ -1162,7 +1176,7 @@
         <div id="contractRiskBadge" style="padding:10px 16px;margin-bottom:16px;font-size:12px;letter-spacing:1px;text-transform:uppercase;font-weight:600;text-align:center;"></div>
         <div id="contractOutput" style="background:var(--bg-secondary);border:1px solid var(--border);padding:24px;line-height:1.9;font-size:14px;color:var(--text-primary);white-space:pre-wrap;font-family:'Inter',sans-serif;min-height:200px;"></div>
         <div style="display:flex;gap:10px;margin-top:16px;">
-          <button onclick="copyContractResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-secondary);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Copy</button>
+          <button onclick="copyContractResult()" title="Copy" aria-label="Copy" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-secondary);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="vertical-align:middle;"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 012-2h8"/></svg></button>
           <button onclick="downloadContractResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--accent-gold);color:var(--accent-gold);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Download Report</button>
           <button onclick="clearContractResult()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-muted);font-family:'Inter',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">Clear</button>
         </div>
@@ -1778,7 +1792,7 @@
   }
 
   var _photoCache={};
-  async function fetchUserPhoto(uid){ if(!uid) return ''; if(_photoCache[uid]!==undefined) return _photoCache[uid]; try{ var d=await window.fsLoadMarketplace(uid); var ph=(d&&d.photo)||''; _photoCache[uid]=ph; return ph; }catch(e){ _photoCache[uid]=''; return ''; } }
+  async function fetchUserPhoto(uid){ if(!uid) return ''; if(_photoCache[uid]!==undefined) return _photoCache[uid]; try{ var d=await window.fsLoadPublicProfile(uid); var ph=(d&&d.photo)||''; _photoCache[uid]=ph; return ph; }catch(e){ _photoCache[uid]=''; return ''; } }
   function renderClients(conns) {
     const list = document.getElementById('clientsList');
     const visible = (conns||[]).filter(c => c.status !== 'declined');
@@ -2038,7 +2052,7 @@
     var _ct=document.documentElement.getAttribute('data-theme')||'dark'; document.querySelectorAll('.theme-seg button').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-t')===_ct);});
     try{var _pf=JSON.parse(localStorage.getItem('foriLawyerPrefs')||'{}');if(document.getElementById('lwNotifRequests'))document.getElementById('lwNotifRequests').checked=_pf.notifRequests!==false;if(document.getElementById('lwNotifMessages'))document.getElementById('lwNotifMessages').checked=_pf.notifMessages!==false;if(document.getElementById('lwNotifSystem'))document.getElementById('lwNotifSystem').checked=_pf.notifSystem!==false;}catch(e){}
     closeSet();
-    if (window._lexUid && window.fsLoadMarketplace) { window.fsLoadMarketplace(window._lexUid).then(d => { if(d&&d.photo){prefs.photo=d.photo;localStorage.setItem('foriLawyerPrefs',JSON.stringify(prefs));refreshAvatars(d.photo);} const _prevVer=prefs.verifiedNotified===true; if(window.FORI_DEMO_VERIFY_ALL){ setVerifyBadge('verified'); return; } const _prevStatus=prefs.verificationStatus||''; if (d && d.verified) { setVerifyBadge('verified'); if(!_prevVer){ addNotif('Your verification was approved. The verified badge now shows on your profile.','success','high','page:profile'); prefs.verifiedNotified=true; localStorage.setItem('foriLawyerPrefs',JSON.stringify(prefs)); } } else if (d && d.verificationStatus) { setVerifyBadge(d.verificationStatus); if(d.verificationStatus==='rejected' && _prevStatus!=='rejected'){ addNotif('Your verification needs attention. Please review your details and resubmit.','warning','high','page:profile'); } prefs.verificationStatus = d.verificationStatus; localStorage.setItem('foriLawyerPrefs', JSON.stringify(prefs)); } }).catch(() => {}); }
+    if (window._lexUid && window.fsLoadMarketplace) { window.fsLoadMarketplace(window._lexUid).then(d => { try{ if(d&&window.fsMirrorPublic){ var _pb={role:'lawyer'}; ['name','firm','specialisation','country','city','bio','photo'].forEach(function(k){ if(d[k]!==undefined)_pb[k]=d[k]; }); window.fsMirrorPublic(window._lexUid,_pb); } }catch(e){} if(d&&d.photo){prefs.photo=d.photo;localStorage.setItem('foriLawyerPrefs',JSON.stringify(prefs));refreshAvatars(d.photo);} const _prevVer=prefs.verifiedNotified===true; if(window.FORI_DEMO_VERIFY_ALL){ setVerifyBadge('verified'); return; } const _prevStatus=prefs.verificationStatus||''; if (d && d.verified) { setVerifyBadge('verified'); if(!_prevVer){ addNotif('Your verification was approved. The verified badge now shows on your profile.','success','high','page:profile'); prefs.verifiedNotified=true; localStorage.setItem('foriLawyerPrefs',JSON.stringify(prefs)); } } else if (d && d.verificationStatus) { setVerifyBadge(d.verificationStatus); if(d.verificationStatus==='rejected' && _prevStatus!=='rejected'){ addNotif('Your verification needs attention. Please review your details and resubmit.','warning','high','page:profile'); } prefs.verificationStatus = d.verificationStatus; localStorage.setItem('foriLawyerPrefs', JSON.stringify(prefs)); } }).catch(() => {}); }
   }
 
   async function saveLawyerProfile() {
