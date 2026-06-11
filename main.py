@@ -260,6 +260,7 @@ def stream_answer(prompt, system_prompt=None, ack=None, history=None, image=None
         yield delta
 
 usage_tracker = defaultdict(lambda: {"count": 0, "date": str(datetime.date.today())})
+rating_tracker = {}  # review velocity guard: {key: {start, count}} per rolling 24h
 
 FREE_PROMPT = """You are FORI, an AI legal information assistant. You provide clear, simple legal information to everyday people.
 
@@ -878,6 +879,18 @@ def submit_rating():
         return jsonify({'error': 'not_your_case'}), 403
     if conn.get('status') != 'closed':
         return jsonify({'error': 'not_closed'}), 400
+    # ── review velocity guard: max 3 submissions per rolling 24h per user/device ──
+    _now = time.time()
+    _vel_keys = ['rv_u:' + uid] + (['rv_d:' + device_id] if device_id else [])
+    for _vk in _vel_keys:
+        _rec = rating_tracker.get(_vk)
+        if not isinstance(_rec, dict) or _now - _rec.get('start', 0) >= 86400:
+            _rec = {'start': _now, 'count': 0}
+            rating_tracker[_vk] = _rec
+        if _rec['count'] >= 3:
+            return jsonify({'error': 'too_many_reviews'}), 429
+    for _vk in _vel_keys:
+        rating_tracker[_vk]['count'] += 1
     # ── self-dealing signals ──
     flags = []
     client_ip = _client_ip(request)
