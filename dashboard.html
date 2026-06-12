@@ -1173,6 +1173,10 @@
       const res=await fetch('/lawyers');
       const data=await res.json().catch(()=>({lawyers:[]}));
       _allLawyers=(data&&Array.isArray(data.lawyers))?data.lawyers:[];
+      // seed photo cache so fetchUserPhoto resolves without a publicProfiles read
+      _allLawyers.forEach(function(l){ if(l.id && l.photo !== undefined) _photoCache[l.id] = l.photo || ''; });
+      // refresh any connection-list avatars that rendered before the directory loaded
+      try { (_myLawyerConns||[]).forEach(function(c){ if(c.lawyerId && _photoCache[c.lawyerId]){ var el=document.getElementById('cl-av-'+c.id); if(el && _photoCache[c.lawyerId]) applyAvatarPhoto(el, _photoCache[c.lawyerId], ''); } }); } catch(e) {}
       populateCountryFilter(_allLawyers);
       renderLawyerDirectory(_allLawyers);
     }catch(err){document.getElementById('lawyersLoading').innerHTML='<div style="padding:40px;text-align:center;color:var(--text-muted);">Unable to load lawyer directory. Please try again.</div>';}
