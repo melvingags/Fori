@@ -1779,13 +1779,19 @@
       });
       if(chg) localStorage.setItem(lk,JSON.stringify(done.slice(-200)));
     }catch(e){}
-    // New messages: in-memory transition only (avoids re-notifying on every login)
-    if(_connPrev){
+    // New messages: notify once per incoming message (connId + timestamp), so the
+    // lawyer is alerted even if they were offline when it arrived, without
+    // re-notifying the same message on every login.
+    try{
+      var mk='foriMsgNotified';var mdone=JSON.parse(localStorage.getItem(mk)||'[]');var mchg=false;
       conns.forEach(function(c){
-        var p=_connPrev[c.id];
-        if(p && !p.unread && connHasUnread(c)){ addNotif('New message from '+(c.userName||'a client')+'.','info','high','page:clients'); }
+        if(!connHasUnread(c))return;
+        var ms=(c.lastAt&&c.lastAt.toMillis)?c.lastAt.toMillis():0;
+        var key=c.id+':'+ms;
+        if(mdone.indexOf(key)===-1){ addNotif('New message from '+(c.userName||'a client')+' — tap to view.','info','high','page:clients'); mdone.push(key); mchg=true; }
       });
-    }
+      if(mchg) localStorage.setItem(mk,JSON.stringify(mdone.slice(-300)));
+    }catch(e){}
     var m={}; conns.forEach(function(c){ m[c.id]={status:c.status,unread:connHasUnread(c)}; }); _connPrev=m;
     // Live Client Leads badge (real pending count, not a fixed number)
     try{ var pend=conns.filter(function(c){return c.status==='pending';}).length; var lb=document.getElementById('leadsBadge'); if(lb){ if(pend>0){lb.textContent=pend;lb.style.display='';} else {lb.style.display='none';} } }catch(e){}
