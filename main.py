@@ -805,6 +805,31 @@ def lawyers_directory():
         return jsonify({'lawyers': [], 'error': 'directory_unavailable'}), 200
 
 
+@app.route('/admin/backfill-photos', methods=['POST'])
+def admin_backfill_photos():
+    """One-time maintenance: copy each lawyer's users.photo into publicProfiles.photo
+    for accounts created before the publicProfiles photo-mirror existed. Admin-gated.
+    Remove this route once the photos show on the individual dashboard."""
+    ADMIN_UID = 'qQbLKdjTSKQku5lqDlPfe8St6El2'
+    if _verify_uid(request) != ADMIN_UID:
+        return jsonify({'error': 'forbidden'}), 403
+    try:
+        db = _get_firestore_client()
+        scanned = copied = skipped = 0
+        for d in db.collection('users').where('role', '==', 'lawyer').stream():
+            scanned += 1
+            photo = (d.to_dict() or {}).get('photo') or ''
+            if not photo:
+                skipped += 1
+                continue
+            db.collection('publicProfiles').document(d.id).set({'photo': photo}, merge=True)
+            copied += 1
+        return jsonify({'scanned': scanned, 'copied': copied, 'skipped': skipped})
+    except Exception as e:
+        logger.error(f"/admin/backfill-photos error: {e}")
+        return jsonify({'error': 'backfill_failed'}), 500
+
+
 @app.route('/lawyer-reviews')
 def lawyer_reviews():
     """Public reviews for one lawyer. Served via admin access so the ratings
