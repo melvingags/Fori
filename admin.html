@@ -677,8 +677,7 @@
   const auth = getAuth(app);
   const db = getFirestore(app);
 
-  const ADMIN_UIDS = ['qQbLKdjTSKQku5lqDlPfe8St6El2'];
-  const LOCAL_ADMIN_PASS = 'lex-admin-2025';
+  const ADMIN_UIDS = ['wVnh9sZNkwd7CXmoHvD418nR7p53'];
 
   let _allUsers = [];
   let _allLawyers = [];
@@ -711,11 +710,7 @@
       }
       bootAdmin(cred.user);
     } catch(e) {
-      if (pass === LOCAL_ADMIN_PASS) {
-        bootAdmin({ email, uid: 'local', displayName: 'Admin' });
-      } else {
-        errEl.style.display = 'block';
-      }
+      errEl.style.display = 'block';
     }
   };
 
