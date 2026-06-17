@@ -806,34 +806,6 @@ def lawyers_directory():
         return jsonify({'lawyers': [], 'error': 'directory_unavailable'}), 200
 
 
-@app.route('/admin/recover-access', methods=['GET'])
-def admin_recover_access():
-    """TEMPORARY admin password recovery. Generates a Firebase password-reset link
-    for the admin account (works even if the account's email can't receive mail).
-    Gated by a one-time secret. REMOVE this route after you reset the password."""
-    RECOVER_KEY = 'rcv-a9F3kZ1pX7mQ2wL8nR4tV6y'
-    if request.args.get('key') != RECOVER_KEY:
-        return jsonify({'error': 'forbidden'}), 403
-    try:
-        from firebase_admin import auth as fb_auth
-        ADMIN_UID = 'qQbLKdjTSKQku5lqDlPfe8St6El2'
-        u = fb_auth.get_user(ADMIN_UID)
-        link = fb_auth.generate_password_reset_link(u.email)
-        html = (
-            '<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1">'
-            '<div style="font-family:system-ui;max-width:560px;margin:40px auto;padding:0 16px;">'
-            '<h2>Admin password recovery</h2>'
-            '<p>Account: <b>' + (u.email or '(no email on file)') + '</b></p>'
-            '<p><a href="' + link + '" style="display:inline-block;padding:12px 18px;background:#c9a86c;color:#1a1a1a;text-decoration:none;border-radius:6px;font-weight:600;">Set a new admin password</a></p>'
-            '<p style="color:#888;font-size:13px;">Open the button, set a new password, then have this route removed.</p>'
-            '</div>'
-        )
-        return Response(html, mimetype='text/html')
-    except Exception as e:
-        logger.error(f"/admin/recover-access error: {e}")
-        return jsonify({'error': 'recover_failed', 'detail': str(e)}), 500
-
-
 @app.route('/lawyer-reviews')
 def lawyer_reviews():
     """Public reviews for one lawyer. Served via admin access so the ratings
