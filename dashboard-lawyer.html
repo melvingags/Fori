@@ -1806,9 +1806,7 @@
     const ord = { pending:0, active:1, closed:2 };
     const sorted = [...visible].sort((a,b)=>{const _rt=function(x){return (x.lastAt&&x.lastAt.toMillis)?x.lastAt.toMillis():((x.createdAt&&x.createdAt.toMillis)?x.createdAt.toMillis():0);};const ta=_rt(a),tb=_rt(b);if(tb!==ta)return tb-ta;const ua=connHasUnread(a)?0:1,ub=connHasUnread(b)?0:1;if(ua!==ub)return ua-ub;return (ord[a.status]??3)-(ord[b.status]??3);});
     list.className='cl-list';
-    var _dbg='';
-    try{ var _dbgMe=(window._lexUid||user.uid||''); _dbg='<div style="background:#1a1a1a;border:1px solid #e74c3c;color:#ddd;font:11px/1.5 monospace;padding:8px;margin-bottom:10px;white-space:pre-wrap;word-break:break-all;">UNREAD DEBUG — me='+_dbgMe.slice(-6)+'\n'+sorted.filter(function(c){return c.status!=="pending";}).map(function(c){var sid=String(c.lastSenderId||"(none)");var ms=(c.lastAt&&c.lastAt.toMillis)?c.lastAt.toMillis():0;var seen=(getConnSeen()[c.id]||0);return (c.userName||"Client")+": sender="+sid.slice(-6)+" isMe="+(sid===_dbgMe)+" lastAt="+ms+" seen="+seen+" unread="+connHasUnread(c);}).join("\n")+'</div>'; }catch(e){ _dbg='<div style="color:#e74c3c;font:11px monospace;">debug error: '+e+'</div>'; }
-    list.innerHTML = _dbg + sorted.map(c => {
+    list.innerHTML = sorted.map(c => {
       const name = c.userName || 'Client';
       const av = ((name.trim()[0])||'C').toUpperCase();
       if (c.status === 'pending') {
@@ -1901,8 +1899,9 @@
   async function declineConn(connId) { await window.fsDeclineConnection(connId); toast('Connection declined.'); }
 
   let _clientConns = [], _clientsUnsub=null, _connPrev=null, _reviewsUnsub=null, _reviewPrev=null, _reviewsSeeded=false;
-  function getConnSeen(){try{return JSON.parse(localStorage.getItem('foriConnSeen')||'{}');}catch(e){return {};}}
-  function markConnSeen(connId,ms){if(!connId||!ms)return;const s=getConnSeen();if((s[connId]||0)<ms){s[connId]=ms;try{localStorage.setItem('foriConnSeen',JSON.stringify(s));}catch(e){}}}
+  function _connSeenKey(){return 'foriConnSeen_'+(window._lexUid||user.uid||'anon');}
+  function getConnSeen(){try{return JSON.parse(localStorage.getItem(_connSeenKey())||'{}');}catch(e){return {};}}
+  function markConnSeen(connId,ms){if(!connId||!ms)return;const s=getConnSeen();if((s[connId]||0)<ms){s[connId]=ms;try{localStorage.setItem(_connSeenKey(),JSON.stringify(s));}catch(e){}}}
   function connHasUnread(c){const me=window._lexUid||user.uid||'';const ms=(c.lastAt&&c.lastAt.toMillis)?c.lastAt.toMillis():0;return !!c.lastSenderId&&c.lastSenderId!==me&&ms>(getConnSeen()[c.id]||0);}
   function refreshUnreadBadges(){const badge=document.getElementById('clientsBadge');if(!badge)return;const n=(_clientConns||[]).filter(connHasUnread).length;if(n>0){badge.style.display='inline';badge.textContent=n;}else{badge.style.display='none';}}
   function openClientChat(connId, clientName, clientId, status) {
