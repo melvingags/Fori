@@ -1759,7 +1759,7 @@
       _clientConns = conns;
       const cr = document.getElementById('page-chatroom');
       const chatOpen = cr && cr.classList.contains('active');
-      if (chatOpen && _activeConnId) { const oc = conns.find(c => c.id === _activeConnId); if (oc) { const ms = (oc.lastAt && oc.lastAt.toMillis) ? oc.lastAt.toMillis() : Date.now(); markConnSeen(_activeConnId, ms); } }
+      if (chatOpen && _activeConnId) { const oc = conns.find(c => c.id === _activeConnId); if (oc && oc.lastAt && oc.lastAt.toMillis) { markConnSeen(_activeConnId, oc.lastAt.toMillis()); } }
       _notifyClientChanges(conns);
       renderClients(conns);
       refreshUnreadBadges();
@@ -1894,7 +1894,6 @@
         "Hello "+cname+" — I've reviewed your request and I'm glad to help. Could you share any additional details about your matter so I can advise you properly?",
         null, null);
     } catch(e) {}
-    try { markConnSeen(connId, Date.now()); } catch(e) {}
     openClientChat(connId, conn.userName||'Client', conn.userId||'', 'active');
   }
   async function declineConn(connId) { await window.fsDeclineConnection(connId); toast('Connection declined.'); }
@@ -1909,7 +1908,7 @@
     if (status === 'declined') return;
     _activeConnId = connId; _activeClientName = clientName; _activeClientId = clientId;
     const _oc = (_clientConns||[]).find(x=>x.id===connId);
-    if (_oc) { const _ms=(_oc.lastAt&&_oc.lastAt.toMillis)?_oc.lastAt.toMillis():Date.now(); markConnSeen(connId,_ms); }
+    if (_oc && _oc.lastAt && _oc.lastAt.toMillis) { markConnSeen(connId, _oc.lastAt.toMillis()); }
     refreshUnreadBadges();
     document.getElementById('chatroomName').textContent = clientName;
     var _ca0=document.getElementById('chatroomAvatar'); if(_ca0){ _ca0.style.backgroundImage=''; _ca0.style.removeProperty('background-size'); _ca0.style.color=''; _ca0.textContent=((clientName||'C').trim()[0]||'C').toUpperCase(); } if(clientId) fetchUserPhoto(clientId).then(function(ph){ if(ph&&_ca0) applyAvatarPhoto(_ca0,ph,''); });
@@ -1949,7 +1948,7 @@
     } catch(_e){ return `<div class="msg-row assistant"><div class="msg-col"><div class="msg-bubble assistant">📎 ${String((m&&m.fileName)||'Attachment').replace(/[<>&]/g,'')}</div></div></div>`; }
     }).join('');
     _scrollChatBottom(wrap);
-    try { const last = msgs[msgs.length-1]; const ms = (last && last.createdAt && last.createdAt.toMillis) ? last.createdAt.toMillis() : Date.now(); markConnSeen(_activeConnId, ms); } catch(e) {}
+    try { var _crA=document.getElementById('page-chatroom'); if (_crA && _crA.classList.contains('active') && _activeConnId) { const last = msgs[msgs.length-1]; const ms = (last && last.createdAt && last.createdAt.toMillis) ? last.createdAt.toMillis() : 0; if (ms) markConnSeen(_activeConnId, ms); } } catch(e) {}
     refreshUnreadBadges();
   }
 
