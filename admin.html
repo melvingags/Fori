@@ -681,6 +681,7 @@
 
   let _allUsers = [];
   let _allLawyers = [];
+  let _pendingReqs = [];
   let _userFilter = 'all';
   let _lawyerFilter = 'pending';
   let _charts = {};
@@ -893,19 +894,45 @@
       const snap = await getDocs(query(collection(db, 'users'), where('role', '==', 'lawyer')));
       _allLawyers = [];
       snap.forEach(d => _allLawyers.push({ id: d.id, ...d.data() }));
+      try {
+        const reqSnap = await getDocs(query(collection(db, 'verificationRequests'), where('status', '==', 'pending')));
+        _pendingReqs = [];
+        reqSnap.forEach(d => _pendingReqs.push({ id: d.id, ...d.data() }));
+      } catch(e) { _pendingReqs = []; }
       renderLawyers();
-      const pending = _allLawyers.filter(l => !l.verified).length;
-      document.getElementById('pendingDot').style.display = pending > 0 ? 'block' : 'none';
+      document.getElementById('pendingDot').style.display = _pendingReqs.length > 0 ? 'block' : 'none';
       renderOverviewPending();
     } catch(e) {}
   }
 
   function renderLawyers() {
+    const listEl = document.getElementById('lawyersList');
+    if (_lawyerFilter === 'pending') {
+      if (!_pendingReqs.length) { listEl.innerHTML = '<div class="empty-state">No pending verification requests</div>'; return; }
+      listEl.innerHTML = _pendingReqs.map(r => {
+        const reg = registryLink(r.country, r.barAuthority, r.barNumber);
+        return `
+      <div class="verify-card">
+        <div class="verify-avatar">${(r.name||'L')[0].toUpperCase()}</div>
+        <div class="verify-info">
+          <div class="verify-name">${r.name||'Unknown'}</div>
+          <div class="verify-meta">${r.email||''} · ${r.specialisation||'General'} · ${r.country||'—'}</div>
+          <div class="verify-meta" style="margin-top:4px;">Bar No: <span style="color:var(--text);">${r.barNumber||'—'}</span>${r.barAuthority?' · '+r.barAuthority:''}</div>
+          ${r.firm ? `<div class="verify-meta">Firm: ${r.firm}</div>` : ''}
+          <div class="verify-meta" style="margin-top:6px;"><a href="${reg.url}" target="_blank" rel="noopener" style="color:var(--gold);text-decoration:none;font-size:11px;">${reg.label}</a></div>
+          <div class="verify-actions">
+            <button class="verify-btn approve" onclick="decideVerification('${r.id}','${r.lawyerId}',true)">✓ Approve</button>
+            <button class="verify-btn reject" onclick="decideVerification('${r.id}','${r.lawyerId}',false)">✗ Reject</button>
+          </div>
+        </div>
+        <span class="verify-badge pending">PENDING</span>
+      </div>`; }).join('');
+      return;
+    }
     let lawyers = _allLawyers;
-    if (_lawyerFilter === 'pending') lawyers = lawyers.filter(l => !l.verified);
     if (_lawyerFilter === 'verified') lawyers = lawyers.filter(l => l.verified);
-    if (!lawyers.length) { document.getElementById('lawyersList').innerHTML = '<div class="empty-state">No lawyers in this category</div>'; return; }
-    document.getElementById('lawyersList').innerHTML = lawyers.map(l => `
+    if (!lawyers.length) { listEl.innerHTML = '<div class="empty-state">No lawyers in this category</div>'; return; }
+    listEl.innerHTML = lawyers.map(l => `
       <div class="verify-card">
         <div class="verify-avatar">${(l.name||'L')[0].toUpperCase()}</div>
         <div class="verify-info">
@@ -931,7 +958,8 @@
 
   window.verifyLawyer = async function(uid, approve) {
     try {
-      await updateDoc(doc(db, 'users', uid), { verified: approve, verifiedAt: approve ? serverTimestamp() : null });
+      await updateDoc(doc(db, 'users', uid), { verified: approve, verificationStatus: approve ? 'verified' : 'none', verifiedAt: approve ? serverTimestamp() : null });
+      await setDoc(doc(db, 'publicProfiles', uid), { verified: approve }, { merge: true });
       const l = _allLawyers.find(x => x.id === uid); if (l) l.verified = approve;
       renderLawyers();
       showToast(approve ? 'Lawyer verified ✓' : 'Verification revoked', approve ? 'green' : 'red');
@@ -939,6 +967,31 @@
       await loadLawyers();
     } catch(e) { showToast('Update failed — log in with Firebase Auth to enable writes', 'red'); }
   };
+
+  window.decideVerification = async function(reqId, lawyerId, approve) {
+    try {
+      if (approve) {
+        await updateDoc(doc(db, 'users', lawyerId), { verified: true, verificationStatus: 'verified', verifiedAt: serverTimestamp() });
+        await setDoc(doc(db, 'publicProfiles', lawyerId), { verified: true }, { merge: true });
+        await updateDoc(doc(db, 'verificationRequests', reqId), { status: 'approved', decidedAt: serverTimestamp() });
+      } else {
+        await updateDoc(doc(db, 'users', lawyerId), { verificationStatus: 'rejected' });
+        await updateDoc(doc(db, 'verificationRequests', reqId), { status: 'rejected', decidedAt: serverTimestamp() });
+      }
+      const req = _pendingReqs.find(x => x.id === reqId);
+      showToast(approve ? 'Lawyer verified ✓' : 'Verification rejected', approve ? 'green' : 'red');
+      logActivity(`Verification ${approve?'approved':'rejected'}: ${req?.name||lawyerId}`, approve?'green':'red');
+      await loadLawyers();
+    } catch(e) { showToast('Update failed — check you are logged in with Firebase Auth', 'red'); }
+  };
+
+  function registryLink(country, barAuthority, barNumber) {
+    const c = (country || '').trim().toLowerCase();
+    if (c === 'nigeria') return { url: 'https://www.nigerianbar.org.ng/', label: 'Verify at Nigerian Bar Association ↗' };
+    if (['united kingdom','uk','england','wales','england & wales','england and wales','great britain'].includes(c)) return { url: 'https://www.sra.org.uk/consumers/register/', label: 'Verify at SRA register ↗' };
+    const q = encodeURIComponent(((barAuthority || '') + ' ' + (country || '') + ' lawyer bar register verify ' + (barNumber || '')).trim());
+    return { url: 'https://www.google.com/search?q=' + q, label: 'Search official registry ↗' };
+  }
 
   // ── STATS ──
   function updateStats() {
@@ -990,13 +1043,13 @@
   }
 
   function renderOverviewPending() {
-    const pending = _allLawyers.filter(l => !l.verified);
-    document.getElementById('overviewPendingList').innerHTML = pending.length ? pending.slice(0,3).map(l => `
+    const pending = _pendingReqs;
+    document.getElementById('overviewPendingList').innerHTML = pending.length ? pending.slice(0,3).map(r => `
       <div class="verify-card" style="margin-bottom:8px;">
-        <div class="verify-avatar" style="width:36px;height:36px;font-size:15px;">${(l.name||'L')[0]}</div>
+        <div class="verify-avatar" style="width:36px;height:36px;font-size:15px;">${(r.name||'L')[0]}</div>
         <div class="verify-info">
-          <div class="verify-name" style="font-size:13px;">${l.name||'Unknown'}</div>
-          <div class="verify-meta">${l.specialisation||'General'} · ${l.country||'—'}</div>
+          <div class="verify-name" style="font-size:13px;">${r.name||'Unknown'}</div>
+          <div class="verify-meta">${r.specialisation||'General'} · ${r.country||'—'}</div>
         </div>
         <span class="verify-badge pending">PENDING</span>
       </div>`).join('') : '<div class="config-card" style="padding:20px;"><div class="empty-state">No pending verifications</div></div>';
