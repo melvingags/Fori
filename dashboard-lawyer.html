@@ -611,24 +611,25 @@
       +'<textarea id="foriAppealText" maxlength="1000" placeholder="Explain why this activity was not fraudulent\u2026" style="width:100%;min-height:96px;background:var(--bg-elevated,#1d2026);border:1px solid var(--border,#2a2d33);border-radius:8px;color:var(--text-primary,#e7e7ea);padding:11px;font-family:inherit;font-size:13px;resize:vertical;box-sizing:border-box;"></textarea>'
       +'<div id="foriAppealMsg" style="font-size:12px;margin-top:8px;min-height:16px;"></div>'
       +'<div style="display:flex;gap:8px;margin-top:12px;">'
-      +'<button onclick="_submitAppeal()" style="flex:1;padding:11px;background:var(--accent-gold,#c9a86c);border:none;color:#1a1a1a;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;">Submit appeal</button>'
+      +'<button onclick="_submitAppeal(this)" style="flex:1;padding:11px;background:var(--accent-gold,#c9a86c);border:none;color:#1a1a1a;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;">Submit appeal</button>'
       +'<button onclick="_closeSuspNotice()" style="padding:11px 16px;background:transparent;border:1px solid var(--border,#2a2d33);color:var(--text-secondary,#b6b8be);border-radius:8px;font-size:13px;cursor:pointer;">Close</button>'
       +'</div></div>';
     document.body.appendChild(ov);
   }
-  window._submitAppeal = async function(){
+  window._submitAppeal = async function(btn){
     var ta=document.getElementById('foriAppealText'); var msg=document.getElementById('foriAppealMsg');
     var reason=((ta&&ta.value)||'').trim();
     if(reason.length<10){ if(msg){ msg.style.color='#e74c3c'; msg.textContent='Please add a bit more detail (at least 10 characters).'; } return; }
+    if(btn){ if(btn.disabled) return; btn.disabled=true; btn.dataset.label=btn.textContent; btn.textContent='Submitting\u2026'; btn.style.opacity='0.6'; }
     try{
       var token=window._foriGetToken?await window._foriGetToken():'';
       var r=await fetch('/appeal',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({reason:reason})});
       var j={}; try{ j=await r.json(); }catch(e){}
-      if(r.ok&&j.ok){ if(msg){ msg.style.color='#27ae60'; msg.textContent='\u2713 Appeal submitted. Our team will review it.'; } if(ta) ta.disabled=true; }
-      else if(j&&j.error==='appeal_pending'){ if(msg){ msg.style.color='#27ae60'; msg.textContent='You already have an appeal under review.'; } }
+      if(r.ok&&j.ok){ if(msg){ msg.style.color='#27ae60'; msg.textContent='\u2713 Appeal submitted. Our team will review it.'; } if(ta) ta.disabled=true; if(btn){ btn.textContent='Submitted'; } }
+      else if(j&&j.error==='appeal_pending'){ if(msg){ msg.style.color='#27ae60'; msg.textContent='You already have an appeal under review.'; } if(ta) ta.disabled=true; if(btn){ btn.textContent='Submitted'; } }
       else if(j&&j.error==='not_suspended'){ if(msg){ msg.style.color='#27ae60'; msg.textContent='Your account is no longer restricted.'; } }
-      else { if(msg){ msg.style.color='#e74c3c'; msg.textContent='Could not submit. Please try again.'; } }
-    }catch(e){ if(msg){ msg.style.color='#e74c3c'; msg.textContent='Could not submit. Please try again.'; } }
+      else { if(msg){ msg.style.color='#e74c3c'; msg.textContent='Could not submit. Please try again.'; } if(btn){ btn.disabled=false; btn.textContent=(btn.dataset.label||'Submit appeal'); btn.style.opacity='1'; } }
+    }catch(e){ if(msg){ msg.style.color='#e74c3c'; msg.textContent='Could not submit. Please try again.'; } if(btn){ btn.disabled=false; btn.textContent=(btn.dataset.label||'Submit appeal'); btn.style.opacity='1'; } }
   };
   window.lexSignOut = async function() {
     await signOut(auth);
