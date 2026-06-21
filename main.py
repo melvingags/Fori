@@ -784,9 +784,13 @@ def lawyers_directory():
                     case_agg[lid] = case_agg.get(lid, 0) + 1
         except Exception as e:
             logger.warning(f"case agg failed: {str(e)[:100]}")
+        now_ts = datetime.datetime.now(datetime.timezone.utc).timestamp()
         out = []
         for d in db.collection('users').where('role', '==', 'lawyer').stream():
             data = d.to_dict() or {}
+            su = data.get('suspendedUntil')
+            if data.get('permanentlyBanned') or (su is not None and hasattr(su, 'timestamp') and su.timestamp() > now_ts):
+                continue  # hide suspended/banned lawyers from the directory
             agg = rating_agg.get(d.id)
             avg = round(agg[0] / agg[1], 1) if (agg and agg[1]) else None
             cnt = agg[1] if agg else 0
