@@ -150,7 +150,7 @@
 <!-- Firebase SDK -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
-  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, GoogleAuthProvider, OAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+  import { getAuth, createUserWithEmailAndPassword, sendEmailVerification, signInWithEmailAndPassword, sendPasswordResetEmail, GoogleAuthProvider, OAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
   import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
 
   const firebaseConfig = {
@@ -172,13 +172,15 @@
   appleProvider.addScope('name');
 
   async function saveUserToFirestore(user, role) {
-    await setDoc(doc(db, "users", user.uid), {
+    const uref = doc(db, "users", user.uid);
+    let isNew = false;
+    try { const snap = await getDoc(uref); isNew = !snap.exists(); } catch (e) {}
+    const data = {
       name: user.displayName || user.email.split('@')[0],
-      email: user.email,
-      role: role,
-      plan: 'free',
-      createdAt: new Date().toISOString()
-    }, { merge: true });
+      email: user.email
+    };
+    if (isNew) { data.role = role; data.plan = 'free'; data.createdAt = new Date().toISOString(); }
+    await setDoc(uref, data, { merge: true });
     try {
       await setDoc(doc(db, "publicProfiles", user.uid), {
         name: user.displayName || user.email.split('@')[0],
@@ -221,6 +223,7 @@
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       await saveUserToFirestore({ uid: cred.user.uid, email, displayName: name }, role);
+      try { await sendEmailVerification(cred.user); } catch(_) {}
       localStorage.setItem('foriUser', JSON.stringify({ uid: cred.user.uid, name: name || email.split('@')[0], role, plan: 'free' }));
       localStorage.setItem('foriRole', role);
       redirectUser(role);
