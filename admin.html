@@ -329,6 +329,14 @@
       Lawyer Verification
       <span class="nav-dot" id="pendingDot" style="display:none;"></span>
     </div>
+    <div class="nav-item" onclick="showPage('flagged',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+      Flagged Reviews
+    </div>
+    <div class="nav-item" onclick="showPage('moderation',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      Moderation
+    </div>
     <div class="nav-section">Platform</div>
     <div class="nav-item" onclick="showPage('settings',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
@@ -614,6 +622,21 @@
       <div id="lawyersList"><div class="empty-state">Loading...</div></div>
     </div>
 
+    <!-- FLAGGED REVIEWS PAGE -->
+    <div class="page" id="page-flagged">
+      <div id="flaggedList"><div class="empty-state">Loading...</div></div>
+    </div>
+
+    <!-- MODERATION PAGE -->
+    <div class="page" id="page-moderation">
+      <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);margin:4px 0 10px;">Appeals</div>
+      <div id="modAppeals"><div class="empty-state">Loading...</div></div>
+      <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);margin:24px 0 10px;">Review queue</div>
+      <div id="modReviews"><div class="empty-state">Loading...</div></div>
+      <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);margin:24px 0 10px;">Active suspensions</div>
+      <div id="modSuspensions"><div class="empty-state">Loading...</div></div>
+    </div>
+
     <!-- ACTIVITY LOG PAGE -->
     <div class="page" id="page-activity">
       <div class="config-card" style="padding:20px;">
@@ -722,9 +745,173 @@
     loadStripeConfig();
     loadUsers();
     loadLawyers();
+    loadFlaggedReviews();
+    loadModeration();
     loadPlatformSettings();
     logActivity('Admin signed in', 'green');
   }
+
+  async function loadFlaggedReviews() {
+    const listEl = document.getElementById('flaggedList');
+    try {
+      const snap = await getDocs(collection(db, 'ratings'));
+      const flagged = [];
+      snap.forEach(d => { const r = { id: d.id, ...d.data() }; if (Array.isArray(r.flags) && r.flags.length) flagged.push(r); });
+      flagged.sort((a, b) => {
+        const ta = (a.createdAt && a.createdAt.toMillis) ? a.createdAt.toMillis() : 0;
+        const tb = (b.createdAt && b.createdAt.toMillis) ? b.createdAt.toMillis() : 0;
+        return tb - ta;
+      });
+      renderFlaggedReviews(flagged);
+    } catch(e) {
+      if (listEl) listEl.innerHTML = '<div class="empty-state">Could not load reviews.</div>';
+    }
+  }
+
+  function _nameForUid(uid) {
+    if (!uid) return 'Unknown';
+    const l = _allLawyers.find(x => x.id === uid);
+    if (l && l.name) return l.name;
+    const u = _allUsers.find(x => x.id === uid);
+    if (u && u.name) return u.name;
+    return uid.slice(0, 8) + '…';
+  }
+
+  function renderFlaggedReviews(items) {
+    const listEl = document.getElementById('flaggedList');
+    if (!listEl) return;
+    if (!items.length) { listEl.innerHTML = '<div class="empty-state">No flagged reviews.</div>'; return; }
+    const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+    listEl.innerHTML = items.map(r => {
+      const dt = (r.createdAt && r.createdAt.toDate) ? r.createdAt.toDate().toLocaleDateString() : '';
+      const s = Math.max(0, Math.min(5, r.stars || 0));
+      const stars = '★'.repeat(s) + '☆'.repeat(5 - s);
+      const flags = (r.flags || []).map(f => `<span class="verify-badge pending" style="margin:0 4px 4px 0;">${esc(f)}</span>`).join('');
+      const excluded = r.suspicious ? '<span class="verify-badge pending" style="background:rgba(231,76,60,0.12);color:#e74c3c;border-color:rgba(231,76,60,0.3);margin:0 4px 4px 0;">Excluded from average</span>' : '';
+      return `
+      <div class="verify-card" style="align-items:flex-start;">
+        <div class="verify-info">
+          <div class="verify-name">${esc(_nameForUid(r.userId))} <span style="color:var(--gold);font-weight:400;">${stars}</span></div>
+          <div class="verify-meta">Lawyer: ${esc(_nameForUid(r.lawyerId))}${r.outcome ? ' · ' + esc(r.outcome) : ''}${dt ? ' · ' + dt : ''}</div>
+          ${r.review ? `<div class="verify-meta" style="margin-top:6px;color:var(--text);">${esc(r.review)}</div>` : ''}
+          <div style="margin-top:8px;display:flex;flex-wrap:wrap;">${flags}${excluded}</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function _esc(s){return String(s==null?'':s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));}
+
+  async function loadModeration() {
+    _loadAppeals(); _loadFraudReviews(); _loadSuspensions();
+  }
+
+  async function _loadAppeals() {
+    const el = document.getElementById('modAppeals'); if (!el) return;
+    try {
+      const snap = await getDocs(query(collection(db, 'appeals'), where('status', '==', 'pending')));
+      const rows = []; snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
+      if (!rows.length) { el.innerHTML = '<div class="empty-state">No pending appeals.</div>'; return; }
+      const cards = await Promise.all(rows.map(async r => {
+        let u = {};
+        try { const us = await getDoc(doc(db, 'users', r.uid)); if (us.exists()) u = us.data(); } catch(e) {}
+        const flags = (u.suspensionFlags || []).map(f => `<span class="verify-badge pending" style="margin:0 4px 4px 0;">${_esc(f)}</span>`).join('');
+        return `
+      <div class="verify-card" style="align-items:flex-start;">
+        <div class="verify-info">
+          <div class="verify-name">${_esc(u.name || _nameForUid(r.uid))} <span style="color:var(--text-muted);font-size:11px;">(${_esc(r.role || 'user')})</span></div>
+          <div class="verify-meta">Strikes: ${u.strikes || 0}${u.suspensionReason ? ' · ' + _esc(u.suspensionReason) : ''}</div>
+          <div style="margin-top:6px;display:flex;flex-wrap:wrap;">${flags || '<span class="verify-meta">no signals on file</span>'}</div>
+          <div class="verify-meta" style="margin-top:8px;color:var(--text);">"${_esc(r.reason || '')}"</div>
+          <div class="verify-actions">
+            <button class="verify-btn approve" onclick="upholdAppeal('${r.id}','${r.uid}')">✓ Uphold</button>
+            <button class="verify-btn reject" onclick="rejectAppeal('${r.id}')">✗ Reject</button>
+          </div>
+        </div>
+      </div>`;
+      }));
+      el.innerHTML = cards.join('');
+    } catch(e) { el.innerHTML = '<div class="empty-state">Could not load appeals.</div>'; }
+  }
+
+  async function _loadFraudReviews() {
+    const el = document.getElementById('modReviews'); if (!el) return;
+    try {
+      const snap = await getDocs(query(collection(db, 'fraudReviews'), where('status', '==', 'pending')));
+      const rows = []; snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
+      if (!rows.length) { el.innerHTML = '<div class="empty-state">No pairs awaiting review.</div>'; return; }
+      el.innerHTML = rows.map(r => {
+        const flags = (r.flags || []).map(f => `<span class="verify-badge pending" style="margin:0 4px 4px 0;">${_esc(f)}</span>`).join('') || '<span class="verify-meta">frequency only — no corroborating signal</span>';
+        return `
+      <div class="verify-card" style="align-items:flex-start;">
+        <div class="verify-info">
+          <div class="verify-name">${_esc(_nameForUid(r.userId))} ↔ ${_esc(_nameForUid(r.lawyerId))}</div>
+          <div class="verify-meta">Cases in 24h: ${r.cases24h || 0} · Active days: ${r.activeDays || 0}</div>
+          <div style="margin-top:6px;display:flex;flex-wrap:wrap;">${flags}</div>
+          <div class="verify-actions">
+            <button class="verify-btn reject" onclick="dismissReview('${r.id}')">Dismiss</button>
+          </div>
+        </div>
+      </div>`;
+      }).join('');
+    } catch(e) { el.innerHTML = '<div class="empty-state">Could not load review queue.</div>'; }
+  }
+
+  async function _loadSuspensions() {
+    const el = document.getElementById('modSuspensions'); if (!el) return;
+    try {
+      const snap = await getDocs(collection(db, 'users'));
+      const now = Date.now(); const susp = [];
+      snap.forEach(d => {
+        const u = { id: d.id, ...d.data() };
+        const until = (u.suspendedUntil && u.suspendedUntil.toMillis) ? u.suspendedUntil.toMillis() : 0;
+        if (u.permanentlyBanned || until > now) susp.push(u);
+      });
+      if (!susp.length) { el.innerHTML = '<div class="empty-state">No active suspensions.</div>'; return; }
+      el.innerHTML = susp.map(u => {
+        const until = (u.suspendedUntil && u.suspendedUntil.toDate) ? u.suspendedUntil.toDate().toLocaleDateString() : '';
+        const tag = u.permanentlyBanned
+          ? '<span class="verify-badge pending" style="background:rgba(231,76,60,0.12);color:#e74c3c;border-color:rgba(231,76,60,0.3);">BANNED</span>'
+          : '<span class="verify-badge pending">SUSPENDED</span>';
+        return `
+      <div class="verify-card" style="align-items:flex-start;">
+        <div class="verify-info">
+          <div class="verify-name">${_esc(u.name || u.id)} ${tag}</div>
+          <div class="verify-meta">Strikes: ${u.strikes || 0}${until ? ' · until ' + until : ''}${u.suspensionReason ? ' · ' + _esc(u.suspensionReason) : ''}</div>
+        </div>
+      </div>`;
+      }).join('');
+    } catch(e) { el.innerHTML = '<div class="empty-state">Could not load suspensions.</div>'; }
+  }
+
+  window.upholdAppeal = async function(appealId, uid) {
+    try {
+      let strikes = 0;
+      try { const us = await getDoc(doc(db, 'users', uid)); if (us.exists()) strikes = us.data().strikes || 0; } catch(e) {}
+      await updateDoc(doc(db, 'users', uid), { suspendedUntil: null, suspensionReason: null, permanentlyBanned: false, strikes: Math.max(0, strikes - 1) });
+      await updateDoc(doc(db, 'appeals', appealId), { status: 'upheld', resolvedAt: serverTimestamp() });
+      showToast('Appeal upheld — suspension lifted, strike removed', 'green');
+      logActivity('Appeal upheld: ' + uid, 'green');
+      loadModeration();
+    } catch(e) { showToast('Could not resolve — log in with Firebase Auth', 'red'); }
+  };
+
+  window.rejectAppeal = async function(appealId) {
+    try {
+      await updateDoc(doc(db, 'appeals', appealId), { status: 'rejected', resolvedAt: serverTimestamp() });
+      showToast('Appeal rejected — enforcement stands', 'red');
+      logActivity('Appeal rejected', 'red');
+      loadModeration();
+    } catch(e) { showToast('Could not resolve — log in with Firebase Auth', 'red'); }
+  };
+
+  window.dismissReview = async function(reviewId) {
+    try {
+      await updateDoc(doc(db, 'fraudReviews', reviewId), { status: 'dismissed', resolvedAt: serverTimestamp() });
+      showToast('Review dismissed', 'green');
+      loadModeration();
+    } catch(e) { showToast('Could not update', 'red'); }
+  };
 
   window.adminSignOut = async function() {
     try { await signOut(auth); } catch(e) {}
