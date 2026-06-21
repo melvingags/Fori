@@ -1077,10 +1077,11 @@ def submit_appeal():
     role = d.get('role', 'individual')
     try:
         from firebase_admin import firestore as fb_fs
-        for a in db.collection('appeals').where('uid', '==', uid).stream():
-            if (a.to_dict() or {}).get('status') == 'pending':
-                return jsonify({'error': 'appeal_pending'}), 409
-        db.collection('appeals').add({
+        aref = db.collection('appeals').document(uid)
+        snap = aref.get()
+        if snap.exists and (snap.to_dict() or {}).get('status') == 'pending':
+            return jsonify({'error': 'appeal_pending'}), 409
+        aref.set({
             'uid': uid, 'role': role, 'reason': reason,
             'status': 'pending', 'createdAt': fb_fs.SERVER_TIMESTAMP,
         })
