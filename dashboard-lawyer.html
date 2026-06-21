@@ -573,10 +573,63 @@
         localStorage.setItem('foriRole', data.role);
         try{var _pr=JSON.parse(localStorage.getItem('foriLawyerPrefs')||'{}');_pr.photo=data.photo||_pr.photo||'';if(data.firm!==undefined)_pr.firm=data.firm||'';if(data.specialisation!==undefined)_pr.spec=data.specialisation||'';if(data.country!==undefined)_pr.country=data.country||'';if(data.barNumber!==undefined)_pr.bar=data.barNumber||'';if(data.bio!==undefined)_pr.bio=data.bio||'';if(data.name){var _n=String(data.name).split(' ');if(!_pr.firstName)_pr.firstName=_n[0]||'';if(!_pr.lastName)_pr.lastName=_n.slice(1).join(' ')||'';}_pr.verificationStatus=data.verificationStatus||(data.verified?'verified':(_pr.verificationStatus||'none'));if(data.verified)_pr.verified=true;localStorage.setItem('foriLawyerPrefs',JSON.stringify(_pr));var _av=document.getElementById('firmAvatarInitial');if(_av&&window.applyAvatarPhoto)window.applyAvatarPhoto(_av,_pr.photo||'',((data.name||'F').trim()[0]||'F').toUpperCase());}catch(e){}
         if (data.role && data.role !== 'lawyer') window.location.href = 'dashboard.html';
+        else { try{ _checkSuspension(data); }catch(e){} }
       }
     }
   });
 
+  function _closeSuspNotice(){ var o=document.getElementById('foriSuspOverlay'); if(o) o.remove(); }
+  window._closeSuspNotice = _closeSuspNotice;
+  function _checkSuspension(d){
+    try{
+      var now=Date.now();
+      var until=(d&&d.suspendedUntil&&d.suspendedUntil.toMillis)?d.suspendedUntil.toMillis():0;
+      var banned=!!(d&&d.permanentlyBanned);
+      var key='foriSuspState';
+      if(banned||until>now){
+        _showSuspensionNotice(d,banned,until);
+        try{ var sig=banned?'banned':('s'+until); if(localStorage.getItem(key)!==sig){ if(window.addNotif) addNotif(banned?'Your account has been permanently restricted.':'Your account is temporarily restricted \u2014 tap to appeal.','warning','high',''); localStorage.setItem(key,sig); } }catch(e){}
+      } else {
+        try{ if(localStorage.getItem(key)){ if(window.addNotif) addNotif('Your account has been restored.','success','high',''); localStorage.removeItem(key); } }catch(e){}
+      }
+    }catch(e){}
+  }
+  function _showSuspensionNotice(d,banned,until){
+    if(document.getElementById('foriSuspOverlay')) return;
+    var esc=function(s){return String(s==null?'':s).replace(/[<>&"]/g,function(c){return ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'})[c];});};
+    var untilStr=until?new Date(until).toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}):'';
+    var reason=esc((d&&d.suspensionReason)||'Unusual activity was detected on your account.');
+    var head=banned?'Account permanently restricted':'Account temporarily restricted';
+    var sub=banned?'Your account has been permanently restricted.':(untilStr?('Restricted until <b style="color:var(--text-primary,#e7e7ea)">'+untilStr+'</b>.'):'');
+    var ov=document.createElement('div');
+    ov.id='foriSuspOverlay';
+    ov.setAttribute('style','position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:100000;display:flex;align-items:center;justify-content:center;padding:18px;');
+    ov.innerHTML='<div style="max-width:440px;width:100%;background:var(--bg-card,#16181c);border:1px solid var(--border,#2a2d33);border-radius:14px;padding:24px;color:var(--text-primary,#e7e7ea);font-family:Inter,system-ui,sans-serif;max-height:88vh;overflow:auto;">'
+      +'<div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#e74c3c;margin-bottom:10px;">'+head+'</div>'
+      +'<div style="font-size:14px;line-height:1.6;color:var(--text-secondary,#b6b8be);margin-bottom:12px;">'+reason+' '+sub+'</div>'
+      +'<div style="font-size:13px;line-height:1.6;color:var(--text-secondary,#b6b8be);margin-bottom:12px;">Trust and integrity matter on FORI. If you believe this was a mistake, explain why and our team will review it.</div>'
+      +'<textarea id="foriAppealText" maxlength="1000" placeholder="Explain why this activity was not fraudulent\u2026" style="width:100%;min-height:96px;background:var(--bg-elevated,#1d2026);border:1px solid var(--border,#2a2d33);border-radius:8px;color:var(--text-primary,#e7e7ea);padding:11px;font-family:inherit;font-size:13px;resize:vertical;box-sizing:border-box;"></textarea>'
+      +'<div id="foriAppealMsg" style="font-size:12px;margin-top:8px;min-height:16px;"></div>'
+      +'<div style="display:flex;gap:8px;margin-top:12px;">'
+      +'<button onclick="_submitAppeal()" style="flex:1;padding:11px;background:var(--accent-gold,#c9a86c);border:none;color:#1a1a1a;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;">Submit appeal</button>'
+      +'<button onclick="_closeSuspNotice()" style="padding:11px 16px;background:transparent;border:1px solid var(--border,#2a2d33);color:var(--text-secondary,#b6b8be);border-radius:8px;font-size:13px;cursor:pointer;">Close</button>'
+      +'</div></div>';
+    document.body.appendChild(ov);
+  }
+  window._submitAppeal = async function(){
+    var ta=document.getElementById('foriAppealText'); var msg=document.getElementById('foriAppealMsg');
+    var reason=((ta&&ta.value)||'').trim();
+    if(reason.length<10){ if(msg){ msg.style.color='#e74c3c'; msg.textContent='Please add a bit more detail (at least 10 characters).'; } return; }
+    try{
+      var token=window._foriGetToken?await window._foriGetToken():'';
+      var r=await fetch('/appeal',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({reason:reason})});
+      var j={}; try{ j=await r.json(); }catch(e){}
+      if(r.ok&&j.ok){ if(msg){ msg.style.color='#27ae60'; msg.textContent='\u2713 Appeal submitted. Our team will review it.'; } if(ta) ta.disabled=true; }
+      else if(j&&j.error==='appeal_pending'){ if(msg){ msg.style.color='#27ae60'; msg.textContent='You already have an appeal under review.'; } }
+      else if(j&&j.error==='not_suspended'){ if(msg){ msg.style.color='#27ae60'; msg.textContent='Your account is no longer restricted.'; } }
+      else { if(msg){ msg.style.color='#e74c3c'; msg.textContent='Could not submit. Please try again.'; } }
+    }catch(e){ if(msg){ msg.style.color='#e74c3c'; msg.textContent='Could not submit. Please try again.'; } }
+  };
   window.lexSignOut = async function() {
     await signOut(auth);
     localStorage.removeItem('foriUser');
@@ -1591,6 +1644,7 @@
     row.innerHTML=html;wrap.appendChild(row);wrap.scrollTop=wrap.scrollHeight;
   }
   function escapeHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  function _safeFileUrl(u){u=String(u||'');return /^(https:\/\/|data:(image|application|text\/plain|audio|video)\/)/i.test(u)?u:'';}
   function renderRich(text){if(!text)return '';let s=escapeHtml(text);s=s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,'<a href="$2" target="_blank" rel="noopener" class="cite-link">$1</a>');return s.replace(/\n/g,'<br>');}
   function renderInline(s){
     s=s.replace(/`([^`]+)`/g,'<code class="md-code">$1</code>');
@@ -1775,7 +1829,7 @@
     try{
       var lk='foriLeadNotified';var done=JSON.parse(localStorage.getItem(lk)||'[]');var chg=false;
       conns.filter(function(c){return c.status==='pending';}).forEach(function(c){
-        if(done.indexOf(c.id)===-1){ addNotif('New client request from '+(c.userName||'a client')+'.','info','high','page:leads'); done.push(c.id); chg=true; }
+        if(done.indexOf(c.id)===-1){ var _d=(c.description||'').replace(/[<>]/g,'').trim(); var _snip=_d?(': "'+_d.slice(0,50)+(_d.length>50?'…':'')+'"'):'.'; addNotif('New client request from '+(c.userName||'a client')+_snip,'info','high','page:leads'); done.push(c.id); chg=true; }
       });
       if(chg) localStorage.setItem(lk,JSON.stringify(done.slice(-200)));
     }catch(e){}
@@ -1938,7 +1992,7 @@
       const t = (m.createdAt && m.createdAt.toDate) ? m.createdAt.toDate().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
       const meta = t;
       let inner;
-      const src = m.fileData || m.fileUrl || '';
+      const src = _safeFileUrl(m.fileData || m.fileUrl || '');
       const ext = (m.fileName||'').toLowerCase().split('.').pop();
       const isImg = !!src && (((m.fileType||'').indexOf('image')===0) || /^data:image/.test(src) || /^(png|jpe?g|webp|gif)$/.test(ext));
       if (src && isImg) { inner = `<img class="msg-img-thumb" src="${src}" alt="${escapeHtml(m.fileName||'image')}" onclick="openImageView(this.src)">`; }
@@ -2097,6 +2151,7 @@
       prefs.verificationStatus = 'pending'; localStorage.setItem('foriLawyerPrefs', JSON.stringify(prefs));
       setVerifyBadge('pending');
       const vmsg = document.getElementById('verifyMsg'); if (vmsg) { vmsg.textContent = '✓ Verification requested. The FORI team will review your details within 48 hours.'; vmsg.style.display = 'block'; }
+      addNotif('Your verification request is under review — the FORI team will respond within 48 hours.', 'info', 'high', 'page:profile');
     } catch(e) { if (btn) { btn.disabled = false; btn.textContent = 'Get Verified'; } addNotif('Could not submit verification. Please try again.'); }
   }
   function setVerifyBadge(status) {
