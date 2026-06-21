@@ -29,6 +29,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50 MB request-body cap (DoS guard)
 
 ALLOWED_ORIGINS = {
     "https://lex-rvmc.onrender.com",
@@ -49,6 +50,10 @@ def add_cors_headers(response):
     response.headers['Vary'] = 'Origin'
     response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
     response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
     return response
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
@@ -848,6 +853,106 @@ def lawyer_reviews():
         return jsonify({'reviews': [], 'avgRating': None, 'ratingCount': 0}), 200
 
 
+# ── Collusion detection + enforcement (S2): pair-based case-frequency + corroboration ──
+COLLUSION_24H_CASES = 5             # >=5 cases between one (client, lawyer) pair in 24h, OR
+COLLUSION_MULTIDAY_DAYS = 3         # cases on >=3 separate days...
+COLLUSION_MULTIDAY_WINDOW_DAYS = 7  # ...within the last 7 days
+SUSPENSION_DAYS = 5
+MAX_STRIKES = 3
+_CORROBORATING = {'same_ip', 'same_device', 'accounts_created_together'}
+
+def _enforce_suspension(db, fb_fs, uid, reason, flags, is_lawyer):
+    """Suspend one account for SUSPENSION_DAYS and add a strike; permanent ban +
+    bar-report flag at MAX_STRIKES. Backend-only (Admin SDK)."""
+    try:
+        snap = db.collection('users').document(uid).get()
+        cur = (snap.to_dict() or {}) if (snap and snap.exists) else {}
+    except Exception:
+        cur = {}
+    strikes = int(cur.get('strikes') or 0) + 1
+    until = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=SUSPENSION_DAYS)
+    update = {
+        'strikes': strikes,
+        'suspendedUntil': until,
+        'suspensionReason': reason,
+        'suspensionFlags': flags,
+        'suspendedAt': fb_fs.SERVER_TIMESTAMP,
+    }
+    if strikes >= MAX_STRIKES:
+        update['permanentlyBanned'] = True
+        if is_lawyer:
+            update['barReportNeeded'] = True
+    try:
+        db.collection('users').document(uid).set(update, merge=True)
+    except Exception as e:
+        logger.error(f"suspend {uid} failed: {str(e)[:120]}")
+
+def _detect_and_enforce_collusion(db, fb_fs, user_id, lawyer_id, flags):
+    """Run after a rating is written. Counts CASES (connections) between this exact
+    pair; auto-suspends both ONLY when a frequency threshold AND a corroborating
+    signal are present, otherwise queues the pair for manual admin review."""
+    now = datetime.datetime.now(datetime.timezone.utc)
+    cutoff_24h = now - datetime.timedelta(hours=24)
+    window_start = now - datetime.timedelta(days=COLLUSION_MULTIDAY_WINDOW_DAYS)
+    cnt_24h = 0
+    day_set = set()
+    try:
+        # single-field query (existing index); filter the pair in-process so no
+        # composite index is required.
+        for c in db.collection('connections').where('userId', '==', user_id).stream():
+            cd = c.to_dict() or {}
+            if cd.get('lawyerId') != lawyer_id:
+                continue
+            created = cd.get('createdAt')
+            if not created or not hasattr(created, 'timestamp'):
+                continue
+            ct = datetime.datetime.fromtimestamp(created.timestamp(), datetime.timezone.utc)
+            if ct >= cutoff_24h:
+                cnt_24h += 1
+            if ct >= window_start:
+                day_set.add(ct.date())
+    except Exception as e:
+        logger.error(f"collusion query failed: {str(e)[:120]}")
+        return
+    if not (cnt_24h >= COLLUSION_24H_CASES or len(day_set) >= COLLUSION_MULTIDAY_DAYS):
+        return
+    if set(flags) & _CORROBORATING:
+        reason = 'Coordinated case/review activity between linked accounts.'
+        _enforce_suspension(db, fb_fs, user_id, reason, list(flags), is_lawyer=False)
+        _enforce_suspension(db, fb_fs, lawyer_id, reason, list(flags), is_lawyer=True)
+        try:
+            db.collection('ratings').document(user_id + '_' + lawyer_id).delete()
+        except Exception as e:
+            logger.error(f"fraud rating delete failed: {str(e)[:120]}")
+        logger.warning(f"COLLUSION enforced: {user_id} <-> {lawyer_id} flags={list(flags)}")
+    else:
+        try:
+            db.collection('fraudReviews').document(user_id + '_' + lawyer_id).set({
+                'userId': user_id, 'lawyerId': lawyer_id,
+                'cases24h': cnt_24h, 'activeDays': len(day_set),
+                'flags': list(flags), 'status': 'pending',
+                'createdAt': fb_fs.SERVER_TIMESTAMP,
+            }, merge=True)
+        except Exception as e:
+            logger.error(f"fraudReview write failed: {str(e)[:120]}")
+
+
+def _is_blocked(db, uid):
+    """True if the account is currently suspended (suspendedUntil still in the future)
+    or permanently banned. Lazy: an expired suspension simply reads as not-blocked,
+    so no scheduled job is needed to lift it."""
+    try:
+        d = (db.collection('users').document(uid).get().to_dict()) or {}
+    except Exception:
+        return False
+    if d.get('permanentlyBanned'):
+        return True
+    su = d.get('suspendedUntil')
+    if su is not None and hasattr(su, 'timestamp'):
+        return su.timestamp() > datetime.datetime.now(datetime.timezone.utc).timestamp()
+    return False
+
+
 @app.route('/submit-rating', methods=['POST'])
 def submit_rating():
     """Create/update a review. Server-controlled so clients can't self-verify or
@@ -870,6 +975,8 @@ def submit_rating():
     review = (data.get('review') or '')[:1000]
     device_id = (data.get('deviceId') or '')[:80]
     db = _get_firestore_client()
+    if _is_blocked(db, uid):
+        return jsonify({'error': 'account_restricted'}), 403
     # Verify the connection is real, belongs to this client, and matches the lawyer.
     try:
         cdoc = db.collection('connections').document(conn_id).get()
@@ -941,6 +1048,44 @@ def submit_rating():
         db.collection('connections').document(conn_id).update({'rated': True})
     except Exception as e:
         logger.error(f"submit-rating write failed: {str(e)[:120]}")
+        return jsonify({'error': 'write_failed'}), 500
+    try:
+        _detect_and_enforce_collusion(db, fb_fs, uid, lawyer_id, flags)
+    except Exception as e:
+        logger.error(f"collusion check error: {str(e)[:120]}")
+    return jsonify({'ok': True})
+
+
+@app.route('/appeal', methods=['POST'])
+def submit_appeal():
+    """A suspended/banned user submits a written appeal. Backend-written (Admin SDK)
+    so clients can't forge appeals. One open appeal at a time."""
+    uid = _verify_uid(request)
+    if not uid:
+        return jsonify({'error': 'auth_required'}), 401
+    data = request.json or {}
+    reason = (data.get('reason') or '').strip()[:1000]
+    if len(reason) < 10:
+        return jsonify({'error': 'reason_too_short'}), 400
+    db = _get_firestore_client()
+    if not _is_blocked(db, uid):
+        return jsonify({'error': 'not_suspended'}), 403
+    try:
+        d = (db.collection('users').document(uid).get().to_dict()) or {}
+    except Exception:
+        d = {}
+    role = d.get('role', 'individual')
+    try:
+        from firebase_admin import firestore as fb_fs
+        for a in db.collection('appeals').where('uid', '==', uid).stream():
+            if (a.to_dict() or {}).get('status') == 'pending':
+                return jsonify({'error': 'appeal_pending'}), 409
+        db.collection('appeals').add({
+            'uid': uid, 'role': role, 'reason': reason,
+            'status': 'pending', 'createdAt': fb_fs.SERVER_TIMESTAMP,
+        })
+    except Exception as e:
+        logger.error(f"appeal write failed: {str(e)[:120]}")
         return jsonify({'error': 'write_failed'}), 500
     return jsonify({'ok': True})
 
