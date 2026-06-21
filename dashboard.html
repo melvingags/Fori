@@ -469,9 +469,61 @@
       window._lexUid = user.uid;
       window._lexProvider = (user.providerData && user.providerData[0] && user.providerData[0].providerId) || 'password';
       const snap = await getDoc(doc(db, "users", user.uid));
-      if (snap.exists()) { const data = snap.data(); localStorage.setItem('foriUser', JSON.stringify({ uid: user.uid, email: user.email || '', name: data.name, role: data.role, plan: data.plan || 'free', photo: data.photo || '' })); try{ if(window.fsMirrorPublic) window.fsMirrorPublic({ name: data.name || '', photo: data.photo || '', role: data.role || 'individual' }); }catch(e){} localStorage.setItem('foriRole', data.role); try{var _av=document.getElementById('userAvatarInitial');if(_av&&window.applyAvatarPhoto)window.applyAvatarPhoto(_av,data.photo||'',((data.name||'U').trim()[0]||'U').toUpperCase());}catch(e){} if (data.role === 'lawyer') window.location.href = 'dashboard-lawyer.html'; }
+      if (snap.exists()) { const data = snap.data(); localStorage.setItem('foriUser', JSON.stringify({ uid: user.uid, email: user.email || '', name: data.name, role: data.role, plan: data.plan || 'free', photo: data.photo || '' })); try{ if(window.fsMirrorPublic) window.fsMirrorPublic({ name: data.name || '', photo: data.photo || '', role: data.role || 'individual' }); }catch(e){} localStorage.setItem('foriRole', data.role); try{var _av=document.getElementById('userAvatarInitial');if(_av&&window.applyAvatarPhoto)window.applyAvatarPhoto(_av,data.photo||'',((data.name||'U').trim()[0]||'U').toUpperCase());}catch(e){} if (data.role === 'lawyer') window.location.href = 'dashboard-lawyer.html'; else { try{ _checkSuspension(data); }catch(e){} } }
     }
   });
+  function _closeSuspNotice(){ var o=document.getElementById('foriSuspOverlay'); if(o) o.remove(); }
+  window._closeSuspNotice = _closeSuspNotice;
+  function _checkSuspension(d){
+    try{
+      var now=Date.now();
+      var until=(d&&d.suspendedUntil&&d.suspendedUntil.toMillis)?d.suspendedUntil.toMillis():0;
+      var banned=!!(d&&d.permanentlyBanned);
+      var key='foriSuspState';
+      if(banned||until>now){
+        _showSuspensionNotice(d,banned,until);
+        try{ var sig=banned?'banned':('s'+until); if(localStorage.getItem(key)!==sig){ if(window.addNotif) addNotif(banned?'Your account has been permanently restricted.':'Your account is temporarily restricted \u2014 tap to appeal.','warning','high',''); localStorage.setItem(key,sig); } }catch(e){}
+      } else {
+        try{ if(localStorage.getItem(key)){ if(window.addNotif) addNotif('Your account has been restored.','success','high',''); localStorage.removeItem(key); } }catch(e){}
+      }
+    }catch(e){}
+  }
+  function _showSuspensionNotice(d,banned,until){
+    if(document.getElementById('foriSuspOverlay')) return;
+    var esc=function(s){return String(s==null?'':s).replace(/[<>&"]/g,function(c){return ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'})[c];});};
+    var untilStr=until?new Date(until).toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}):'';
+    var reason=esc((d&&d.suspensionReason)||'Unusual activity was detected on your account.');
+    var head=banned?'Account permanently restricted':'Account temporarily restricted';
+    var sub=banned?'Your account has been permanently restricted.':(untilStr?('Restricted until <b style="color:var(--text-primary,#e7e7ea)">'+untilStr+'</b>.'):'');
+    var ov=document.createElement('div');
+    ov.id='foriSuspOverlay';
+    ov.setAttribute('style','position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:100000;display:flex;align-items:center;justify-content:center;padding:18px;');
+    ov.innerHTML='<div style="max-width:440px;width:100%;background:var(--bg-card,#16181c);border:1px solid var(--border,#2a2d33);border-radius:14px;padding:24px;color:var(--text-primary,#e7e7ea);font-family:Inter,system-ui,sans-serif;max-height:88vh;overflow:auto;">'
+      +'<div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#e74c3c;margin-bottom:10px;">'+head+'</div>'
+      +'<div style="font-size:14px;line-height:1.6;color:var(--text-secondary,#b6b8be);margin-bottom:12px;">'+reason+' '+sub+'</div>'
+      +'<div style="font-size:13px;line-height:1.6;color:var(--text-secondary,#b6b8be);margin-bottom:12px;">Trust and integrity matter on FORI. If you believe this was a mistake, explain why and our team will review it.</div>'
+      +'<textarea id="foriAppealText" maxlength="1000" placeholder="Explain why this activity was not fraudulent\u2026" style="width:100%;min-height:96px;background:var(--bg-elevated,#1d2026);border:1px solid var(--border,#2a2d33);border-radius:8px;color:var(--text-primary,#e7e7ea);padding:11px;font-family:inherit;font-size:13px;resize:vertical;box-sizing:border-box;"></textarea>'
+      +'<div id="foriAppealMsg" style="font-size:12px;margin-top:8px;min-height:16px;"></div>'
+      +'<div style="display:flex;gap:8px;margin-top:12px;">'
+      +'<button onclick="_submitAppeal()" style="flex:1;padding:11px;background:var(--accent-gold,#c9a86c);border:none;color:#1a1a1a;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;">Submit appeal</button>'
+      +'<button onclick="_closeSuspNotice()" style="padding:11px 16px;background:transparent;border:1px solid var(--border,#2a2d33);color:var(--text-secondary,#b6b8be);border-radius:8px;font-size:13px;cursor:pointer;">Close</button>'
+      +'</div></div>';
+    document.body.appendChild(ov);
+  }
+  window._submitAppeal = async function(){
+    var ta=document.getElementById('foriAppealText'); var msg=document.getElementById('foriAppealMsg');
+    var reason=((ta&&ta.value)||'').trim();
+    if(reason.length<10){ if(msg){ msg.style.color='#e74c3c'; msg.textContent='Please add a bit more detail (at least 10 characters).'; } return; }
+    try{
+      var token=window._foriGetToken?await window._foriGetToken():'';
+      var r=await fetch('/appeal',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({reason:reason})});
+      var j={}; try{ j=await r.json(); }catch(e){}
+      if(r.ok&&j.ok){ if(msg){ msg.style.color='#27ae60'; msg.textContent='\u2713 Appeal submitted. Our team will review it.'; } if(ta) ta.disabled=true; }
+      else if(j&&j.error==='appeal_pending'){ if(msg){ msg.style.color='#27ae60'; msg.textContent='You already have an appeal under review.'; } }
+      else if(j&&j.error==='not_suspended'){ if(msg){ msg.style.color='#27ae60'; msg.textContent='Your account is no longer restricted.'; } }
+      else { if(msg){ msg.style.color='#e74c3c'; msg.textContent='Could not submit. Please try again.'; } }
+    }catch(e){ if(msg){ msg.style.color='#e74c3c'; msg.textContent='Could not submit. Please try again.'; } }
+  };
   window.lexSignOut = async function() { await signOut(auth); localStorage.removeItem('foriUser'); localStorage.removeItem('foriRole'); window.location.href = '/'; };
   window._db = db; window._storage = storage;
   window.lexMemory = {
@@ -935,6 +987,7 @@
     row.innerHTML=html;wrap.appendChild(row);wrap.scrollTop=wrap.scrollHeight;
   }
   function escapeHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  function _safeFileUrl(u){u=String(u||'');return /^(https:\/\/|data:(image|application|text\/plain|audio|video)\/)/i.test(u)?u:'';}
   // Simple renderer for user-typed text: escape + links + line breaks (no markdown styling).
   function renderRich(text){
     if(!text) return '';
@@ -1245,7 +1298,7 @@
   function chatroomAction(){if(_activeStatus==='closed'){showContactModal(_activeLawyerId,_activeLawyerName);}else{showCloseCaseConfirm();}}
   function openChatroom(connId,lawyerName,lawyerId,status){if(status==='pending'){addNotif('This request is still pending. Waiting for the lawyer to accept.');return;}if(status==='declined'){addNotif('This request was declined by the lawyer.');return;}_activeConnId=connId;_activeLawyerName=lawyerName;_activeLawyerId=lawyerId;_activeStatus=status;const _oc=(_myLawyerConns||[]).find(x=>x.id===connId);if(_oc){const _ms=(_oc.lastAt&&_oc.lastAt.toMillis)?_oc.lastAt.toMillis():Date.now();markConnSeen(connId,_ms);}refreshUnreadBadges();document.getElementById('chatroomName').textContent=lawyerName;var _ca0=document.getElementById('chatroomAvatar');if(_ca0){_ca0.style.backgroundImage='';_ca0.style.removeProperty('background-size');_ca0.style.color='';_ca0.textContent=((lawyerName||'L').trim()[0]||'L').toUpperCase();}if(lawyerId)fetchUserPhoto(lawyerId).then(function(ph){if(ph&&_ca0)applyAvatarPhoto(_ca0,ph,'');});const _st=document.getElementById('chatroomStatus'),_ab=document.getElementById('chatroomActionBtn');if(status==='closed'){_st.innerHTML='<span style="width:7px;height:7px;border-radius:50%;background:var(--text-muted);display:inline-block;"></span>Case Closed';_ab.textContent='New Case';_ab.className='cr-action';}else{_st.innerHTML='<span style="width:7px;height:7px;border-radius:50%;background:#27ae60;display:inline-block;"></span>Active Case';_ab.textContent='Close Case';_ab.className='cr-action danger';}document.getElementById('chatroomMsgs').innerHTML='';showPage('chatroom',null);try{var _cc=(_myLawyerConns||[]).find(function(x){return x.id===connId;});updateCloseBanner(_cc||{status:status});}catch(e){}if(_msgsUnsub)_msgsUnsub();_msgsUnsub=window.fsLoadMessages&&window.fsLoadMessages(connId,(snap)=>{const msgs=[];snap.forEach(d=>msgs.push({id:d.id,...d.data()}));renderChatroomMsgs(msgs);});}
   function _scrollChatBottom(wrap){if(!wrap)return;var go=function(){wrap.scrollTop=wrap.scrollHeight;};go();if(window.requestAnimationFrame)requestAnimationFrame(go);setTimeout(go,150);setTimeout(go,500);try{wrap.querySelectorAll('img').forEach(function(im){if(!im.complete){im.addEventListener('load',go,{once:true});im.addEventListener('error',go,{once:true});}});}catch(e){}}
-  function renderChatroomMsgs(msgs){const wrap=document.getElementById('chatroomMsgs');const uid=window._lexUid||user.uid;if(!msgs.length){wrap.innerHTML=`<div style="text-align:center;padding:40px;color:var(--text-muted);font-size:13px;">No messages yet. Say hello!</div>`;return;}var _last=null;wrap.innerHTML=msgs.map(m=>{try{const isMe=m.senderId===uid;const role=isMe?'user':'assistant';const _d=(m.createdAt&&m.createdAt.toDate)?m.createdAt.toDate():null;const _lbl=_dayLabel(_d);let _divider='';if(_lbl&&_lbl!==_last){_divider='<div class="day-divider">'+_lbl+'</div>';_last=_lbl;}const t=(m.createdAt&&m.createdAt.toDate)?m.createdAt.toDate().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';const meta=t;const src=m.fileData||m.fileUrl||'';const ext=(m.fileName||'').toLowerCase().split('.').pop();const isImg=!!src&&(((m.fileType||'').indexOf('image')===0)||/^data:image/.test(src)||/^(png|jpe?g|webp|gif)$/.test(ext));let inner;if(src&&isImg){inner=`<img class="msg-img-thumb" src="${src}" alt="${escapeHtml(m.fileName||'image')}" onclick="openImageView(this.src)">`;}else if(src){const dl=m.fileData?`download="${escapeHtml(m.fileName||'file')}"`:'target="_blank" rel="noopener"';inner=`<a class="msg-file-card" href="${src}" ${dl}>${fileCardInner(m.fileName,ext)}</a>`;}else if(m.fileName){inner=`<div class="msg-file-card">${fileCardInner(m.fileName,ext)}</div>`;}else{inner=`<div class="msg-bubble ${role}">${escapeHtml(m.text||'').replace(/\n/g,'<br>')}</div>`;}return _divider+`<div class="msg-row ${role}"><div class="msg-col">${inner}<div class="msg-time">${meta}</div></div></div>`;}catch(_e){return `<div class="msg-row assistant"><div class="msg-col"><div class="msg-bubble assistant">📎 ${String((m&&m.fileName)||'Attachment').replace(/[<>&]/g,'')}</div></div></div>`;}}).join('');_scrollChatBottom(wrap);try{const last=msgs[msgs.length-1];const ms=(last&&last.createdAt&&last.createdAt.toMillis)?last.createdAt.toMillis():Date.now();markConnSeen(_activeConnId,ms);}catch(e){}refreshUnreadBadges();}
+  function renderChatroomMsgs(msgs){const wrap=document.getElementById('chatroomMsgs');const uid=window._lexUid||user.uid;if(!msgs.length){wrap.innerHTML=`<div style="text-align:center;padding:40px;color:var(--text-muted);font-size:13px;">No messages yet. Say hello!</div>`;return;}var _last=null;wrap.innerHTML=msgs.map(m=>{try{const isMe=m.senderId===uid;const role=isMe?'user':'assistant';const _d=(m.createdAt&&m.createdAt.toDate)?m.createdAt.toDate():null;const _lbl=_dayLabel(_d);let _divider='';if(_lbl&&_lbl!==_last){_divider='<div class="day-divider">'+_lbl+'</div>';_last=_lbl;}const t=(m.createdAt&&m.createdAt.toDate)?m.createdAt.toDate().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';const meta=t;const src=_safeFileUrl(m.fileData||m.fileUrl||'');const ext=(m.fileName||'').toLowerCase().split('.').pop();const isImg=!!src&&(((m.fileType||'').indexOf('image')===0)||/^data:image/.test(src)||/^(png|jpe?g|webp|gif)$/.test(ext));let inner;if(src&&isImg){inner=`<img class="msg-img-thumb" src="${src}" alt="${escapeHtml(m.fileName||'image')}" onclick="openImageView(this.src)">`;}else if(src){const dl=m.fileData?`download="${escapeHtml(m.fileName||'file')}"`:'target="_blank" rel="noopener"';inner=`<a class="msg-file-card" href="${src}" ${dl}>${fileCardInner(m.fileName,ext)}</a>`;}else if(m.fileName){inner=`<div class="msg-file-card">${fileCardInner(m.fileName,ext)}</div>`;}else{inner=`<div class="msg-bubble ${role}">${escapeHtml(m.text||'').replace(/\n/g,'<br>')}</div>`;}return _divider+`<div class="msg-row ${role}"><div class="msg-col">${inner}<div class="msg-time">${meta}</div></div></div>`;}catch(_e){return `<div class="msg-row assistant"><div class="msg-col"><div class="msg-bubble assistant">📎 ${String((m&&m.fileName)||'Attachment').replace(/[<>&]/g,'')}</div></div></div>`;}}).join('');_scrollChatBottom(wrap);try{const last=msgs[msgs.length-1];const ms=(last&&last.createdAt&&last.createdAt.toMillis)?last.createdAt.toMillis():Date.now();markConnSeen(_activeConnId,ms);}catch(e){}refreshUnreadBadges();}
   async function sendChatroomMsg(){const input=document.getElementById('chatroomInput');const text=input.value.trim();if(!text||!_activeConnId)return;const uid=window._lexUid||user.uid;input.value='';input.style.height='auto';await window.fsSendMessage(_activeConnId,uid,user.name||'User',text,null,null);}
   function handleChatroomKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChatroomMsg();}}
   function autoResizeChatroom(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,120)+'px';}
